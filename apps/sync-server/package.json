@@ -1,0 +1,32 @@
+{
+  "name": "@collabmd/sync-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup src/index.ts --format esm --dts",
+    "start": "node dist/index.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@collabmd/shared": "workspace:*",
+    "lib0": "^0.2.117",
+    "ws": "^8.19.0",
+    "y-protocols": "^1.0.7",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.29"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.27.0",
+    "@types/ws": "^8.18.1",
+    "eslint": "^9.27.0",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.32.1",
+    "vitest": "^4.0.18"
+  }
+}

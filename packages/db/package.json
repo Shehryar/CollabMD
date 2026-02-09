@@ -1,0 +1,35 @@
+{
+  "name": "@collabmd/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "dev": "tsup src/index.ts --format esm --dts --watch",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.27.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "drizzle-kit": "^0.31.9",
+    "eslint": "^9.27.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.32.1"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "drizzle-orm": "^0.45.1"
+  }
+}
