@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { createSyncServer } from './server.js'
+import { createSyncServer, type SyncServerConfig } from './server.js'
+import type { TokenPayload } from './auth.js'
 import { WebSocket } from 'ws'
 import * as Y from 'yjs'
 import * as syncProtocol from 'y-protocols/sync'
@@ -13,8 +14,8 @@ let server: ReturnType<typeof createSyncServer>['server']
 const sockets: Socket[] = []
 const openWs: WebSocket[] = []
 
-function startServer(): Promise<number> {
-  const result = createSyncServer()
+function startServer(config?: SyncServerConfig): Promise<number> {
+  const result = createSyncServer(config)
   server = result.server
   server.on('connection', (s: Socket) => sockets.push(s))
   return new Promise((resolve) => {
@@ -275,5 +276,94 @@ describe('WebSocket sync', () => {
 
     ws1.close()
     ws2.close()
+  })
+})
+
+// --- WebSocket auth ---
+
+const validPayload: TokenPayload = {
+  id: 'user-1',
+  email: 'test@example.com',
+  name: 'Test User',
+}
+
+function mockAuth(opts?: {
+  verifyResult?: TokenPayload | null
+  permissionResult?: boolean
+}): SyncServerConfig['auth'] {
+  return {
+    verifyToken: async () => opts?.verifyResult ?? null,
+    checkPermission: async () => opts?.permissionResult ?? false,
+  }
+}
+
+function connectWsRaw(
+  port: number,
+  path: string,
+): Promise<WebSocket> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://localhost:${port}${path}`)
+    ws.binaryType = 'arraybuffer'
+    ws.on('open', () => {
+      openWs.push(ws)
+      resolve(ws)
+    })
+    ws.on('error', reject)
+  })
+}
+
+describe('WebSocket auth', () => {
+  it('rejects connection without token when auth is enabled', async () => {
+    const port = await startServer({ auth: mockAuth() })
+
+    const ws = new WebSocket(`ws://localhost:${port}/my-doc`)
+    const error = await new Promise<Error>((resolve) => {
+      ws.on('error', resolve)
+    })
+    expect(error).toBeTruthy()
+  })
+
+  it('rejects connection with invalid token', async () => {
+    const port = await startServer({
+      auth: mockAuth({ verifyResult: null }),
+    })
+
+    const ws = new WebSocket(`ws://localhost:${port}/my-doc?token=bad-token`)
+    const error = await new Promise<Error>((resolve) => {
+      ws.on('error', resolve)
+    })
+    expect(error).toBeTruthy()
+  })
+
+  it('rejects connection when user lacks permission (4403)', async () => {
+    const port = await startServer({
+      auth: mockAuth({ verifyResult: validPayload, permissionResult: false }),
+    })
+
+    const ws = new WebSocket(`ws://localhost:${port}/my-doc?token=valid`)
+    ws.binaryType = 'arraybuffer'
+
+    const code = await new Promise<number>((resolve) => {
+      ws.on('close', (c) => resolve(c))
+    })
+    expect(code).toBe(4403)
+  })
+
+  it('allows connection with valid token and permission', async () => {
+    const port = await startServer({
+      auth: mockAuth({ verifyResult: validPayload, permissionResult: true }),
+    })
+
+    const ws = await connectWsRaw(port, '/my-doc?token=valid')
+    expect(ws.readyState).toBe(WebSocket.OPEN)
+    ws.close()
+  })
+
+  it('still allows connections without auth config (backward compat)', async () => {
+    const port = await startServer()
+
+    const { ws } = await connectWs(port, 'no-auth-doc')
+    expect(ws.readyState).toBe(WebSocket.OPEN)
+    ws.close()
   })
 })

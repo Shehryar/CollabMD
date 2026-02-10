@@ -6,6 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@collabmd/shared'],
+  serverExternalPackages: ['better-sqlite3', '@collabmd/db'],
   outputFileTracingRoot: path.join(__dirname, '../../'),
 }
 

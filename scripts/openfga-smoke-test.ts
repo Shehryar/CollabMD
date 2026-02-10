@@ -1,121 +1,111 @@
 import { startOpenFGA, stopOpenFGA } from './openfga-dev.js'
+import {
+  getFgaClient,
+  resetFgaClient,
+  writeAuthModel,
+  writeTuple,
+  checkPermission,
+} from '@collabmd/shared'
 
-const API_URL = 'http://localhost:8081'
+let passed = 0
+let failed = 0
+
+async function assert(label: string, fn: () => Promise<boolean>, expected: boolean) {
+  const result = await fn()
+  if (result === expected) {
+    console.log(`  PASS: ${label}`)
+    passed++
+  } else {
+    console.error(`  FAIL: ${label} (expected ${expected}, got ${result})`)
+    failed++
+  }
+}
 
 async function smokeTest() {
   await startOpenFGA()
+  resetFgaClient()
 
   try {
-    // 1. Create a store
-    console.log('\n--- Creating store ---')
-    const storeRes = await fetch(`${API_URL}/stores`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'collabmd-test' }),
-    })
-    const store = (await storeRes.json()) as { id: string }
-    console.log(`Store created: ${store.id}`)
+    // Initialize store + model
+    const modelId = await writeAuthModel()
+    console.log(`Authorization model created: ${modelId}`)
 
-    const storeUrl = `${API_URL}/stores/${store.id}`
+    // Set model on client so checks use it
+    const client = await getFgaClient()
+    client.authorizationModelId = modelId
 
-    // 2. Write authorization model (simplified CollabMD model)
-    console.log('\n--- Writing authorization model ---')
-    const modelRes = await fetch(`${storeUrl}/authorization-models`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        schema_version: '1.1',
-        type_definitions: [
-          {
-            type: 'user',
-            relations: {},
-          },
-          {
-            type: 'document',
-            relations: {
-              owner: { this: {} },
-              editor: {
-                union: {
-                  child: [{ this: {} }, { computedUserset: { relation: 'owner' } }],
-                },
-              },
-              viewer: {
-                union: {
-                  child: [
-                    { this: {} },
-                    { computedUserset: { relation: 'editor' } },
-                  ],
-                },
-              },
-            },
-            metadata: {
-              relations: {
-                owner: { directly_related_user_types: [{ type: 'user' }] },
-                editor: { directly_related_user_types: [{ type: 'user' }] },
-                viewer: { directly_related_user_types: [{ type: 'user' }] },
-              },
-            },
-          },
-        ],
-      }),
-    })
-    const model = (await modelRes.json()) as { authorization_model_id: string }
-    console.log(`Model created: ${model.authorization_model_id}`)
+    // --- Seed data ---
 
-    // 3. Write a tuple: alice is owner of doc:readme
-    console.log('\n--- Writing tuple: alice owns doc:readme ---')
-    const writeRes = await fetch(`${storeUrl}/write`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        writes: {
-          tuple_keys: [
-            { user: 'user:alice', relation: 'owner', object: 'document:readme' },
-          ],
-        },
-        authorization_model_id: model.authorization_model_id,
-      }),
-    })
-    if (!writeRes.ok) {
-      throw new Error(`Write failed: ${await writeRes.text()}`)
+    // Org: acme
+    await writeTuple('user:alice', 'owner', 'org:acme')
+    await writeTuple('user:bob', 'admin', 'org:acme')
+    await writeTuple('user:charlie', 'member', 'org:acme')
+
+    // Folder: project-x belongs to org:acme
+    await writeTuple('org:acme', 'org', 'folder:project-x')
+    await writeTuple('user:alice', 'owner', 'folder:project-x')
+
+    // Document: readme in folder project-x
+    await writeTuple('folder:project-x', 'parent', 'document:readme')
+    await writeTuple('org:acme', 'org', 'document:readme')
+    await writeTuple('user:alice', 'owner', 'document:readme')
+
+    // Direct grants on a second doc
+    await writeTuple('user:dave', 'editor', 'document:notes')
+    await writeTuple('user:eve', 'commenter', 'document:notes')
+    await writeTuple('user:frank', 'viewer', 'document:notes')
+
+    // --- Test 1: Owner permissions ---
+    console.log('\n--- Owner permissions ---')
+    await assert('owner can_edit', () => checkPermission('alice', 'can_edit', 'document', 'readme'), true)
+    await assert('owner can_comment', () => checkPermission('alice', 'can_comment', 'document', 'readme'), true)
+    await assert('owner can_view', () => checkPermission('alice', 'can_view', 'document', 'readme'), true)
+
+    // --- Test 2: Org admin -> folder editor -> document editor (inheritance) ---
+    console.log('\n--- Org admin inherits editor via folder ---')
+    await assert('admin can_edit folder', () => checkPermission('bob', 'can_edit', 'folder', 'project-x'), true)
+    await assert('admin can_view folder', () => checkPermission('bob', 'can_view', 'folder', 'project-x'), true)
+    await assert('admin can_edit doc (via folder)', () => checkPermission('bob', 'can_edit', 'document', 'readme'), true)
+    await assert('admin can_comment doc (via folder)', () => checkPermission('bob', 'can_comment', 'document', 'readme'), true)
+    await assert('admin can_view doc (via folder)', () => checkPermission('bob', 'can_view', 'document', 'readme'), true)
+
+    // --- Test 3: Org member -> folder viewer -> document commenter (inheritance) ---
+    console.log('\n--- Org member inherits viewer on folder, commenter on doc ---')
+    await assert('member can_view folder', () => checkPermission('charlie', 'can_view', 'folder', 'project-x'), true)
+    await assert('member cannot can_edit folder', () => checkPermission('charlie', 'can_edit', 'folder', 'project-x'), false)
+    await assert('member can_comment doc (via folder viewer)', () => checkPermission('charlie', 'can_comment', 'document', 'readme'), true)
+    await assert('member can_view doc (via folder viewer)', () => checkPermission('charlie', 'can_view', 'document', 'readme'), true)
+    await assert('member cannot can_edit doc', () => checkPermission('charlie', 'can_edit', 'document', 'readme'), false)
+
+    // --- Test 4: Direct editor on document ---
+    console.log('\n--- Direct editor grants ---')
+    await assert('editor can_edit', () => checkPermission('dave', 'can_edit', 'document', 'notes'), true)
+    await assert('editor can_comment', () => checkPermission('dave', 'can_comment', 'document', 'notes'), true)
+    await assert('editor can_view', () => checkPermission('dave', 'can_view', 'document', 'notes'), true)
+
+    // --- Test 5: Direct commenter on document ---
+    console.log('\n--- Direct commenter grants ---')
+    await assert('commenter cannot can_edit', () => checkPermission('eve', 'can_edit', 'document', 'notes'), false)
+    await assert('commenter can_comment', () => checkPermission('eve', 'can_comment', 'document', 'notes'), true)
+    await assert('commenter can_view', () => checkPermission('eve', 'can_view', 'document', 'notes'), true)
+
+    // --- Test 6: Direct viewer on document ---
+    console.log('\n--- Direct viewer grants ---')
+    await assert('viewer cannot can_edit', () => checkPermission('frank', 'can_edit', 'document', 'notes'), false)
+    await assert('viewer cannot can_comment', () => checkPermission('frank', 'can_comment', 'document', 'notes'), false)
+    await assert('viewer can_view', () => checkPermission('frank', 'can_view', 'document', 'notes'), true)
+
+    // --- Test 7: No access ---
+    console.log('\n--- No access ---')
+    await assert('stranger cannot can_view', () => checkPermission('stranger', 'can_view', 'document', 'readme'), false)
+    await assert('stranger cannot can_edit', () => checkPermission('stranger', 'can_edit', 'document', 'notes'), false)
+
+    // --- Results ---
+    console.log(`\n${passed} passed, ${failed} failed`)
+    if (failed > 0) {
+      throw new Error(`${failed} assertions failed`)
     }
-    console.log('Tuple written')
-
-    // 4. Check: can alice view doc:readme? (should be true via owner -> editor -> viewer)
-    console.log('\n--- Check: can alice view doc:readme? ---')
-    const checkRes = await fetch(`${storeUrl}/check`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tuple_key: { user: 'user:alice', relation: 'viewer', object: 'document:readme' },
-        authorization_model_id: model.authorization_model_id,
-      }),
-    })
-    const checkResult = (await checkRes.json()) as { allowed: boolean }
-    console.log(`Result: ${checkResult.allowed ? 'ALLOWED' : 'DENIED'}`)
-
-    if (!checkResult.allowed) {
-      throw new Error('Smoke test FAILED: alice should be allowed to view as owner')
-    }
-
-    // 5. Check: can bob view doc:readme? (should be false)
-    console.log('\n--- Check: can bob view doc:readme? ---')
-    const checkRes2 = await fetch(`${storeUrl}/check`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tuple_key: { user: 'user:bob', relation: 'viewer', object: 'document:readme' },
-        authorization_model_id: model.authorization_model_id,
-      }),
-    })
-    const checkResult2 = (await checkRes2.json()) as { allowed: boolean }
-    console.log(`Result: ${checkResult2.allowed ? 'ALLOWED' : 'DENIED'}`)
-
-    if (checkResult2.allowed) {
-      throw new Error('Smoke test FAILED: bob should NOT be allowed to view')
-    }
-
-    console.log('\n✅ OpenFGA smoke test PASSED')
+    console.log('\nOpenFGA smoke test PASSED')
   } finally {
     stopOpenFGA()
   }

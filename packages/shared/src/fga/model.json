@@ -1,0 +1,210 @@
+{
+  "schema_version": "1.1",
+  "type_definitions": [
+    {
+      "type": "user",
+      "relations": {},
+      "metadata": null
+    },
+    {
+      "type": "org",
+      "relations": {
+        "owner": {
+          "this": {}
+        },
+        "admin": {
+          "union": {
+            "child": [
+              { "this": {} },
+              { "computedUserset": { "relation": "owner" } }
+            ]
+          }
+        },
+        "member": {
+          "union": {
+            "child": [
+              { "this": {} },
+              { "computedUserset": { "relation": "admin" } }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "owner": {
+            "directly_related_user_types": [{ "type": "user" }]
+          },
+          "admin": {
+            "directly_related_user_types": [{ "type": "user" }]
+          },
+          "member": {
+            "directly_related_user_types": [{ "type": "user" }]
+          }
+        }
+      }
+    },
+    {
+      "type": "folder",
+      "relations": {
+        "org": {
+          "this": {}
+        },
+        "owner": {
+          "this": {}
+        },
+        "editor": {
+          "union": {
+            "child": [
+              { "this": {} },
+              {
+                "tupleToUserset": {
+                  "tupleset": { "relation": "org" },
+                  "computedUserset": { "relation": "admin" }
+                }
+              }
+            ]
+          }
+        },
+        "viewer": {
+          "union": {
+            "child": [
+              { "this": {} },
+              {
+                "tupleToUserset": {
+                  "tupleset": { "relation": "org" },
+                  "computedUserset": { "relation": "member" }
+                }
+              }
+            ]
+          }
+        },
+        "can_edit": {
+          "union": {
+            "child": [
+              { "computedUserset": { "relation": "owner" } },
+              { "computedUserset": { "relation": "editor" } }
+            ]
+          }
+        },
+        "can_view": {
+          "union": {
+            "child": [
+              { "computedUserset": { "relation": "can_edit" } },
+              { "computedUserset": { "relation": "viewer" } }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "org": {
+            "directly_related_user_types": [{ "type": "org" }]
+          },
+          "owner": {
+            "directly_related_user_types": [{ "type": "user" }]
+          },
+          "editor": {
+            "directly_related_user_types": [{ "type": "user" }]
+          },
+          "viewer": {
+            "directly_related_user_types": [{ "type": "user" }]
+          },
+          "can_edit": {},
+          "can_view": {}
+        }
+      }
+    },
+    {
+      "type": "document",
+      "relations": {
+        "parent": {
+          "this": {}
+        },
+        "org": {
+          "this": {}
+        },
+        "owner": {
+          "this": {}
+        },
+        "editor": {
+          "union": {
+            "child": [
+              { "this": {} },
+              {
+                "tupleToUserset": {
+                  "tupleset": { "relation": "parent" },
+                  "computedUserset": { "relation": "editor" }
+                }
+              }
+            ]
+          }
+        },
+        "commenter": {
+          "union": {
+            "child": [
+              { "this": {} },
+              {
+                "tupleToUserset": {
+                  "tupleset": { "relation": "parent" },
+                  "computedUserset": { "relation": "viewer" }
+                }
+              }
+            ]
+          }
+        },
+        "viewer": {
+          "this": {}
+        },
+        "can_edit": {
+          "union": {
+            "child": [
+              { "computedUserset": { "relation": "owner" } },
+              { "computedUserset": { "relation": "editor" } }
+            ]
+          }
+        },
+        "can_comment": {
+          "union": {
+            "child": [
+              { "computedUserset": { "relation": "can_edit" } },
+              { "computedUserset": { "relation": "commenter" } }
+            ]
+          }
+        },
+        "can_view": {
+          "union": {
+            "child": [
+              { "computedUserset": { "relation": "can_comment" } },
+              { "computedUserset": { "relation": "viewer" } }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "parent": {
+            "directly_related_user_types": [{ "type": "folder" }]
+          },
+          "org": {
+            "directly_related_user_types": [{ "type": "org" }]
+          },
+          "owner": {
+            "directly_related_user_types": [{ "type": "user" }]
+          },
+          "editor": {
+            "directly_related_user_types": [{ "type": "user" }]
+          },
+          "commenter": {
+            "directly_related_user_types": [{ "type": "user" }]
+          },
+          "viewer": {
+            "directly_related_user_types": [{ "type": "user" }]
+          },
+          "can_edit": {},
+          "can_comment": {},
+          "can_view": {}
+        }
+      }
+    }
+  ]
+}

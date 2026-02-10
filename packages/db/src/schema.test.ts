@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { users, documents, folders, shareLinks, documentSnapshots } from './schema.js'
+import { users, documents, folders, shareLinks, documentSnapshots, jwks } from './schema.js'
 
 describe('db schema', () => {
   it('exports all expected tables', () => {
@@ -8,5 +8,6 @@ describe('db schema', () => {
     expect(folders).toBeDefined()
     expect(shareLinks).toBeDefined()
     expect(documentSnapshots).toBeDefined()
+    expect(jwks).toBeDefined()
   })
 })

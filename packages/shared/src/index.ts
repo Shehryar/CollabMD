@@ -11,3 +11,5 @@ export type {
   DatabaseConfig,
   PermissionsConfig,
 } from './config.js'
+
+export * from './fga/index.js'

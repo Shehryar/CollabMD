@@ -6,7 +6,8 @@
   "exports": {
     ".": {
       "types": "./src/index.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
@@ -17,10 +18,13 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@eslint/js": "^9.27.0",
+    "eslint": "^9.27.0",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3",
-    "@eslint/js": "^9.27.0",
-    "typescript-eslint": "^8.32.1",
-    "eslint": "^9.27.0"
+    "typescript-eslint": "^8.32.1"
+  },
+  "dependencies": {
+    "@openfga/sdk": "^0.9.1"
   }
 }

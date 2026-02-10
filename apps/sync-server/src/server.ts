@@ -5,6 +5,7 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import * as encoding from 'lib0/encoding'
 import * as decoding from 'lib0/decoding'
+import type { TokenPayload } from './auth.js'
 
 const messageSync = 0
 const messageAwareness = 1
@@ -16,8 +17,19 @@ interface Room {
   conns: Map<WebSocket, Set<number>>
 }
 
-export function createSyncServer() {
+export interface SyncServerConfig {
+  auth?: {
+    verifyToken: (token: string) => Promise<TokenPayload | null>
+    checkPermission: (userId: string, relation: string, objectType: string, objectId: string) => Promise<boolean>
+  }
+}
+
+const MAX_CONNECTIONS_PER_USER = 20
+
+export function createSyncServer(config?: SyncServerConfig) {
   const rooms = new Map<string, Room>()
+  // Track active WebSocket connections per user for rate limiting
+  const userConnections = new Map<string, Set<WebSocket>>()
 
   function getRoom(name: string): Room {
     const existing = rooms.get(name)
@@ -159,11 +171,62 @@ export function createSyncServer() {
 
   const wss = new WebSocketServer({ noServer: true })
 
-  server.on('upgrade', (req, socket, head) => {
-    // Room name comes from the URL path: /doc-id
-    const roomName = req.url?.slice(1) ?? 'default'
+  server.on('upgrade', async (req, socket, head) => {
+    const url = new URL(req.url!, 'http://localhost')
+    const roomName = url.pathname.slice(1) || 'default'
+    let userId: string | null = null
+
+    if (config?.auth) {
+      const token = url.searchParams.get('token')
+      if (!token) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
+        socket.destroy()
+        return
+      }
+
+      const payload = await config.auth.verifyToken(token)
+      if (!payload) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
+        socket.destroy()
+        return
+      }
+
+      userId = payload.id
+
+      // Enforce per-user connection limit
+      const conns = userConnections.get(userId)
+      if (conns && conns.size >= MAX_CONNECTIONS_PER_USER) {
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          ws.close(4029, 'Too many connections')
+        })
+        return
+      }
+
+      const canView = await config.auth.checkPermission(payload.id, 'can_view', 'document', roomName)
+      if (!canView) {
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          ws.close(4403, 'Forbidden')
+        })
+        return
+      }
+    }
 
     wss.handleUpgrade(req, socket, head, (ws) => {
+      // Track connection for rate limiting
+      if (userId) {
+        let conns = userConnections.get(userId)
+        if (!conns) {
+          conns = new Set()
+          userConnections.set(userId, conns)
+        }
+        conns.add(ws)
+
+        ws.on('close', () => {
+          conns!.delete(ws)
+          if (conns!.size === 0) userConnections.delete(userId!)
+        })
+      }
+
       const room = getRoom(roomName)
       setupConnection(ws, room)
     })
