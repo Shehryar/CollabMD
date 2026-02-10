@@ -2,8 +2,7 @@
 
 import { use, useCallback, useEffect, useRef, useState } from 'react'
 import { CollabEditor, useYjs } from '@/components/editor'
-import { useSession, signOut } from '@/lib/auth-client'
-import OrgSwitcher from '@/components/org/org-switcher'
+import { useSession } from '@/lib/auth-client'
 import ShareModal from '@/components/share-modal'
 
 interface DocPageProps {
@@ -61,7 +60,7 @@ export default function DocPage({ params }: DocPageProps) {
 
   if (notFound) {
     return (
-      <div className="flex h-screen items-center justify-center bg-white">
+      <div className="flex h-full items-center justify-center">
         <div className="text-center">
           <h1 className="mb-2 text-lg font-medium text-gray-900">Document not found</h1>
           <a href="/" className="text-sm text-blue-600 hover:text-blue-700">
@@ -73,12 +72,8 @@ export default function DocPage({ params }: DocPageProps) {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-white">
+    <div className="flex h-full flex-col">
       <header className="flex h-12 shrink-0 items-center border-b border-gray-200 px-4">
-        <a href="/" className="text-sm font-medium text-gray-700 hover:text-blue-600">
-          CollabMD
-        </a>
-        <span className="mx-2 text-gray-300">/</span>
         {editing ? (
           <input
             ref={inputRef}
@@ -97,7 +92,7 @@ export default function DocPage({ params }: DocPageProps) {
               setEditValue(title ?? '')
               setEditing(true)
             }}
-            className="text-sm text-gray-500 hover:text-gray-700"
+            className="text-sm text-gray-700 hover:text-gray-900"
           >
             {title ?? id}
           </button>
@@ -111,26 +106,12 @@ export default function DocPage({ params }: DocPageProps) {
               Share
             </button>
           )}
-          {session && <OrgSwitcher />}
           <span className="flex items-center gap-1.5 text-xs text-gray-400">
             <span
               className={`inline-block h-1.5 w-1.5 rounded-full ${yjs.synced ? 'bg-green-400' : 'bg-yellow-400 animate-pulse'}`}
             />
             {yjs.synced ? 'synced' : 'connecting'}
           </span>
-          {session && (
-            <>
-              <span className="text-xs text-gray-400">
-                {session.user.name || session.user.email}
-              </span>
-              <button
-                onClick={() => signOut({ fetchOptions: { onSuccess: () => { window.location.href = '/login' } } })}
-                className="text-xs text-gray-400 hover:text-gray-600"
-              >
-                Sign out
-              </button>
-            </>
-          )}
         </span>
       </header>
       <main className="min-h-0 flex-1">

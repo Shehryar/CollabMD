@@ -62,6 +62,8 @@ vi.mock('@collabmd/db', () => ({
   isNull: vi.fn((a: unknown) => ({ isNull: a })),
   inArray: vi.fn((a: unknown, b: unknown) => ({ inArray: [a, b] })),
   desc: vi.fn((a: unknown) => ({ desc: a })),
+  like: vi.fn((a: unknown, b: unknown) => ({ like: [a, b] })),
+  ne: vi.fn((a: unknown, b: unknown) => ({ ne: [a, b] })),
 }))
 
 // ── Import handlers after mocks ────────────────────────────────────────
@@ -258,10 +260,14 @@ describe('POST /api/documents', () => {
 })
 
 describe('GET /api/documents', () => {
+  function getRequest(url = 'http://localhost:3000/api/documents'): NextRequest {
+    return new NextRequest(url, { method: 'GET' })
+  }
+
   it('returns 401 when not authenticated', async () => {
     mockGetSession.mockResolvedValueOnce(null)
 
-    const res = await GET()
+    const res = await GET(getRequest())
 
     expect(res.status).toBe(401)
     const body = await res.json()
@@ -272,7 +278,7 @@ describe('GET /api/documents', () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
     mockListAccessible.mockResolvedValueOnce([])
 
-    const res = await GET()
+    const res = await GET(getRequest())
 
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -292,7 +298,7 @@ describe('GET /api/documents', () => {
     ]
     mockDbResult.all.mockReturnValueOnce(fakeDocs)
 
-    const res = await GET()
+    const res = await GET(getRequest())
 
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -301,5 +307,74 @@ describe('GET /api/documents', () => {
 
     // Verify listAccessibleObjects was called with correct args
     expect(mockListAccessible).toHaveBeenCalledWith('user-1', 'can_view', 'document')
+  })
+
+  it('filters by folderId when ?folderId= is provided', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockListAccessible.mockResolvedValueOnce(['document:doc-1'])
+    mockDbResult.all.mockReturnValueOnce([
+      { id: 'doc-1', title: 'Folder Doc', deletedAt: null, folderId: 'folder-1' },
+    ])
+
+    const res = await GET(getRequest('http://localhost:3000/api/documents?folderId=folder-1'))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toHaveLength(1)
+
+    const { eq } = await import('@collabmd/db')
+    expect(eq).toHaveBeenCalledWith('folder_id', 'folder-1')
+  })
+
+  it('filters shared docs when ?shared=true', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockListAccessible.mockResolvedValueOnce(['document:doc-1', 'document:doc-2'])
+    mockDbResult.all.mockReturnValueOnce([
+      { id: 'doc-2', title: 'Shared Doc', deletedAt: null, ownerId: 'user-2' },
+    ])
+
+    const res = await GET(getRequest('http://localhost:3000/api/documents?shared=true'))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toHaveLength(1)
+
+    const { ne } = await import('@collabmd/db')
+    expect(ne).toHaveBeenCalledWith('owner_id', 'user-1')
+  })
+
+  it('filters by search term when ?search= is provided', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockListAccessible.mockResolvedValueOnce(['document:doc-1'])
+    mockDbResult.all.mockReturnValueOnce([
+      { id: 'doc-1', title: 'test doc', deletedAt: null },
+    ])
+
+    const res = await GET(getRequest('http://localhost:3000/api/documents?search=test'))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toHaveLength(1)
+
+    const { like } = await import('@collabmd/db')
+    expect(like).toHaveBeenCalledWith('title', '%test%')
+  })
+
+  it('combines multiple filters', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockListAccessible.mockResolvedValueOnce(['document:doc-1'])
+    mockDbResult.all.mockReturnValueOnce([
+      { id: 'doc-1', title: 'test doc', deletedAt: null, folderId: 'f1' },
+    ])
+
+    const res = await GET(getRequest('http://localhost:3000/api/documents?folderId=f1&search=test'))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toHaveLength(1)
+
+    const { eq, like } = await import('@collabmd/db')
+    expect(eq).toHaveBeenCalledWith('folder_id', 'f1')
+    expect(like).toHaveBeenCalledWith('title', '%test%')
   })
 })

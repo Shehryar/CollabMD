@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
-import { db, documents, organizations, members, and, eq, isNull, inArray, desc } from '@collabmd/db'
+import { db, documents, organizations, members, and, eq, isNull, inArray, desc, like, ne } from '@collabmd/db'
 import { writeTuple, listAccessibleObjects } from '@collabmd/shared'
 import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
@@ -76,11 +76,16 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(doc, { status: 201 })
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const { searchParams } = request.nextUrl
+  const folderId = searchParams.get('folderId')
+  const shared = searchParams.get('shared') === 'true'
+  const search = searchParams.get('search')
 
   const accessible = await listAccessibleObjects(session.user.id, 'can_view', 'document')
   const docIds = accessible.map((obj) => obj.replace('document:', ''))
@@ -89,10 +94,27 @@ export async function GET() {
     return NextResponse.json([])
   }
 
+  const conditions = [
+    inArray(documents.id, docIds),
+    isNull(documents.deletedAt),
+  ]
+
+  if (folderId) {
+    conditions.push(eq(documents.folderId, folderId))
+  }
+
+  if (shared) {
+    conditions.push(ne(documents.ownerId, session.user.id))
+  }
+
+  if (search) {
+    conditions.push(like(documents.title, `%${search}%`))
+  }
+
   const docs = db
     .select()
     .from(documents)
-    .where(and(inArray(documents.id, docIds), isNull(documents.deletedAt)))
+    .where(and(...conditions))
     .orderBy(desc(documents.updatedAt))
     .all()
 

@@ -14,8 +14,14 @@ vi.mock('@/lib/auth', () => ({
 }))
 
 const mockCheckPermission = vi.fn()
+const mockWriteTuple = vi.fn()
+const mockReadTuples = vi.fn()
+const mockDeleteTuple = vi.fn()
 vi.mock('@collabmd/shared', () => ({
   checkPermission: (...args: unknown[]) => mockCheckPermission(...args),
+  writeTuple: (...args: unknown[]) => mockWriteTuple(...args),
+  readTuples: (...args: unknown[]) => mockReadTuples(...args),
+  deleteTuple: (...args: unknown[]) => mockDeleteTuple(...args),
 }))
 
 // Drizzle chain mock
@@ -191,6 +197,121 @@ describe('PATCH /api/documents/[id]', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.title).toBe('Updated Title')
+  })
+
+  it('updates folderId when provided', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockCheckPermission.mockResolvedValueOnce(true)
+    mockReadTuples.mockResolvedValueOnce([])
+
+    const updatedDoc = {
+      id: 'doc-1',
+      title: 'My Document',
+      orgId: 'org-1',
+      ownerId: 'user-1',
+      folderId: 'folder-1',
+    }
+    mockDbResult.get.mockReturnValueOnce(updatedDoc)
+
+    const req = jsonRequest('http://localhost:3000/api/documents/doc-1', {
+      folderId: 'folder-1',
+    })
+    const res = await PATCH(req, makeParams('doc-1'))
+
+    expect(res.status).toBe(200)
+    expect(mockSet).toHaveBeenCalledWith(
+      expect.objectContaining({ folderId: 'folder-1' }),
+    )
+  })
+
+  it('removes old parent tuples and writes new one when moving to a folder', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockCheckPermission.mockResolvedValueOnce(true)
+    mockReadTuples.mockResolvedValueOnce([
+      { user: 'folder:folder-1', relation: 'parent' },
+    ])
+    mockDeleteTuple.mockResolvedValueOnce(undefined)
+    mockWriteTuple.mockResolvedValueOnce(undefined)
+
+    const updatedDoc = {
+      id: 'doc-1',
+      title: 'My Document',
+      orgId: 'org-1',
+      ownerId: 'user-1',
+      folderId: 'folder-2',
+    }
+    mockDbResult.get.mockReturnValueOnce(updatedDoc)
+
+    const req = jsonRequest('http://localhost:3000/api/documents/doc-1', {
+      folderId: 'folder-2',
+    })
+    const res = await PATCH(req, makeParams('doc-1'))
+
+    expect(res.status).toBe(200)
+    expect(mockReadTuples).toHaveBeenCalledWith('document:doc-1')
+    expect(mockDeleteTuple).toHaveBeenCalledWith(
+      'folder:folder-1',
+      'parent',
+      'document:doc-1',
+    )
+    expect(mockWriteTuple).toHaveBeenCalledWith(
+      'folder:folder-2',
+      'parent',
+      'document:doc-1',
+    )
+  })
+
+  it('removes parent tuples without adding new one when moving to root (folderId: null)', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockCheckPermission.mockResolvedValueOnce(true)
+    mockReadTuples.mockResolvedValueOnce([
+      { user: 'folder:folder-1', relation: 'parent' },
+    ])
+    mockDeleteTuple.mockResolvedValueOnce(undefined)
+
+    const updatedDoc = {
+      id: 'doc-1',
+      title: 'My Document',
+      orgId: 'org-1',
+      ownerId: 'user-1',
+      folderId: null,
+    }
+    mockDbResult.get.mockReturnValueOnce(updatedDoc)
+
+    const req = jsonRequest('http://localhost:3000/api/documents/doc-1', {
+      folderId: null,
+    })
+    const res = await PATCH(req, makeParams('doc-1'))
+
+    expect(res.status).toBe(200)
+    expect(mockReadTuples).toHaveBeenCalledWith('document:doc-1')
+    expect(mockDeleteTuple).toHaveBeenCalledWith(
+      'folder:folder-1',
+      'parent',
+      'document:doc-1',
+    )
+    expect(mockWriteTuple).not.toHaveBeenCalled()
+  })
+
+  it('does not touch FGA tuples when only title is updated', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockCheckPermission.mockResolvedValueOnce(true)
+
+    const updatedDoc = {
+      id: 'doc-1',
+      title: 'New Title',
+      orgId: 'org-1',
+      ownerId: 'user-1',
+    }
+    mockDbResult.get.mockReturnValueOnce(updatedDoc)
+
+    const req = jsonRequest('http://localhost:3000/api/documents/doc-1', {
+      title: 'New Title',
+    })
+    const res = await PATCH(req, makeParams('doc-1'))
+
+    expect(res.status).toBe(200)
+    expect(mockReadTuples).not.toHaveBeenCalled()
   })
 })
 

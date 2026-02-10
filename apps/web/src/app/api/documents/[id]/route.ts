@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db, documents, eq, and, isNull } from '@collabmd/db'
-import { checkPermission } from '@collabmd/shared'
+import { checkPermission, writeTuple, readTuples, deleteTuple } from '@collabmd/shared'
 
 export async function GET(
   _request: NextRequest,
@@ -43,17 +43,36 @@ export async function PATCH(
   }
 
   const body = await request.json()
-  const { title } = body as { title: string }
+  const { title, folderId } = body as { title?: string; folderId?: string | null }
+
+  const updates: Record<string, unknown> = { updatedAt: new Date() }
+  if (title !== undefined) updates.title = title
+  if (folderId !== undefined) updates.folderId = folderId
 
   const updated = db
     .update(documents)
-    .set({ title, updatedAt: new Date() })
+    .set(updates)
     .where(eq(documents.id, id))
     .returning()
     .get()
 
   if (!updated) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  // Update FGA parent tuple when folderId changes
+  if (folderId !== undefined) {
+    // Remove existing parent folder tuples
+    const tuples = await readTuples(`document:${id}`)
+    for (const t of tuples) {
+      if (t.relation === 'parent' && t.user.startsWith('folder:')) {
+        await deleteTuple(t.user, 'parent', `document:${id}`)
+      }
+    }
+    // Add new parent tuple if moving to a folder
+    if (folderId) {
+      await writeTuple(`folder:${folderId}`, 'parent', `document:${id}`)
+    }
   }
 
   return NextResponse.json(updated)
