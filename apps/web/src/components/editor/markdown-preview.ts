@@ -81,19 +81,52 @@ class BulletWidget extends WidgetType {
 // --- Checkbox widget ---
 
 class CheckboxWidget extends WidgetType {
-  constructor(readonly checked: boolean) {
+  constructor(
+    readonly checked: boolean,
+    readonly checkboxFrom: number,
+    readonly checkboxTo: number
+  ) {
     super()
   }
 
-  toDOM() {
+  toDOM(view: EditorView) {
     const span = document.createElement('span')
     span.textContent = this.checked ? '☑' : '☐'
     span.className = 'cm-md-checkbox'
+    span.addEventListener('click', (e) => {
+      e.preventDefault()
+      const current = view.state.sliceDoc(this.checkboxFrom, this.checkboxTo)
+      const normalized = current.toLowerCase()
+      let next: string | null = null
+      if (normalized === '[ ]') {
+        next = '[x]'
+      } else if (normalized === '[x]') {
+        next = '[ ]'
+      }
+      if (!next) return
+
+      view.dispatch({
+        changes: {
+          from: this.checkboxFrom,
+          to: this.checkboxTo,
+          insert: next,
+        },
+      })
+      view.focus()
+    })
     return span
   }
 
   eq(other: CheckboxWidget) {
-    return this.checked === other.checked
+    return (
+      this.checked === other.checked &&
+      this.checkboxFrom === other.checkboxFrom &&
+      this.checkboxTo === other.checkboxTo
+    )
+  }
+
+  ignoreEvent(event: Event) {
+    return event.type !== 'click'
   }
 }
 
@@ -127,7 +160,6 @@ function buildDecorations(state: EditorState): DecorationSet {
       const lineTo = state.doc.lineAt(to)
       const cursorLine = state.doc.lineAt(cursorHead)
 
-      // Don't decorate the line(s) the cursor is on — let user edit raw markdown
       const cursorOnNode =
         cursorLine.number >= lineFrom.number &&
         cursorLine.number <= lineTo.number
@@ -140,7 +172,6 @@ function buildDecorations(state: EditorState): DecorationSet {
         case 'ATXHeading4':
         case 'ATXHeading5':
         case 'ATXHeading6': {
-          if (cursorOnNode) break
           const level = parseInt(node.name.slice(-1))
           const headingClasses: Record<number, string> = {
             1: 'cm-md-h1',
@@ -153,10 +184,18 @@ function buildDecorations(state: EditorState): DecorationSet {
           // Find the HeaderMark (the # symbols)
           const markNode = node.node.getChild('HeaderMark')
           if (markNode) {
-            // Hide the "# " prefix
-            decorations.push(
-              Decoration.replace({}).range(markNode.from, markNode.to + 1)
-            )
+            const markerTo = Math.min(markNode.to + 1, lineFrom.to)
+            if (markNode.from < markerTo) {
+              if (cursorOnNode) {
+                decorations.push(
+                  Decoration.mark({ class: 'cm-md-marker' }).range(markNode.from, markerTo)
+                )
+              } else {
+                decorations.push(
+                  Decoration.replace({}).range(markNode.from, markerTo)
+                )
+              }
+            }
           }
           // Apply heading style to the rest
           decorations.push(
@@ -169,83 +208,118 @@ function buildDecorations(state: EditorState): DecorationSet {
 
         // --- Bold ---
         case 'StrongEmphasis': {
-          if (cursorOnNode) break
           const text = state.sliceDoc(from, to)
           // Determine marker length (** or __)
           const marker = text.startsWith('**') ? '**' : '__'
           const mLen = marker.length
-          // Hide opening marker
-          decorations.push(
-            Decoration.replace({}).range(from, from + mLen)
-          )
-          // Hide closing marker
-          decorations.push(
-            Decoration.replace({}).range(to - mLen, to)
-          )
-          // Style the inner text
-          decorations.push(
-            Decoration.mark({ class: 'cm-md-bold' }).range(
-              from + mLen,
-              to - mLen
+          if (cursorOnNode) {
+            decorations.push(
+              Decoration.mark({ class: 'cm-md-marker' }).range(from, from + mLen)
             )
-          )
+            decorations.push(
+              Decoration.mark({ class: 'cm-md-marker' }).range(to - mLen, to)
+            )
+          } else {
+            decorations.push(
+              Decoration.replace({}).range(from, from + mLen)
+            )
+            decorations.push(
+              Decoration.replace({}).range(to - mLen, to)
+            )
+          }
+          // Style the inner text
+          if (from + mLen < to - mLen) {
+            decorations.push(
+              Decoration.mark({ class: 'cm-md-bold' }).range(
+                from + mLen,
+                to - mLen
+              )
+            )
+          }
           break
         }
 
         // --- Italic ---
         case 'Emphasis': {
-          if (cursorOnNode) break
           const text = state.sliceDoc(from, to)
           const marker = text.startsWith('*') ? '*' : '_'
-          // Hide opening marker
-          decorations.push(
-            Decoration.replace({}).range(from, from + marker.length)
-          )
-          // Hide closing marker
-          decorations.push(
-            Decoration.replace({}).range(to - marker.length, to)
-          )
-          // Style the inner text
-          decorations.push(
-            Decoration.mark({ class: 'cm-md-italic' }).range(
-              from + marker.length,
-              to - marker.length
+          if (cursorOnNode) {
+            decorations.push(
+              Decoration.mark({ class: 'cm-md-marker' }).range(from, from + marker.length)
             )
-          )
+            decorations.push(
+              Decoration.mark({ class: 'cm-md-marker' }).range(to - marker.length, to)
+            )
+          } else {
+            decorations.push(
+              Decoration.replace({}).range(from, from + marker.length)
+            )
+            decorations.push(
+              Decoration.replace({}).range(to - marker.length, to)
+            )
+          }
+          // Style the inner text
+          if (from + marker.length < to - marker.length) {
+            decorations.push(
+              Decoration.mark({ class: 'cm-md-italic' }).range(
+                from + marker.length,
+                to - marker.length
+              )
+            )
+          }
           break
         }
 
         // --- Strikethrough ---
         case 'Strikethrough': {
-          if (cursorOnNode) break
-          decorations.push(
-            Decoration.replace({}).range(from, from + 2)
-          )
-          decorations.push(
-            Decoration.replace({}).range(to - 2, to)
-          )
-          decorations.push(
-            Decoration.mark({ class: 'cm-md-strikethrough' }).range(
-              from + 2,
-              to - 2
+          if (cursorOnNode) {
+            decorations.push(
+              Decoration.mark({ class: 'cm-md-marker' }).range(from, from + 2)
             )
-          )
+            decorations.push(
+              Decoration.mark({ class: 'cm-md-marker' }).range(to - 2, to)
+            )
+          } else {
+            decorations.push(
+              Decoration.replace({}).range(from, from + 2)
+            )
+            decorations.push(
+              Decoration.replace({}).range(to - 2, to)
+            )
+          }
+          if (from + 2 < to - 2) {
+            decorations.push(
+              Decoration.mark({ class: 'cm-md-strikethrough' }).range(
+                from + 2,
+                to - 2
+              )
+            )
+          }
           break
         }
 
         // --- Inline code ---
         case 'InlineCode': {
-          if (cursorOnNode) break
-          // Hide backticks
-          decorations.push(
-            Decoration.replace({}).range(from, from + 1)
-          )
-          decorations.push(
-            Decoration.replace({}).range(to - 1, to)
-          )
-          decorations.push(
-            Decoration.mark({ class: 'cm-md-code' }).range(from + 1, to - 1)
-          )
+          if (cursorOnNode) {
+            decorations.push(
+              Decoration.mark({ class: 'cm-md-marker' }).range(from, from + 1)
+            )
+            decorations.push(
+              Decoration.mark({ class: 'cm-md-marker' }).range(to - 1, to)
+            )
+          } else {
+            decorations.push(
+              Decoration.replace({}).range(from, from + 1)
+            )
+            decorations.push(
+              Decoration.replace({}).range(to - 1, to)
+            )
+          }
+          if (from + 1 < to - 1) {
+            decorations.push(
+              Decoration.mark({ class: 'cm-md-code' }).range(from + 1, to - 1)
+            )
+          }
           break
         }
 
@@ -287,15 +361,19 @@ function buildDecorations(state: EditorState): DecorationSet {
             // Check if this is a checkbox item
             const afterMark = state.sliceDoc(to, to + 5)
             if (afterMark.startsWith(' [x]') || afterMark.startsWith(' [X]')) {
+              const checkboxFrom = to + 1
+              const checkboxTo = to + 4
               decorations.push(
                 Decoration.replace({
-                  widget: new CheckboxWidget(true),
+                  widget: new CheckboxWidget(true, checkboxFrom, checkboxTo),
                 }).range(from, to + 4)
               )
             } else if (afterMark.startsWith(' [ ]')) {
+              const checkboxFrom = to + 1
+              const checkboxTo = to + 4
               decorations.push(
                 Decoration.replace({
-                  widget: new CheckboxWidget(false),
+                  widget: new CheckboxWidget(false, checkboxFrom, checkboxTo),
                 }).range(from, to + 4)
               )
             } else {
@@ -322,7 +400,6 @@ function buildDecorations(state: EditorState): DecorationSet {
 
         // --- Blockquote ---
         case 'Blockquote': {
-          if (cursorOnNode) break
           // Apply line decoration for each line in the blockquote
           for (let i = lineFrom.number; i <= lineTo.number; i++) {
             const line = state.doc.line(i)
@@ -441,7 +518,12 @@ export const markdownPreviewTheme = EditorView.theme({
   },
   '.cm-md-checkbox': {
     fontSize: '1.1em',
-    cursor: 'default',
+    cursor: 'pointer',
+    userSelect: 'none',
+  },
+  '.cm-md-marker': {
+    opacity: '0.35',
+    color: '#9ca3af',
   },
   '.cm-md-hr': {
     border: 'none',
