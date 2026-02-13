@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
-import { db, folders, eq, and, asc, inArray } from '@collabmd/db'
-import { writeTuple, listAccessibleObjects } from '@collabmd/shared'
+import { db, folders, members, eq, and, asc, inArray } from '@collabmd/db'
+import { writeTuple, listAccessibleObjects, checkPermission } from '@collabmd/shared'
+import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
+import { requireJsonContentType } from '@/lib/http'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
+
+  const rateLimitError = enforceUserMutationRateLimit(session.user.id, { ip: getClientIp(request) })
+  if (rateLimitError) return rateLimitError
+
+  const contentTypeError = requireJsonContentType(request)
+  if (contentTypeError) return contentTypeError
 
   const body = await request.json()
   const { name, orgId, parentId } = body as {
@@ -18,7 +26,16 @@ export async function POST(request: NextRequest) {
   }
 
   if (!name || !orgId) {
-    return NextResponse.json({ error: 'name and orgId are required' }, { status: 400 })
+    return NextResponse.json({ error: 'name and org id are required' }, { status: 400 })
+  }
+
+  const membership = db
+    .select()
+    .from(members)
+    .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
+    .get()
+  if (!membership) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
   let path = `/${name}`
@@ -26,7 +43,14 @@ export async function POST(request: NextRequest) {
   if (parentId) {
     const parent = db.select().from(folders).where(eq(folders.id, parentId)).get()
     if (!parent) {
-      return NextResponse.json({ error: 'Parent folder not found' }, { status: 404 })
+      return NextResponse.json({ error: 'parent folder not found' }, { status: 404 })
+    }
+    if (parent.orgId !== orgId) {
+      return NextResponse.json({ error: 'parent folder belongs to a different organization' }, { status: 400 })
+    }
+    const canEditParent = await checkPermission(session.user.id, 'can_edit', 'folder', parentId)
+    if (!canEditParent) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 })
     }
     path = `${parent.path}/${name}`
   }
@@ -57,12 +81,12 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
   const orgId = request.nextUrl.searchParams.get('orgId')
   if (!orgId) {
-    return NextResponse.json({ error: 'orgId is required' }, { status: 400 })
+    return NextResponse.json({ error: 'org id is required' }, { status: 400 })
   }
 
   const accessible = await listAccessibleObjects(session.user.id, 'can_view', 'folder')

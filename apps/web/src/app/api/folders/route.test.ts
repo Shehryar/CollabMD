@@ -15,9 +15,11 @@ vi.mock('@/lib/auth', () => ({
 
 const mockWriteTuple = vi.fn().mockResolvedValue(undefined)
 const mockListAccessible = vi.fn()
+const mockCheckPermission = vi.fn()
 vi.mock('@collabmd/shared', () => ({
   writeTuple: (...args: unknown[]) => mockWriteTuple(...args),
   listAccessibleObjects: (...args: unknown[]) => mockListAccessible(...args),
+  checkPermission: (...args: unknown[]) => mockCheckPermission(...args),
 }))
 
 // Drizzle chain mock — track calls and return configurable results
@@ -48,6 +50,7 @@ vi.mock('@collabmd/db', () => ({
     createdBy: 'created_by',
     createdAt: 'created_at',
   },
+  members: { organizationId: 'organization_id', userId: 'user_id' },
   eq: vi.fn((a: unknown, b: unknown) => ({ eq: [a, b] })),
   and: vi.fn((...args: unknown[]) => ({ and: args })),
   asc: vi.fn((a: unknown) => ({ asc: a })),
@@ -81,6 +84,8 @@ function jsonRequest(
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockDbResult.get.mockReturnValue({ organizationId: 'org-1', userId: 'user-1' })
+  mockCheckPermission.mockResolvedValue(true)
 })
 
 describe('POST /api/folders', () => {
@@ -95,7 +100,7 @@ describe('POST /api/folders', () => {
 
     expect(res.status).toBe(401)
     const body = await res.json()
-    expect(body.error).toBe('Unauthorized')
+    expect(body.error).toBe('unauthorized')
   })
 
   it('returns 400 when name is missing', async () => {
@@ -127,6 +132,8 @@ describe('POST /api/folders', () => {
   it('creates folder and writes FGA owner + org tuples', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
 
+    // membership lookup
+    mockDbResult.get.mockReturnValueOnce({ organizationId: 'org-1', userId: 'user-1' })
     const fakeFolder = {
       id: 'folder-1',
       orgId: 'org-1',
@@ -165,6 +172,8 @@ describe('POST /api/folders', () => {
   it('creates subfolder with parent path', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
 
+    // membership lookup
+    mockDbResult.get.mockReturnValueOnce({ organizationId: 'org-1', userId: 'user-1' })
     const parentFolder = {
       id: 'folder-parent',
       orgId: 'org-1',
@@ -203,6 +212,8 @@ describe('POST /api/folders', () => {
   it('returns 404 when parentId refers to non-existent folder', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
 
+    // membership lookup
+    mockDbResult.get.mockReturnValueOnce({ organizationId: 'org-1', userId: 'user-1' })
     // Parent folder lookup returns nothing
     mockDbResult.get.mockReturnValueOnce(undefined)
 
@@ -215,7 +226,7 @@ describe('POST /api/folders', () => {
 
     expect(res.status).toBe(404)
     const body = await res.json()
-    expect(body.error).toContain('Parent folder not found')
+    expect(body.error).toContain('parent folder not found')
   })
 })
 
@@ -231,7 +242,7 @@ describe('GET /api/folders', () => {
 
     expect(res.status).toBe(401)
     const body = await res.json()
-    expect(body.error).toBe('Unauthorized')
+    expect(body.error).toBe('unauthorized')
   })
 
   it('returns 400 when orgId is missing', async () => {

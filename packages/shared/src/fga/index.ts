@@ -6,5 +6,6 @@ export {
   writeTuple,
   deleteTuple,
   readTuples,
+  readTuplesForEntity,
   listAccessibleObjects,
 } from './client.js'

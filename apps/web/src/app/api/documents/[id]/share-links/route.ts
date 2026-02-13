@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import crypto from 'node:crypto'
+import { scryptSync } from 'node:crypto'
 import { db, shareLinks, eq } from '@collabmd/db'
 import { auth } from '@/lib/auth'
 import { checkPermission } from '@collabmd/shared'
-import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
+import { requireJsonContentType } from '@/lib/http'
 
 type RouteParams = { params: Promise<{ id: string }> }
+const VALID_PERMISSIONS = new Set(['viewer', 'commenter', 'editor'])
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -14,8 +17,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  const rl = rateLimit(`user:${session.user.id}:mutation`, 100, 60_000)
-  if (!rl.success) return rateLimitResponse(rl, 100)
+  const rateLimitError = enforceUserMutationRateLimit(session.user.id, { ip: getClientIp(request) })
+  if (rateLimitError) return rateLimitError
+
+  const contentTypeError = requireJsonContentType(request)
+  if (contentTypeError) return contentTypeError
 
   const { id: docId } = await params
   const userId = session.user.id
@@ -32,16 +38,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     expiresInDays?: number
   }
 
+  if (!VALID_PERMISSIONS.has(permission)) {
+    return NextResponse.json({ error: 'invalid permission' }, { status: 400 })
+  }
+
   const id = crypto.randomUUID()
   const token = crypto.randomBytes(32).toString('base64url')
 
   let passwordHash: string | null = null
   if (password) {
-    const encoder = new TextEncoder()
-    const data = encoder.encode(password)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    const salt = crypto.randomBytes(16).toString('hex')
+    const hash = scryptSync(password, salt, 64)
+    passwordHash = `${salt}:${hash.toString('hex')}`
   }
 
   const now = new Date()

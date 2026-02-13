@@ -1,1 +1,51 @@
 @import 'tailwindcss';
+
+@theme {
+  --font-mono: var(--font-jetbrains-mono), 'JetBrains Mono', monospace;
+  --font-sans: var(--font-plus-jakarta-sans), 'Plus Jakarta Sans', -apple-system, sans-serif;
+
+  --color-bg: #ffffff;
+  --color-bg-subtle: #f7f7f5;
+  --color-bg-hover: #f0f0ee;
+  --color-bg-active: #e8e8e5;
+
+  --color-fg: #111111;
+  --color-fg-secondary: #555555;
+  --color-fg-muted: #999999;
+  --color-fg-faint: #bbbbbb;
+
+  --color-border: #e2e2df;
+  --color-border-strong: #d0d0cc;
+
+  --color-accent: #c2682b;
+  --color-accent-hover: #a8571f;
+  --color-accent-subtle: #fdf5ef;
+  --color-accent-text: #ffffff;
+
+  --color-green: #2d7d46;
+  --color-green-subtle: #eef7f0;
+  --color-red: #c4342d;
+  --color-red-subtle: #fdf0ef;
+
+  --radius-sm: 3px;
+  --radius-default: 5px;
+  --radius-lg: 8px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-default: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-fg);
+  background: var(--color-bg);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

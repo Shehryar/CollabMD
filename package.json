@@ -4,7 +4,8 @@
   "packageManager": "pnpm@10.28.1",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "tsx scripts/dev.ts",
+    "dev:quick": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
@@ -22,6 +23,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",
+      "classic-level",
       "esbuild",
       "sharp"
     ]

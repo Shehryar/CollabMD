@@ -5,11 +5,11 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
     "./schema": {
-      "types": "./src/schema.ts",
+      "types": "./dist/schema.d.ts",
       "import": "./dist/schema.js"
     }
   },

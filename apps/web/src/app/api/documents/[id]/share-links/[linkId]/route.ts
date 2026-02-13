@@ -3,14 +3,18 @@ import { headers } from 'next/headers'
 import { db, shareLinks, eq, and } from '@collabmd/db'
 import { auth } from '@/lib/auth'
 import { checkPermission } from '@collabmd/shared'
+import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 
 type RouteParams = { params: Promise<{ id: string; linkId: string }> }
 
-export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
+
+  const rateLimitError = enforceUserMutationRateLimit(session.user.id, { ip: getClientIp(request) })
+  if (rateLimitError) return rateLimitError
 
   const { id: docId, linkId } = await params
   const userId = session.user.id

@@ -2,34 +2,39 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db, documents, eq } from '@collabmd/db'
+import { writeTuple } from '@collabmd/shared'
+import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
+
+  const rateLimitError = enforceUserMutationRateLimit(session.user.id, { ip: getClientIp(request) })
+  if (rateLimitError) return rateLimitError
 
   const { id } = await params
   const doc = db.select().from(documents).where(eq(documents.id, id)).get()
 
   if (!doc) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
 
   if (doc.ownerId !== session.user.id) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
   if (!doc.deletedAt) {
-    return NextResponse.json({ error: 'Document is not deleted' }, { status: 400 })
+    return NextResponse.json({ error: 'document is not deleted' }, { status: 400 })
   }
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   if (doc.deletedAt < thirtyDaysAgo) {
-    return NextResponse.json({ error: 'Document expired, cannot restore' }, { status: 410 })
+    return NextResponse.json({ error: 'document expired, cannot restore' }, { status: 410 })
   }
 
   const restored = db
@@ -38,6 +43,12 @@ export async function POST(
     .where(eq(documents.id, id))
     .returning()
     .get()
+
+  await writeTuple(`user:${doc.ownerId}`, 'owner', `document:${id}`)
+  await writeTuple(`org:${doc.orgId}`, 'org', `document:${id}`)
+  if (doc.folderId) {
+    await writeTuple(`folder:${doc.folderId}`, 'parent', `document:${id}`)
+  }
 
   return NextResponse.json(restored)
 }

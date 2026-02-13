@@ -8,6 +8,27 @@
       "when": 1770670500103,
       "tag": "0000_old_cable",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1770742800000,
+      "tag": "0001_security_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1770746400000,
+      "tag": "0002_fk_cascade_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1770750000000,
+      "tag": "0003_document_source",
+      "breakpoints": true
     }
   ]
 }

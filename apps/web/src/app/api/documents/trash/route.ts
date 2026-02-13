@@ -6,7 +6,7 @@ import { db, documents, eq, and, isNotNull, desc } from '@collabmd/db'
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
   const trashed = db

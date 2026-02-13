@@ -111,7 +111,7 @@ describe('POST /api/share/[token]', () => {
 
     expect(res.status).toBe(404)
     const body = await res.json()
-    expect(body.error).toBe('not_found')
+    expect(body.error).toBe('not found')
   })
 
   it('returns 410 for expired share link', async () => {
@@ -152,7 +152,7 @@ describe('POST /api/share/[token]', () => {
 
     expect(res.status).toBe(401)
     const body = await res.json()
-    expect(body.error).toBe('password_required')
+    expect(body.error).toBe('password required')
   })
 
   it('returns 403 for wrong password', async () => {
@@ -171,7 +171,7 @@ describe('POST /api/share/[token]', () => {
 
     expect(res.status).toBe(403)
     const body = await res.json()
-    expect(body.error).toBe('wrong_password')
+    expect(body.error).toBe('wrong password')
   })
 
   it('returns 200 with documentId and permission for valid link (no password)', async () => {

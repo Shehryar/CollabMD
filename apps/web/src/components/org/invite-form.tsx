@@ -50,13 +50,13 @@ export default function InviteForm({ onInvited }: InviteFormProps) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="email@example.com"
-          className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+          className="flex-1 rounded border border-border bg-bg px-3 py-[7px] font-mono text-[13px] text-fg placeholder:text-fg-faint focus:border-fg focus:outline-none"
           required
         />
         <select
           value={role}
           onChange={(e) => setRole(e.target.value as typeof role)}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+          className="rounded border border-border bg-bg px-3 py-[7px] font-mono text-[12px] text-fg focus:border-fg focus:outline-none"
         >
           {ROLES.map((r) => (
             <option key={r} value={r}>{r}</option>
@@ -65,14 +65,14 @@ export default function InviteForm({ onInvited }: InviteFormProps) {
         <button
           type="submit"
           disabled={loading || !email.trim()}
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+          className="rounded bg-fg px-4 py-[7px] font-mono text-[12.5px] font-medium text-bg hover:bg-[#333] disabled:opacity-50"
         >
           {loading ? 'Sending...' : 'Invite'}
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {success && <p className="text-sm text-green-600">{success}</p>}
+      {error && <p className="text-sm text-red">{error}</p>}
+      {success && <p className="text-sm text-green">{success}</p>}
     </form>
   )
 }

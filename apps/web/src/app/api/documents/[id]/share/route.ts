@@ -3,7 +3,8 @@ import { headers } from 'next/headers'
 import { db, users, eq } from '@collabmd/db'
 import { auth } from '@/lib/auth'
 import { checkPermission, writeTuple, deleteTuple, readTuples } from '@collabmd/shared'
-import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
+import { requireJsonContentType } from '@/lib/http'
 
 type RouteParams = { params: Promise<{ id: string }> }
 
@@ -13,8 +14,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  const rl = rateLimit(`user:${session.user.id}:mutation`, 100, 60_000)
-  if (!rl.success) return rateLimitResponse(rl, 100)
+  const rateLimitError = enforceUserMutationRateLimit(session.user.id, { ip: getClientIp(request) })
+  if (rateLimitError) return rateLimitError
+
+  const contentTypeError = requireJsonContentType(request)
+  if (contentTypeError) return contentTypeError
 
   const { id: docId } = await params
   const userId = session.user.id
@@ -28,7 +32,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const { email, role } = body as { email: string; role: 'viewer' | 'commenter' | 'editor' }
 
   if (!email || !['viewer', 'commenter', 'editor'].includes(role)) {
-    return NextResponse.json({ error: 'bad_request' }, { status: 400 })
+    return NextResponse.json({ error: 'bad request' }, { status: 400 })
   }
 
   const targetUser = db
@@ -38,7 +42,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .get()
 
   if (!targetUser) {
-    return NextResponse.json({ error: 'user_not_found' }, { status: 404 })
+    return NextResponse.json({ error: 'user not found' }, { status: 404 })
   }
 
   await writeTuple(`user:${targetUser.id}`, role, `document:${docId}`)
@@ -94,6 +98,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
+  const rateLimitError = enforceUserMutationRateLimit(session.user.id, { ip: getClientIp(request) })
+  if (rateLimitError) return rateLimitError
+
+  const contentTypeError = requireJsonContentType(request)
+  if (contentTypeError) return contentTypeError
+
   const { id: docId } = await params
   const currentUserId = session.user.id
 
@@ -106,10 +116,58 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   const { userId, role } = body as { userId: string; role: string }
 
   if (!userId || !role) {
-    return NextResponse.json({ error: 'bad_request' }, { status: 400 })
+    return NextResponse.json({ error: 'bad request' }, { status: 400 })
+  }
+
+  if (!['viewer', 'commenter', 'editor'].includes(role)) {
+    return NextResponse.json({ error: 'bad request' }, { status: 400 })
   }
 
   await deleteTuple(`user:${userId}`, role, `document:${docId}`)
 
   return NextResponse.json({ ok: true })
+}
+
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
+  const rateLimitError = enforceUserMutationRateLimit(session.user.id, { ip: getClientIp(request) })
+  if (rateLimitError) return rateLimitError
+
+  const contentTypeError = requireJsonContentType(request)
+  if (contentTypeError) return contentTypeError
+
+  const { id: docId } = await params
+  const canEdit = await checkPermission(session.user.id, 'can_edit', 'document', docId)
+  if (!canEdit) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+
+  const body = await request.json()
+  const { userId: targetUserId, oldRole, newRole } = body as {
+    userId?: string
+    oldRole?: string
+    newRole?: string
+  }
+
+  if (!targetUserId || !oldRole || !newRole) {
+    return NextResponse.json({ error: 'bad request' }, { status: 400 })
+  }
+
+  if (!['viewer', 'commenter', 'editor'].includes(newRole)) {
+    return NextResponse.json({ error: 'invalid role' }, { status: 400 })
+  }
+
+  const isOwner = await checkPermission(targetUserId, 'owner', 'document', docId)
+  if (isOwner) {
+    return NextResponse.json({ error: 'cannot change owner role' }, { status: 400 })
+  }
+
+  await deleteTuple(`user:${targetUserId}`, oldRole, `document:${docId}`)
+  await writeTuple(`user:${targetUserId}`, newRole, `document:${docId}`)
+
+  return NextResponse.json({ success: true })
 }

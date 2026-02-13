@@ -3,6 +3,8 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db, users, inArray } from '@collabmd/db'
 import { checkPermission, writeTuple, deleteTuple, readTuples } from '@collabmd/shared'
+import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
+import { requireJsonContentType } from '@/lib/http'
 
 export async function POST(
   request: NextRequest,
@@ -10,20 +12,26 @@ export async function POST(
 ) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
+
+  const rateLimitError = enforceUserMutationRateLimit(session.user.id)
+  if (rateLimitError) return rateLimitError
+
+  const contentTypeError = requireJsonContentType(request)
+  if (contentTypeError) return contentTypeError
 
   const { id } = await params
   const canEdit = await checkPermission(session.user.id, 'can_edit', 'folder', id)
   if (!canEdit) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
   const body = await request.json()
   const { userId: targetUserId, role } = body as { userId: string; role: 'editor' | 'viewer' }
 
   if (!targetUserId || !role || !['editor', 'viewer'].includes(role)) {
-    return NextResponse.json({ error: 'userId and role (editor|viewer) are required' }, { status: 400 })
+    return NextResponse.json({ error: 'user id and role (editor|viewer) are required' }, { status: 400 })
   }
 
   await writeTuple(`user:${targetUserId}`, role, `folder:${id}`)
@@ -37,13 +45,13 @@ export async function GET(
 ) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
   const { id } = await params
   const canEdit = await checkPermission(session.user.id, 'can_edit', 'folder', id)
   if (!canEdit) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
   const tuples = await readTuples(`folder:${id}`)
@@ -81,20 +89,27 @@ export async function DELETE(
 ) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
+
+  const rateLimitError = enforceUserMutationRateLimit(session.user.id, { ip: getClientIp(request) })
+  if (rateLimitError) return rateLimitError
 
   const { id } = await params
   const canEdit = await checkPermission(session.user.id, 'can_edit', 'folder', id)
   if (!canEdit) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
   const body = await request.json()
   const { userId: targetUserId, role } = body as { userId: string; role: string }
 
   if (!targetUserId || !role) {
-    return NextResponse.json({ error: 'userId and role are required' }, { status: 400 })
+    return NextResponse.json({ error: 'user id and role are required' }, { status: 400 })
+  }
+
+  if (!['viewer', 'editor'].includes(role)) {
+    return NextResponse.json({ error: 'role must be viewer or editor' }, { status: 400 })
   }
 
   await deleteTuple(`user:${targetUserId}`, role, `folder:${id}`)

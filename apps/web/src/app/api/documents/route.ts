@@ -1,28 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
-import { db, documents, organizations, members, and, eq, isNull, inArray, desc, like, ne } from '@collabmd/db'
-import { writeTuple, listAccessibleObjects } from '@collabmd/shared'
-import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { db, documents, organizations, folders, members, and, eq, isNull, inArray, desc, like, ne } from '@collabmd/db'
+import { writeTuple, listAccessibleObjects, checkPermission } from '@collabmd/shared'
+import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
+import { requireJsonContentType } from '@/lib/http'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  const rl = rateLimit(`user:${session.user.id}:mutation`, 100, 60_000)
-  if (!rl.success) return rateLimitResponse(rl, 100)
+  const rateLimitError = enforceUserMutationRateLimit(session.user.id, { ip: getClientIp(request) })
+  if (rateLimitError) return rateLimitError
+
+  const contentTypeError = requireJsonContentType(request)
+  if (contentTypeError) return contentTypeError
 
   const body = await request.json()
-  const { title, orgId, folderId } = body as {
+  const { title, orgId, folderId, source } = body as {
     title: string
     orgId: string
     folderId?: string
+    source?: string
   }
 
   if (!title || !orgId) {
-    return NextResponse.json({ error: 'title and orgId are required' }, { status: 400 })
+    return NextResponse.json({ error: 'title and org id are required' }, { status: 400 })
+  }
+
+  const membership = db
+    .select()
+    .from(members)
+    .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
+    .get()
+  if (!membership) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+
+  if (folderId) {
+    const folder = db.select().from(folders).where(eq(folders.id, folderId)).get()
+    if (!folder) {
+      return NextResponse.json({ error: 'folder not found' }, { status: 404 })
+    }
+    if (folder.orgId !== orgId) {
+      return NextResponse.json({ error: 'folder belongs to a different organization' }, { status: 400 })
+    }
+    const canEditFolder = await checkPermission(session.user.id, 'can_edit', 'folder', folderId)
+    if (!canEditFolder) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+    }
   }
 
   const id = crypto.randomUUID()
@@ -33,6 +61,7 @@ export async function POST(request: NextRequest) {
     .values({
       id,
       title,
+      source: source === 'daemon' ? 'daemon' : 'web',
       orgId,
       ownerId: session.user.id,
       folderId: folderId ?? null,
@@ -79,7 +108,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
   const { searchParams } = request.nextUrl

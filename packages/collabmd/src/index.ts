@@ -1,2 +1,7 @@
 export { Daemon } from './daemon/index.js'
-export type { DaemonState, DaemonOptions } from './daemon/index.js'
+export { GlobalDaemon } from './daemon/index.js'
+export type { DaemonState, DaemonOptions, GlobalDaemonOptions } from './daemon/index.js'
+export { getCredential, saveCredential, clearCredential, TokenManager } from './auth/index.js'
+export type { Credential, LoginResult } from './auth/index.js'
+export { runOnboardingFlow } from './cli/onboarding.js'
+export type { OnboardingOptions } from './cli/onboarding.js'

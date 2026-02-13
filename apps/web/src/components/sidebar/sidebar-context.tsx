@@ -13,14 +13,20 @@ export interface Folder {
   createdAt: string
 }
 
-export interface Doc {
-  id: string
-  title: string
+export interface OnboardingStatus {
   orgId: string
-  ownerId: string
+  orgName: string
+  docCount: number
+  memberCount: number
+  hasDaemonEdits: boolean
+}
+
+export interface ConnectedFolder {
   folderId: string | null
-  updatedAt: string
-  createdAt: string
+  folderName: string
+  status: 'synced' | 'disconnected'
+  fileCount: number
+  lastSync: string
 }
 
 interface SidebarState {
@@ -28,9 +34,12 @@ interface SidebarState {
   setOpen: (open: boolean) => void
   folders: Folder[]
   refreshFolders: () => Promise<void>
-  docs: Doc[]
-  refreshDocs: (params?: Record<string, string>) => Promise<void>
+  connectedFolders: ConnectedFolder[]
+  refreshConnectedFolders: () => Promise<void>
+  onboardingStatus: OnboardingStatus | null
+  refreshOnboardingStatus: () => Promise<void>
   loading: boolean
+  onboardingLoading: boolean
 }
 
 const SidebarContext = createContext<SidebarState | null>(null)
@@ -40,40 +49,95 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const { data: activeOrg } = useActiveOrganization()
   const [open, setOpen] = useState(false)
   const [folders, setFolders] = useState<Folder[]>([])
-  const [docs, setDocs] = useState<Doc[]>([])
+  const [connectedFolders, setConnectedFolders] = useState<ConnectedFolder[]>([])
   const [loading, setLoading] = useState(true)
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null)
+  const [onboardingLoading, setOnboardingLoading] = useState(true)
 
   const orgId = activeOrg?.id ?? session?.session?.activeOrganizationId
 
   const refreshFolders = useCallback(async () => {
     if (!orgId) return
-    const res = await fetch(`/api/folders?orgId=${orgId}`)
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/folders?orgId=${orgId}`)
+      if (!res.ok) return
       setFolders(await res.json())
+    } catch {
+      // Keep existing state when refresh fails.
     }
   }, [orgId])
 
-  const refreshDocs = useCallback(async (params?: Record<string, string>) => {
-    const url = new URL('/api/documents', window.location.origin)
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
+  const refreshOnboardingStatus = useCallback(async () => {
+    if (!orgId) return
+    try {
+      const res = await fetch(`/api/onboarding/status?orgId=${orgId}`)
+      if (!res.ok) return
+      setOnboardingStatus(await res.json())
+    } catch {
+      // Keep existing state when refresh fails.
     }
-    const res = await fetch(url.toString())
-    if (res.ok) {
-      setDocs(await res.json())
+  }, [orgId])
+
+  const refreshConnectedFolders = useCallback(async () => {
+    if (!orgId) return
+    try {
+      const res = await fetch('/api/connect/folders', { cache: 'no-store' })
+      if (!res.ok) return
+      setConnectedFolders(await res.json())
+    } catch {
+      // Keep existing state when refresh fails.
     }
-  }, [])
+  }, [orgId])
 
   useEffect(() => {
-    if (orgId) {
-      setLoading(true)
-      Promise.all([refreshFolders(), refreshDocs()]).finally(() => setLoading(false))
+    if (!orgId) {
+      setFolders([])
+      setConnectedFolders([])
+      setOnboardingStatus(null)
+      setLoading(false)
+      setOnboardingLoading(false)
+      return
     }
-  }, [orgId, refreshFolders, refreshDocs])
+
+    setLoading(true)
+    setOnboardingLoading(true)
+    refreshFolders().finally(() => setLoading(false))
+    void refreshConnectedFolders()
+    refreshOnboardingStatus().finally(() => setOnboardingLoading(false))
+  }, [orgId, refreshFolders, refreshConnectedFolders, refreshOnboardingStatus])
+
+  useEffect(() => {
+    if (!orgId) return
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      void refreshConnectedFolders()
+    }
+
+    const interval = window.setInterval(refreshIfVisible, 30_000)
+    document.addEventListener('visibilitychange', refreshIfVisible)
+    window.addEventListener('focus', refreshIfVisible)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', refreshIfVisible)
+      window.removeEventListener('focus', refreshIfVisible)
+    }
+  }, [orgId, refreshConnectedFolders])
 
   return (
     <SidebarContext.Provider
-      value={{ open, setOpen, folders, refreshFolders, docs, refreshDocs, loading }}
+      value={{
+        open,
+        setOpen,
+        folders,
+        refreshFolders,
+        connectedFolders,
+        refreshConnectedFolders,
+        onboardingStatus,
+        refreshOnboardingStatus,
+        loading,
+        onboardingLoading,
+      }}
     >
       {children}
     </SidebarContext.Provider>

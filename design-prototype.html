@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CollabMD Design Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+
+    --bg: #ffffff;
+    --bg-subtle: #f7f7f5;
+    --bg-hover: #f0f0ee;
+    --bg-active: #e8e8e5;
+
+    --fg: #111111;
+    --fg-secondary: #555555;
+    --fg-muted: #999999;
+    --fg-faint: #bbbbbb;
+
+    --border: #e2e2df;
+    --border-strong: #d0d0cc;
+
+    --accent: #c2682b;
+    --accent-hover: #a8571f;
+    --accent-subtle: #fdf5ef;
+    --accent-text: #ffffff;
+
+    --green: #2d7d46;
+    --green-subtle: #eef7f0;
+    --red: #c4342d;
+    --red-subtle: #fdf0ef;
+
+    --radius-sm: 3px;
+    --radius: 5px;
+    --radius-lg: 8px;
+
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow: 0 2px 8px rgba(0,0,0,0.06);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-sans);
+    color: var(--fg);
+    background: var(--bg);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== LAYOUT ===== */
+  .app-shell {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar {
+    width: 260px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-subtle);
+    flex-shrink: 0;
+  }
+
+  .sidebar-header {
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .logo-mark {
+    width: 22px;
+    height: 22px;
+    background: var(--fg);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bg);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .btn-new {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--fg);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: -0.01em;
+  }
+  .btn-new:hover {
+    background: var(--fg);
+    color: var(--bg);
+    border-color: var(--fg);
+  }
+
+  .sidebar-nav {
+    padding: 8px;
+  }
+
+  .nav-item {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 7px 10px;
+    border-radius: var(--radius);
+    color: var(--fg-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.12s;
+    letter-spacing: -0.01em;
+  }
+  .nav-item:hover { background: var(--bg-hover); color: var(--fg); }
+  .nav-item.active { background: var(--bg); color: var(--fg); box-shadow: var(--shadow-sm); }
+
+  .nav-icon {
+    width: 16px;
+    height: 16px;
+    opacity: 0.5;
+    flex-shrink: 0;
+  }
+  .nav-item:hover .nav-icon,
+  .nav-item.active .nav-icon { opacity: 0.8; }
+
+  .sidebar-section {
+    padding: 0 8px;
+    margin-top: 4px;
+  }
+
+  .section-header {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    padding: 12px 10px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .folder-item {
+    font-size: 13px;
+    padding: 5px 10px 5px 26px;
+    border-radius: var(--radius);
+    color: var(--fg-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.12s;
+  }
+  .folder-item:hover { background: var(--bg-hover); color: var(--fg); }
+
+  .folder-icon { font-size: 13px; opacity: 0.4; }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent-subtle);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .user-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .user-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .user-org {
+    font-size: 11px;
+    color: var(--fg-muted);
+    font-family: var(--font-mono);
+    letter-spacing: -0.01em;
+  }
+
+  /* ===== MAIN CONTENT ===== */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .main-header {
+    padding: 16px 28px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .page-title {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    color: var(--fg);
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .search-box {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--fg);
+    width: 200px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-box::placeholder { color: var(--fg-faint); }
+  .search-box:focus { border-color: var(--fg); }
+
+  .sort-btn {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--fg-secondary);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .sort-btn:hover { border-color: var(--fg); color: var(--fg); }
+
+  /* ===== DOC LIST ===== */
+  .doc-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 20px;
+  }
+
+  .doc-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.12s;
+    gap: 12px;
+    border: 1px solid transparent;
+  }
+  .doc-row:hover {
+    background: var(--bg-subtle);
+    border-color: var(--border);
+  }
+
+  .doc-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius);
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--fg-muted);
+    flex-shrink: 0;
+    transition: all 0.12s;
+  }
+  .doc-row:hover .doc-icon {
+    background: var(--bg);
+    border-color: var(--border-strong);
+  }
+
+  .doc-info { flex: 1; min-width: 0; }
+  .doc-title {
+    font-weight: 500;
+    font-size: 13.5px;
+    color: var(--fg);
+    letter-spacing: -0.01em;
+  }
+  .doc-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-muted);
+    margin-top: 1px;
+    letter-spacing: -0.01em;
+  }
+
+  .doc-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 3px;
+    letter-spacing: 0.02em;
+  }
+  .badge-shared {
+    background: var(--accent-subtle);
+    color: var(--accent);
+  }
+  .badge-agent {
+    background: var(--green-subtle);
+    color: var(--green);
+  }
+
+  .doc-time {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-faint);
+    flex-shrink: 0;
+    letter-spacing: -0.01em;
+  }
+
+  /* ===== DIVIDER ===== */
+  .section-divider {
+    display: flex;
+    align-items: center;
+    padding: 16px 0 4px;
+  }
+  .section-divider::before,
+  .section-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .section-divider span {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-faint);
+    padding: 0 12px;
+  }
+
+  /* ===== EDITOR PAGE ===== */
+  .editor-page {
+    display: none;
+  }
+
+  .editor-toolbar {
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+
+  .toolbar-btn {
+    width: 30px;
+    height: 28px;
+    border: none;
+    background: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--fg-secondary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    transition: all 0.1s;
+  }
+  .toolbar-btn:hover { background: var(--bg-subtle); color: var(--fg); }
+  .toolbar-btn.active { background: var(--bg-active); color: var(--fg); }
+
+  .toolbar-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    margin: 0 6px;
+  }
+
+  .editor-content {
+    flex: 1;
+    padding: 32px 48px;
+    overflow-y: auto;
+    max-width: 780px;
+  }
+
+  .editor-content h1 {
+    font-family: var(--font-mono);
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    margin-bottom: 6px;
+    color: var(--fg);
+  }
+
+  .editor-content .meta-line {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--fg-muted);
+    margin-bottom: 28px;
+    letter-spacing: -0.01em;
+  }
+
+  .editor-content p {
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--fg);
+    margin-bottom: 16px;
+    letter-spacing: -0.005em;
+  }
+
+  .editor-content code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    color: var(--accent);
+  }
+
+  .editor-content pre {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    color: var(--fg);
+  }
+
+  .editor-content h2 {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin-top: 32px;
+    margin-bottom: 12px;
+    color: var(--fg);
+  }
+
+  .editor-content ul {
+    padding-left: 20px;
+    margin-bottom: 16px;
+  }
+  .editor-content li {
+    font-size: 15px;
+    line-height: 1.7;
+    margin-bottom: 4px;
+    color: var(--fg);
+  }
+
+  /* ===== BUTTONS ===== */
+  .btn-primary {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 7px 16px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--fg);
+    color: var(--bg);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: -0.01em;
+  }
+  .btn-primary:hover { background: #333; }
+
+  .btn-secondary {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 7px 16px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--fg);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: -0.01em;
+  }
+  .btn-secondary:hover { border-color: var(--fg); }
+
+  .btn-accent {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 7px 16px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--accent);
+    color: var(--accent-text);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: -0.01em;
+  }
+  .btn-accent:hover { background: var(--accent-hover); }
+
+  /* ===== COMPONENT SHOWCASE ===== */
+  .showcase {
+    padding: 40px 28px;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .showcase-section {
+    margin-bottom: 48px;
+  }
+
+  .showcase-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .showcase-grid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .type-sample h1 {
+    font-family: var(--font-mono);
+    font-size: 36px;
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    margin-bottom: 8px;
+  }
+  .type-sample h2 {
+    font-family: var(--font-mono);
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    margin-bottom: 8px;
+  }
+  .type-sample h3 {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  .type-sample p {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--fg-secondary);
+    max-width: 500px;
+  }
+  .type-sample .mono-body {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--fg-secondary);
+    letter-spacing: -0.01em;
+  }
+
+  .color-swatch {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding-bottom: 4px;
+  }
+  .color-swatch span {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--fg-muted);
+    margin-top: 6px;
+  }
+
+  /* Tab switcher */
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .tab {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 10px 16px;
+    border: none;
+    background: none;
+    color: var(--fg-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    letter-spacing: -0.01em;
+  }
+  .tab:hover { color: var(--fg); }
+  .tab.active {
+    color: var(--fg);
+    border-bottom-color: var(--fg);
+  }
+
+  /* Share modal preview */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.15);
+    backdrop-filter: blur(2px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-backdrop.visible { display: flex; }
+
+  .modal {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: 420px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .modal-header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .modal-header h3 {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .modal-close {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--fg-muted);
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: all 0.1s;
+  }
+  .modal-close:hover { background: var(--bg-subtle); color: var(--fg); }
+
+  .modal-body { padding: 16px 20px; }
+
+  .input-group { margin-bottom: 12px; }
+  .input-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--fg-secondary);
+    margin-bottom: 4px;
+    display: block;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .input-field {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--fg);
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .input-field:focus { border-color: var(--fg); }
+
+  .collaborator-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .collaborator-row:last-child { border-bottom: none; }
+
+  .collab-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .collab-email {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-muted);
+  }
+  .collab-role {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-secondary);
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    cursor: pointer;
+  }
+
+  .modal-footer {
+    padding: 12px 20px 16px;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  /* Onboarding checklist preview */
+  .checklist {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin: 8px;
+  }
+  .checklist-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .checklist-progress {
+    font-weight: 400;
+    color: var(--fg-muted);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .checklist-bar {
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .checklist-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 1px;
+    width: 40%;
+    transition: width 0.3s;
+  }
+  .checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 12px;
+    color: var(--fg-secondary);
+    cursor: pointer;
+    transition: color 0.1s;
+  }
+  .checklist-item:hover { color: var(--fg); }
+  .checklist-item.done { color: var(--fg-muted); text-decoration: line-through; }
+  .check-box {
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 3px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    transition: all 0.1s;
+  }
+  .checklist-item.done .check-box {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .checklist-dismiss {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--fg-faint);
+    cursor: pointer;
+    margin-top: 8px;
+    text-align: center;
+    transition: color 0.1s;
+  }
+  .checklist-dismiss:hover { color: var(--fg-muted); }
+
+  /* Page view switcher */
+  .view-content { display: none; }
+  .view-content.active { display: flex; flex: 1; flex-direction: column; overflow: hidden; }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-mark">#</div>
+        collabmd
+      </div>
+      <button class="btn-new" onclick="showView('editor')">+ new</button>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-item active" onclick="showView('docs')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M4 1h8a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V3a2 2 0 012-2zm0 1.5a.5.5 0 00-.5.5v10a.5.5 0 00.5.5h8a.5.5 0 00.5-.5V3a.5.5 0 00-.5-.5H4z"/></svg>
+        All documents
+      </div>
+      <div class="nav-item" onclick="showView('docs')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM0 8a8 8 0 1116 0A8 8 0 010 8zm8-3a.75.75 0 01.75.75v1.5h1.5a.75.75 0 010 1.5h-1.5v1.5a.75.75 0 01-1.5 0v-1.5h-1.5a.75.75 0 010-1.5h1.5v-1.5A.75.75 0 018 5z"/></svg>
+        Shared with me
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M6.5 1.75a.75.75 0 00-1.5 0V3H3.75A1.75 1.75 0 002 4.75v8.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0014 13.25V4.75A1.75 1.75 0 0012.25 3H11V1.75a.75.75 0 00-1.5 0V3h-3V1.75z"/></svg>
+        Trash
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-header">
+        Folders
+        <span style="cursor:pointer; font-size: 14px; opacity: 0.4;">+</span>
+      </div>
+      <div class="folder-item">
+        <span class="folder-icon">&#9662;</span>
+        Engineering
+      </div>
+      <div class="folder-item" style="padding-left: 42px;">
+        <span class="folder-icon">&#9656;</span>
+        RFCs
+      </div>
+      <div class="folder-item" style="padding-left: 42px;">
+        <span class="folder-icon">&#9656;</span>
+        Runbooks
+      </div>
+      <div class="folder-item">
+        <span class="folder-icon">&#9656;</span>
+        Product
+      </div>
+      <div class="folder-item">
+        <span class="folder-icon">&#9656;</span>
+        Design
+      </div>
+    </div>
+
+    <!-- Getting Started Checklist -->
+    <div style="margin-top: auto;">
+      <div class="checklist">
+        <div class="checklist-title">
+          Getting started
+          <span class="checklist-progress">2 / 5</span>
+        </div>
+        <div class="checklist-bar"><div class="checklist-bar-fill"></div></div>
+        <div class="checklist-item done">
+          <div class="check-box">&#10003;</div>
+          Name your workspace
+        </div>
+        <div class="checklist-item done">
+          <div class="check-box">&#10003;</div>
+          Create your first document
+        </div>
+        <div class="checklist-item">
+          <div class="check-box"></div>
+          Invite a teammate
+        </div>
+        <div class="checklist-item">
+          <div class="check-box"></div>
+          Install the CLI
+        </div>
+        <div class="checklist-item">
+          <div class="check-box"></div>
+          Link a local folder
+        </div>
+        <div class="checklist-dismiss">dismiss</div>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="avatar">SH</div>
+      <div class="user-info">
+        <div class="user-name">Shehryar Hussain</div>
+        <div class="user-org">AccelPay Docs</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="tab-bar">
+      <button class="tab active" onclick="showView('docs')">Documents</button>
+      <button class="tab" onclick="showView('editor')">Editor</button>
+      <button class="tab" onclick="showView('components')">Components</button>
+    </div>
+
+    <!-- DOC LIST VIEW -->
+    <div id="view-docs" class="view-content active">
+      <div class="main-header">
+        <div class="page-title">All documents</div>
+        <div class="header-actions">
+          <input type="text" class="search-box" placeholder="search docs...">
+          <button class="sort-btn">sort: updated &#9662;</button>
+        </div>
+      </div>
+      <div class="doc-list">
+        <div class="doc-row">
+          <div class="doc-icon">#</div>
+          <div class="doc-info">
+            <div class="doc-title">API Design Guidelines</div>
+            <div class="doc-meta">Engineering / RFCs &middot; 3 collaborators</div>
+          </div>
+          <span class="doc-badge badge-shared">shared</span>
+          <div class="doc-time">2m ago</div>
+        </div>
+        <div class="doc-row">
+          <div class="doc-icon">#</div>
+          <div class="doc-info">
+            <div class="doc-title">Q1 Product Roadmap</div>
+            <div class="doc-meta">Product &middot; 5 collaborators</div>
+          </div>
+          <span class="doc-badge badge-shared">shared</span>
+          <div class="doc-time">15m ago</div>
+        </div>
+        <div class="doc-row">
+          <div class="doc-icon">#</div>
+          <div class="doc-info">
+            <div class="doc-title">Deployment Runbook: Production</div>
+            <div class="doc-meta">Engineering / Runbooks</div>
+          </div>
+          <span class="doc-badge badge-agent">agent edited</span>
+          <div class="doc-time">1h ago</div>
+        </div>
+        <div class="doc-row">
+          <div class="doc-icon">#</div>
+          <div class="doc-info">
+            <div class="doc-title">Meeting Notes: Design Review</div>
+            <div class="doc-meta">Design</div>
+          </div>
+          <div class="doc-time">3h ago</div>
+        </div>
+        <div class="doc-row">
+          <div class="doc-icon">#</div>
+          <div class="doc-info">
+            <div class="doc-title">Architecture Decision Record: Auth</div>
+            <div class="doc-meta">Engineering / RFCs &middot; 2 collaborators</div>
+          </div>
+          <span class="doc-badge badge-shared">shared</span>
+          <div class="doc-time">yesterday</div>
+        </div>
+
+        <div class="section-divider"><span>this week</span></div>
+
+        <div class="doc-row">
+          <div class="doc-icon">#</div>
+          <div class="doc-info">
+            <div class="doc-title">CRDT Sync Protocol Notes</div>
+            <div class="doc-meta">Engineering</div>
+          </div>
+          <span class="doc-badge badge-agent">agent edited</span>
+          <div class="doc-time">3 days ago</div>
+        </div>
+        <div class="doc-row">
+          <div class="doc-icon">#</div>
+          <div class="doc-info">
+            <div class="doc-title">Onboarding Checklist Template</div>
+            <div class="doc-meta">Product</div>
+          </div>
+          <div class="doc-time">5 days ago</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EDITOR VIEW -->
+    <div id="view-editor" class="view-content">
+      <div class="editor-toolbar">
+        <button class="toolbar-btn" title="Bold"><b>B</b></button>
+        <button class="toolbar-btn" title="Italic"><i>I</i></button>
+        <button class="toolbar-btn" title="Code">&lt;/&gt;</button>
+        <button class="toolbar-btn" title="Strikethrough"><s>S</s></button>
+        <div class="toolbar-divider"></div>
+        <button class="toolbar-btn" title="Heading">H</button>
+        <button class="toolbar-btn" title="List">&#8226;</button>
+        <button class="toolbar-btn" title="Link">&#128279;</button>
+        <div class="toolbar-divider"></div>
+        <button class="toolbar-btn" title="Quote">&ldquo;</button>
+        <button class="toolbar-btn" title="Code block">{}</button>
+        <div style="flex: 1"></div>
+        <button class="btn-secondary" onclick="toggleModal()" style="font-size: 11px; padding: 4px 10px;">share</button>
+      </div>
+      <div class="editor-content">
+        <h1>API Design Guidelines</h1>
+        <div class="meta-line">Engineering / RFCs &middot; last edited 2m ago &middot; 3 collaborators</div>
+
+        <p>This document outlines our conventions for designing internal and public-facing APIs. The goal is consistency across services, predictable behavior for consumers, and easy-to-read documentation.</p>
+
+        <h2>Naming conventions</h2>
+        <p>Use <code>snake_case</code> for all JSON field names. URL paths use <code>kebab-case</code>. Resource names are always plural: <code>/api/documents</code>, not <code>/api/document</code>.</p>
+
+        <h2>Authentication</h2>
+        <p>All endpoints require authentication via Bearer token in the <code>Authorization</code> header. Session cookies are accepted for browser requests. The sync server uses JWT verification with JWKS rotation.</p>
+
+        <pre>Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
+Content-Type: application/json</pre>
+
+        <h2>Error responses</h2>
+        <p>All errors return a consistent JSON shape:</p>
+        <pre>{
+  "error": "resource not found",
+  "status": 404
+}</pre>
+
+        <ul>
+          <li>Error messages are always lowercase</li>
+          <li>Status codes follow standard HTTP semantics</li>
+          <li>Rate-limited requests return <code>429</code> with a <code>retry-after</code> header</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COMPONENTS VIEW -->
+    <div id="view-components" class="view-content">
+      <div class="showcase">
+        <div class="showcase-section">
+          <div class="showcase-label">Typography</div>
+          <div class="type-sample">
+            <h1>collabmd</h1>
+            <h2>Collaborative markdown editing</h2>
+            <h3>JetBrains Mono &middot; headings + mono UI</h3>
+            <p>Plus Jakarta Sans for body text and interface labels. Clean and readable at small sizes with a slightly geometric character that pairs well with monospace headings.</p>
+            <br>
+            <span class="mono-body">font-family: 'JetBrains Mono', monospace &mdash; 0123456789</span>
+          </div>
+        </div>
+
+        <div class="showcase-section">
+          <div class="showcase-label">Colors</div>
+          <div class="showcase-grid">
+            <div><div class="color-swatch" style="background: #111111;"></div><span style="font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); display: block; margin-top: 4px;">fg #111</span></div>
+            <div><div class="color-swatch" style="background: #555555;"></div><span style="font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); display: block; margin-top: 4px;">secondary</span></div>
+            <div><div class="color-swatch" style="background: #999999;"></div><span style="font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); display: block; margin-top: 4px;">muted</span></div>
+            <div><div class="color-swatch" style="background: #e2e2df;"></div><span style="font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); display: block; margin-top: 4px;">border</span></div>
+            <div><div class="color-swatch" style="background: #f7f7f5;"></div><span style="font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); display: block; margin-top: 4px;">subtle</span></div>
+            <div><div class="color-swatch" style="background: #ffffff;"></div><span style="font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); display: block; margin-top: 4px;">bg</span></div>
+            <div><div class="color-swatch" style="background: #c2682b;"></div><span style="font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); display: block; margin-top: 4px;">accent</span></div>
+            <div><div class="color-swatch" style="background: #2d7d46;"></div><span style="font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); display: block; margin-top: 4px;">green</span></div>
+            <div><div class="color-swatch" style="background: #c4342d;"></div><span style="font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); display: block; margin-top: 4px;">red</span></div>
+          </div>
+        </div>
+
+        <div class="showcase-section">
+          <div class="showcase-label">Buttons</div>
+          <div class="showcase-grid">
+            <button class="btn-primary">primary action</button>
+            <button class="btn-secondary">secondary</button>
+            <button class="btn-accent">accent action</button>
+            <button class="btn-new">+ new doc</button>
+          </div>
+        </div>
+
+        <div class="showcase-section">
+          <div class="showcase-label">Badges</div>
+          <div class="showcase-grid">
+            <span class="doc-badge badge-shared">shared</span>
+            <span class="doc-badge badge-agent">agent edited</span>
+            <span class="doc-badge" style="background: var(--red-subtle); color: var(--red);">trashed</span>
+            <span class="collab-role">editor</span>
+            <span class="collab-role">viewer</span>
+            <span class="collab-role">owner</span>
+          </div>
+        </div>
+
+        <div class="showcase-section">
+          <div class="showcase-label">Inputs</div>
+          <div style="max-width: 320px;">
+            <div class="input-group">
+              <label class="input-label">Email</label>
+              <input type="text" class="input-field" placeholder="teammate@company.com">
+            </div>
+            <div class="input-group">
+              <label class="input-label">Document title</label>
+              <input type="text" class="input-field" value="API Design Guidelines">
+            </div>
+          </div>
+        </div>
+
+        <div class="showcase-section">
+          <div class="showcase-label">Share modal</div>
+          <div class="modal" style="position: relative; display: block;">
+            <div class="modal-header">
+              <h3>Share document</h3>
+              <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div class="input-group">
+                <label class="input-label">Invite by email</label>
+                <div style="display: flex; gap: 8px;">
+                  <input type="text" class="input-field" placeholder="email@company.com" style="flex: 1;">
+                  <button class="btn-primary">invite</button>
+                </div>
+              </div>
+              <div style="margin-top: 16px;">
+                <div class="input-label" style="margin-bottom: 8px;">Collaborators</div>
+                <div class="collaborator-row">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 9px;">SH</div>
+                  <div style="flex: 1;">
+                    <div class="collab-name" style="font-size: 12.5px;">Shehryar Hussain</div>
+                    <div class="collab-email">shehryar@accelpay.io</div>
+                  </div>
+                  <span class="collab-role">owner</span>
+                </div>
+                <div class="collaborator-row">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 9px;">AB</div>
+                  <div style="flex: 1;">
+                    <div class="collab-name" style="font-size: 12.5px;">Alice Brown</div>
+                    <div class="collab-email">alice@accelpay.io</div>
+                  </div>
+                  <span class="collab-role">editor</span>
+                </div>
+                <div class="collaborator-row">
+                  <div class="avatar" style="width: 24px; height: 24px; font-size: 9px;">BC</div>
+                  <div style="flex: 1;">
+                    <div class="collab-name" style="font-size: 12.5px;">Bob Chen</div>
+                    <div class="collab-email">bob@accelpay.io</div>
+                  </div>
+                  <span class="collab-role">viewer</span>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn-secondary">copy link</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal overlay -->
+<div class="modal-backdrop" id="share-modal" onclick="if(event.target===this)toggleModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Share document</h3>
+      <button class="modal-close" onclick="toggleModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="input-group">
+        <label class="input-label">Invite by email</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" class="input-field" placeholder="email@company.com" style="flex: 1;">
+          <button class="btn-primary">invite</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary">copy link</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function showView(name) {
+  document.querySelectorAll('.view-content').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  const tabs = document.querySelectorAll('.tab');
+  const map = { docs: 0, editor: 1, components: 2 };
+  if (map[name] !== undefined) tabs[map[name]].classList.add('active');
+}
+function toggleModal() {
+  document.getElementById('share-modal').classList.toggle('visible');
+}
+</script>
+</body>
+</html>

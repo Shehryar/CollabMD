@@ -4,8 +4,13 @@ import { nextCookies } from 'better-auth/next-js'
 import { organization } from 'better-auth/plugins'
 import { magicLink } from 'better-auth/plugins'
 import { jwt } from 'better-auth/plugins'
+import { bearer } from 'better-auth/plugins'
 import { db } from '@collabmd/db'
 import * as schema from '@collabmd/db/schema'
+
+if (!process.env.BETTER_AUTH_SECRET) {
+  throw new Error('BETTER_AUTH_SECRET is required')
+}
 
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL ?? 'http://localhost:3000',
@@ -41,7 +46,7 @@ export const auth = betterAuth({
     }),
     magicLink({
       sendMagicLink: async ({ email, url }) => {
-        console.log(`[Magic Link] Send to ${email}: ${url}`)
+        console.log(`\n=== MAGIC LINK ===\nTo: ${email}\n${url}\n==================\n`)
       },
     }),
     jwt({
@@ -51,6 +56,7 @@ export const auth = betterAuth({
         expirationTime: '15m',
       },
     }),
+    bearer(),
   ],
   databaseHooks: {
     user: {

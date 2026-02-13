@@ -31,6 +31,7 @@ function pickName(): string {
 export interface YjsContext {
   ydoc: Y.Doc
   ytext: Y.Text
+  ycomments: Y.Array<Y.Map<unknown>>
   awareness: Awareness
   synced: boolean
 }
@@ -39,6 +40,7 @@ export function useYjs(docId: string): YjsContext {
   const core = useMemo(() => {
     const ydoc = new Y.Doc()
     const ytext = ydoc.getText('codemirror')
+    const ycomments = ydoc.getArray<Y.Map<unknown>>('comments')
     const awareness = new Awareness(ydoc)
 
     const color = pickColor()
@@ -47,12 +49,14 @@ export function useYjs(docId: string): YjsContext {
       color,
       colorLight: color + '33',
     })
+    awareness.setLocalStateField('source', 'browser')
 
-    return { ydoc, ytext, awareness }
+    return { ydoc, ytext, ycomments, awareness }
   }, [docId])
 
   const [synced, setSynced] = useState(false)
   const providerRef = useRef<WebsocketProvider | null>(null)
+  const contextRef = useRef<YjsContext | null>(null)
 
   // Connect to sync server (useEffect only runs client-side)
   useEffect(() => {
@@ -65,11 +69,16 @@ export function useYjs(docId: string): YjsContext {
 
     return () => {
       provider.destroy()
+      core.awareness.destroy()
       core.ydoc.destroy()
       providerRef.current = null
       setSynced(false)
     }
   }, [docId, core])
 
-  return { ...core, synced }
+  if (!contextRef.current || contextRef.current.ydoc !== core.ydoc) {
+    contextRef.current = { ...core, synced: false }
+  }
+  contextRef.current.synced = synced
+  return contextRef.current
 }

@@ -17,11 +17,19 @@ interface Room {
   conns: Map<WebSocket, Set<number>>
 }
 
+interface ConnMeta {
+  source?: 'browser' | 'daemon'
+  userId?: string
+  canEdit?: boolean
+}
+
 export interface SyncServerConfig {
   auth?: {
     verifyToken: (token: string) => Promise<TokenPayload | null>
+    verifySessionCookie?: (cookieHeader: string) => Promise<TokenPayload | null>
     checkPermission: (userId: string, relation: string, objectType: string, objectId: string) => Promise<boolean>
   }
+  checkAgentPolicy?: (docId: string, source: string) => Promise<{ allowed: boolean; code?: number; reason?: string }>
 }
 
 const MAX_CONNECTIONS_PER_USER = 20
@@ -30,6 +38,8 @@ export function createSyncServer(config?: SyncServerConfig) {
   const rooms = new Map<string, Room>()
   // Track active WebSocket connections per user for rate limiting
   const userConnections = new Map<string, Set<WebSocket>>()
+  // Track connection metadata (source, userId)
+  const connMeta = new Map<WebSocket, ConnMeta>()
 
   function getRoom(name: string): Room {
     const existing = rooms.get(name)
@@ -70,11 +80,21 @@ export function createSyncServer(config?: SyncServerConfig) {
   }
 
   function handleMessage(ws: WebSocket, room: Room, data: Uint8Array) {
+    const meta = connMeta.get(ws)
     const decoder = decoding.createDecoder(data)
     const messageType = decoding.readVarUint(decoder)
 
     switch (messageType) {
       case messageSync: {
+        const syncTypeDecoder = decoding.createDecoder(data)
+        decoding.readVarUint(syncTypeDecoder) // outer type
+        const syncMessageType = decoding.readVarUint(syncTypeDecoder)
+
+        // Read-only users may complete handshake (type 0) but cannot push updates (type 1/2).
+        if (meta?.canEdit === false && syncMessageType !== 0) {
+          return
+        }
+
         const encoder = encoding.createEncoder()
         encoding.writeVarUint(encoder, messageSync)
         syncProtocol.readSyncMessage(decoder, encoder, room.doc, ws)
@@ -128,16 +148,24 @@ export function createSyncServer(config?: SyncServerConfig) {
     room.doc.on('update', onUpdate)
 
     ws.on('message', (raw: ArrayBuffer | Buffer) => {
-      const data = raw instanceof ArrayBuffer
-        ? new Uint8Array(raw)
-        : new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength)
-      handleMessage(ws, room, data)
+      try {
+        const data = raw instanceof ArrayBuffer
+          ? new Uint8Array(raw)
+          : new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength)
+        handleMessage(ws, room, data)
+      } catch {
+        // Malformed protocol payload from client.
+        if (ws.readyState === ws.OPEN) {
+          ws.close(4400, 'Invalid message')
+        }
+      }
     })
 
     ws.on('close', () => {
       const controlledIds = room.conns.get(ws)
       room.conns.delete(ws)
       room.doc.off('update', onUpdate)
+      connMeta.delete(ws)
 
       if (controlledIds) {
         awarenessProtocol.removeAwarenessStates(
@@ -165,72 +193,118 @@ export function createSyncServer(config?: SyncServerConfig) {
       res.end('OK')
       return
     }
+    if (req.method === 'GET' && req.url === '/connections') {
+      const result: Array<{ docId: string; userId: string; source: 'daemon' }> = []
+      for (const [roomName, room] of rooms) {
+        for (const [ws] of room.conns) {
+          const meta = connMeta.get(ws)
+          if (meta?.source === 'daemon' && meta.userId) {
+            result.push({ docId: roomName, userId: meta.userId, source: 'daemon' })
+          }
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(result))
+      return
+    }
     res.writeHead(404)
     res.end()
   })
 
-  const wss = new WebSocketServer({ noServer: true })
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 })
 
   server.on('upgrade', async (req, socket, head) => {
-    const url = new URL(req.url!, 'http://localhost')
-    const roomName = url.pathname.slice(1) || 'default'
-    let userId: string | null = null
+    try {
+      const url = new URL(req.url!, 'http://localhost')
+      const roomName = url.pathname.slice(1) || 'default'
+      const hasAuthHeader = typeof req.headers.authorization === 'string' && req.headers.authorization.length > 0
+      const source: 'browser' | 'daemon' = hasAuthHeader ? 'daemon' : 'browser'
+      let userId: string | null = null
+      let canEdit = true
 
-    if (config?.auth) {
-      const token = url.searchParams.get('token')
-      if (!token) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
-        socket.destroy()
-        return
-      }
-
-      const payload = await config.auth.verifyToken(token)
-      if (!payload) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
-        socket.destroy()
-        return
-      }
-
-      userId = payload.id
-
-      // Enforce per-user connection limit
-      const conns = userConnections.get(userId)
-      if (conns && conns.size >= MAX_CONNECTIONS_PER_USER) {
-        wss.handleUpgrade(req, socket, head, (ws) => {
-          ws.close(4029, 'Too many connections')
-        })
-        return
-      }
-
-      const canView = await config.auth.checkPermission(payload.id, 'can_view', 'document', roomName)
-      if (!canView) {
-        wss.handleUpgrade(req, socket, head, (ws) => {
-          ws.close(4403, 'Forbidden')
-        })
-        return
-      }
-    }
-
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      // Track connection for rate limiting
-      if (userId) {
-        let conns = userConnections.get(userId)
-        if (!conns) {
-          conns = new Set()
-          userConnections.set(userId, conns)
+      if (config?.auth) {
+        let payload: TokenPayload | null = null
+        if (source === 'daemon') {
+          const authHeader = req.headers.authorization
+          const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null
+          if (!token) {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
+            socket.destroy()
+            return
+          }
+          payload = await config.auth.verifyToken(token)
+        } else if (source === 'browser') {
+          const cookieHeader = typeof req.headers.cookie === 'string' ? req.headers.cookie : null
+          if (cookieHeader && config.auth.verifySessionCookie) {
+            payload = await config.auth.verifySessionCookie(cookieHeader)
+          }
         }
-        conns.add(ws)
 
-        ws.on('close', () => {
-          conns!.delete(ws)
-          if (conns!.size === 0) userConnections.delete(userId!)
-        })
+        if (!payload) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
+          socket.destroy()
+          return
+        }
+
+        userId = payload.id
+
+        // Enforce per-user connection limit
+        const conns = userConnections.get(userId)
+        if (conns && conns.size >= MAX_CONNECTIONS_PER_USER) {
+          wss.handleUpgrade(req, socket, head, (ws) => {
+            ws.close(4029, 'Too many connections')
+          })
+          return
+        }
+
+        const canView = await config.auth.checkPermission(payload.id, 'can_view', 'document', roomName)
+        if (!canView) {
+          wss.handleUpgrade(req, socket, head, (ws) => {
+            ws.close(4403, 'Forbidden')
+          })
+          return
+        }
+        canEdit = await config.auth.checkPermission(payload.id, 'can_edit', 'document', roomName)
+
+        // Check agent policy for daemon connections
+        if (source === 'daemon' && config.checkAgentPolicy) {
+          const policy = await config.checkAgentPolicy(roomName, source)
+          if (!policy.allowed) {
+            wss.handleUpgrade(req, socket, head, (ws) => {
+              ws.close(policy.code || 4450, policy.reason || 'Agent editing disabled')
+            })
+            return
+          }
+        }
       }
 
-      const room = getRoom(roomName)
-      setupConnection(ws, room)
-    })
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        // Store connection metadata
+        connMeta.set(ws, { source, userId: userId ?? undefined, canEdit })
+
+        // Track connection for rate limiting
+        if (userId) {
+          let conns = userConnections.get(userId)
+          if (!conns) {
+            conns = new Set()
+            userConnections.set(userId, conns)
+          }
+          conns.add(ws)
+
+          ws.on('close', () => {
+            conns!.delete(ws)
+            if (conns!.size === 0) userConnections.delete(userId!)
+          })
+        }
+
+        const room = getRoom(roomName)
+        setupConnection(ws, room)
+      })
+    } catch {
+      socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n')
+      socket.destroy()
+    }
   })
 
-  return { server, wss, rooms }
+  return { server, wss, rooms, connMeta }
 }

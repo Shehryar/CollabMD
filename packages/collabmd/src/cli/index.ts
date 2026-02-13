@@ -1,7 +1,21 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander'
-import { Daemon } from '../daemon/index.js'
+import { createWriteStream, mkdirSync } from 'fs'
+import { homedir } from 'os'
+import { join } from 'path'
+import { Daemon, GlobalDaemon } from '../daemon/index.js'
+import { loginCommand } from './login.js'
+import { logoutCommand } from './logout.js'
+import { linkCommand } from './link.js'
+import { unlinkCommand } from './unlink.js'
+import {
+  serviceControlCommand,
+  serviceInstallCommand,
+  serviceStatusCommand,
+  serviceUninstallCommand,
+} from './service.js'
+import { runOnboardingFlow } from './onboarding.js'
 
 const program = new Command()
 
@@ -37,6 +51,52 @@ program
   })
 
 program
+  .command('daemon')
+  .description('Start the global daemon orchestrator')
+  .option('--background', 'Run background global daemon mode')
+  .option('-p, --port <port>', 'Port for the daemon HTTP API', '4200')
+  .action(async (opts: { background?: boolean; port: string }) => {
+    if (!opts.background) {
+      console.log('Use `collabmd daemon --background` for global daemon mode.')
+      return
+    }
+
+    const logDir = join(homedir(), '.collabmd')
+    mkdirSync(logDir, { recursive: true })
+    const logPath = join(logDir, 'daemon.log')
+    const logStream = createWriteStream(logPath, { flags: 'a' })
+
+    const writeLog = (level: 'INFO' | 'ERROR', args: unknown[]) => {
+      const message = args.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg))).join(' ')
+      logStream.write(`[${new Date().toISOString()}] [${level}] ${message}\n`)
+    }
+
+    const originalLog = console.log
+    const originalError = console.error
+    console.log = (...args: unknown[]) => {
+      writeLog('INFO', args)
+      originalLog(...args)
+    }
+    console.error = (...args: unknown[]) => {
+      writeLog('ERROR', args)
+      originalError(...args)
+    }
+
+    const daemon = new GlobalDaemon({ port: parseInt(opts.port, 10) })
+    const shutdown = async () => {
+      await daemon.stop()
+      logStream.end()
+      process.exit(0)
+    }
+
+    process.on('SIGINT', () => void shutdown())
+    process.on('SIGTERM', () => void shutdown())
+
+    await daemon.start()
+    console.log(`Global daemon running on http://localhost:${opts.port}`)
+  })
+
+program
   .command('status')
   .description('Show daemon status')
   .option('-p, --port <port>', 'Daemon port', '4200')
@@ -53,30 +113,100 @@ program
 program
   .command('login')
   .description('Authenticate with CollabMD server')
-  .action(() => {
-    console.log('login: not yet implemented')
+  .option('-s, --server <url>', 'Server URL', 'http://localhost:3000')
+  .action(async (opts: { server: string }) => {
+    await loginCommand(opts.server)
   })
 
 program
   .command('logout')
   .description('Clear saved credentials')
-  .action(() => {
-    console.log('logout: not yet implemented')
+  .option('-s, --server <url>', 'Server URL')
+  .action((opts: { server?: string }) => {
+    logoutCommand(opts.server)
   })
 
 program
   .command('init')
-  .description('Initialize CollabMD in the current directory')
-  .action(() => {
-    console.log('init: not yet implemented')
+  .description('Run onboarding in the current directory')
+  .option('-s, --server <url>', 'Server URL or "local"')
+  .option('-o, --org <orgId>', 'Default organization ID')
+  .option('--skip <steps>', 'Comma-separated steps to skip')
+  .action(async (opts: { server?: string; org?: string; skip?: string }) => {
+    const argv: string[] = []
+    if (opts.skip) {
+      argv.push(`--skip=${opts.skip}`)
+    }
+    if (opts.server) {
+      argv.push('--skip=server')
+    }
+
+    await runOnboardingFlow({
+      argv,
+      cwdMode: true,
+      rootDir: process.cwd(),
+      defaultOrgId: opts.org,
+      defaultServerUrl: opts.server && opts.server !== 'local' ? opts.server : undefined,
+    })
   })
 
 program
   .command('link')
   .description('Connect local project to a CollabMD server')
   .argument('[server-url]', 'Server URL to link to')
-  .action((_serverUrl?: string) => {
-    console.log('link: not yet implemented')
+  .action((serverUrl?: string) => {
+    linkCommand(serverUrl || 'http://localhost:3000')
+  })
+
+program
+  .command('unlink')
+  .description('Remove current folder from global daemon registry')
+  .action(() => {
+    unlinkCommand()
+  })
+
+const service = program.command('service').description('Manage background daemon service')
+
+service
+  .command('install')
+  .description('Install background service')
+  .action(() => {
+    serviceInstallCommand()
+  })
+
+service
+  .command('uninstall')
+  .description('Uninstall background service')
+  .action(() => {
+    serviceUninstallCommand()
+  })
+
+service
+  .command('status')
+  .description('Check background service status')
+  .action(() => {
+    serviceStatusCommand()
+  })
+
+service
+  .command('start')
+  .description('Start background service')
+  .action(() => {
+    serviceControlCommand('start')
+  })
+
+service
+  .command('stop')
+  .description('Stop background service')
+  .action(() => {
+    serviceControlCommand('stop')
+  })
+
+service
+  .command('restart')
+  .description('Restart background service')
+  .action(() => {
+    serviceControlCommand('restart')
   })
 
 program.parse()

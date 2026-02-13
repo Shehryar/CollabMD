@@ -18,7 +18,7 @@ const mockReadTuples = vi.fn()
 const mockDeleteTuple = vi.fn()
 vi.mock('@collabmd/shared', () => ({
   checkPermission: (...args: unknown[]) => mockCheckPermission(...args),
-  readTuples: (...args: unknown[]) => mockReadTuples(...args),
+  readTuplesForEntity: (...args: unknown[]) => mockReadTuples(...args),
   deleteTuple: (...args: unknown[]) => mockDeleteTuple(...args),
 }))
 
@@ -59,6 +59,8 @@ vi.mock('@collabmd/db', () => ({
     folderId: 'folder_id',
   },
   eq: vi.fn((a: unknown, b: unknown) => ({ eq: [a, b] })),
+  and: vi.fn((...args: unknown[]) => ({ and: args })),
+  like: vi.fn((a: unknown, b: unknown) => ({ like: [a, b] })),
 }))
 
 // ── Import handlers after mocks ────────────────────────────────────────
@@ -88,6 +90,8 @@ function jsonRequest(url: string, body: Record<string, unknown>): NextRequest {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockDbResult.all.mockReturnValue([])
+  mockReadTuples.mockResolvedValue([])
 })
 
 describe('PATCH /api/folders/[id]', () => {
@@ -101,7 +105,7 @@ describe('PATCH /api/folders/[id]', () => {
 
     expect(res.status).toBe(401)
     const body = await res.json()
-    expect(body.error).toBe('Unauthorized')
+    expect(body.error).toBe('unauthorized')
   })
 
   it('returns 403 when user lacks edit permission', async () => {
@@ -115,7 +119,7 @@ describe('PATCH /api/folders/[id]', () => {
 
     expect(res.status).toBe(403)
     const body = await res.json()
-    expect(body.error).toBe('Forbidden')
+    expect(body.error).toBe('forbidden')
 
     expect(mockCheckPermission).toHaveBeenCalledWith(
       'user-1',
@@ -149,7 +153,7 @@ describe('PATCH /api/folders/[id]', () => {
 
     expect(res.status).toBe(404)
     const body = await res.json()
-    expect(body.error).toBe('Not found')
+    expect(body.error).toBe('not found')
   })
 
   it('renames folder and updates path (root folder)', async () => {
@@ -244,7 +248,7 @@ describe('DELETE /api/folders/[id]', () => {
 
     expect(res.status).toBe(401)
     const body = await res.json()
-    expect(body.error).toBe('Unauthorized')
+    expect(body.error).toBe('unauthorized')
   })
 
   it('returns 403 when user is not the owner', async () => {
@@ -258,7 +262,7 @@ describe('DELETE /api/folders/[id]', () => {
 
     expect(res.status).toBe(403)
     const body = await res.json()
-    expect(body.error).toBe('Forbidden')
+    expect(body.error).toBe('forbidden')
 
     expect(mockCheckPermission).toHaveBeenCalledWith(
       'user-1',
@@ -282,7 +286,7 @@ describe('DELETE /api/folders/[id]', () => {
 
     expect(res.status).toBe(409)
     const body = await res.json()
-    expect(body.error).toBe('folder_not_empty')
+    expect(body.error).toBe('folder not empty')
   })
 
   it('returns 409 when folder has child subfolders', async () => {
@@ -301,7 +305,7 @@ describe('DELETE /api/folders/[id]', () => {
 
     expect(res.status).toBe(409)
     const body = await res.json()
-    expect(body.error).toBe('folder_not_empty')
+    expect(body.error).toBe('folder not empty')
   })
 
   it('deletes empty folder and cleans up FGA tuples', async () => {
@@ -318,8 +322,8 @@ describe('DELETE /api/folders/[id]', () => {
 
     // FGA tuples to clean up
     mockReadTuples.mockResolvedValueOnce([
-      { user: 'user:user-1', relation: 'owner' },
-      { user: 'org:org-1', relation: 'org' },
+      { user: 'user:user-1', relation: 'owner', object: 'folder:folder-1' },
+      { user: 'org:org-1', relation: 'org', object: 'folder:folder-1' },
     ])
     mockDeleteTuple.mockResolvedValue(undefined)
 

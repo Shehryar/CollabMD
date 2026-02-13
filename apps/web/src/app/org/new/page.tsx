@@ -37,16 +37,16 @@ export default function NewOrgPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-semibold text-gray-900">Create organization</h1>
-        <p className="mt-1 text-sm text-gray-500">
+    <div className="flex min-h-screen items-center justify-center bg-bg-subtle">
+      <div className="w-full max-w-sm rounded-lg border border-border bg-bg p-8 shadow">
+        <h1 className="font-mono text-[18px] font-semibold tracking-[-0.02em] text-fg">Create organization</h1>
+        <p className="mt-1 font-sans text-sm text-fg-secondary">
           Set up a new workspace for your team.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="name" className="block font-mono text-[11px] font-medium uppercase tracking-[0.02em] text-fg-secondary">
               Organization name
             </label>
             <input
@@ -55,24 +55,24 @@ export default function NewOrgPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Acme Inc"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+              className="mt-1 block w-full rounded border border-border bg-bg px-3 py-[7px] font-mono text-[13px] text-fg placeholder:text-fg-faint focus:border-fg focus:outline-none"
               required
             />
             {slug && (
-              <p className="mt-1 text-xs text-gray-400">
-                Slug: <span className="font-mono">{slug}</span>
+              <p className="mt-1 font-mono text-[11px] text-fg-muted">
+                Slug: {slug}
               </p>
             )}
           </div>
 
           {error && (
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-red">{error}</p>
           )}
 
           <button
             type="submit"
             disabled={loading || !name.trim()}
-            className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+            className="w-full rounded bg-fg px-4 py-[7px] font-mono text-[12.5px] font-medium text-bg hover:bg-[#333] disabled:opacity-50"
           >
             {loading ? 'Creating...' : 'Create organization'}
           </button>
@@ -80,7 +80,7 @@ export default function NewOrgPage() {
 
         <button
           onClick={() => router.back()}
-          className="mt-4 w-full text-center text-sm text-gray-500 hover:text-gray-700"
+          className="mt-4 w-full text-center font-mono text-sm text-fg-muted hover:text-fg"
         >
           Cancel
         </button>

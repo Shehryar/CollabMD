@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 interface RateLimitEntry {
   tokens: number
@@ -6,6 +6,7 @@ interface RateLimitEntry {
 }
 
 const store = new Map<string, RateLimitEntry>()
+const MAX_ENTRIES = 10_000
 
 // Periodic cleanup of expired entries
 setInterval(() => {
@@ -33,6 +34,10 @@ export function rateLimit(
   const entry = store.get(key)
 
   if (!entry) {
+    if (store.size >= MAX_ENTRIES) {
+      const oldestKey = store.keys().next().value
+      if (oldestKey) store.delete(oldestKey)
+    }
     store.set(key, { tokens: maxTokens - 1, lastRefill: now })
     return { success: true, remaining: maxTokens - 1, reset: now + windowMs }
   }
@@ -59,7 +64,7 @@ export function rateLimitResponse(
   limit: number,
 ): NextResponse {
   return NextResponse.json(
-    { error: 'Too many requests' },
+    { error: 'too many requests' },
     {
       status: 429,
       headers: {
@@ -70,4 +75,34 @@ export function rateLimitResponse(
       },
     },
   )
+}
+
+export function getClientIp(request: Pick<NextRequest, 'headers'>): string {
+  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+}
+
+export function enforceUserMutationRateLimit(
+  userId: string,
+  options?: {
+    ip?: string
+    limit?: number
+    windowMs?: number
+  },
+): NextResponse | null {
+  const limit = options?.limit ?? 30
+  const windowMs = options?.windowMs ?? 60_000
+  const scope = options?.ip ? `user:${userId}:ip:${options.ip}` : `user:${userId}`
+  const result = rateLimit(`${scope}:mutation`, limit, windowMs)
+  if (result.success) return null
+  return rateLimitResponse(result, limit)
+}
+
+export function enforceReadRateLimit(
+  key: string,
+  limit = 60,
+  windowMs = 60_000,
+): NextResponse | null {
+  const result = rateLimit(`${key}:read`, limit, windowMs)
+  if (result.success) return null
+  return rateLimitResponse(result, limit)
 }

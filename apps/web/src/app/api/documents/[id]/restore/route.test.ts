@@ -9,8 +9,13 @@ vi.mock('next/headers', () => ({
 }))
 
 const mockGetSession = vi.fn()
+const mockWriteTuple = vi.fn()
 vi.mock('@/lib/auth', () => ({
   auth: { api: { getSession: (...args: unknown[]) => mockGetSession(...args) } },
+}))
+
+vi.mock('@collabmd/shared', () => ({
+  writeTuple: (...args: unknown[]) => mockWriteTuple(...args),
 }))
 
 // Drizzle chain mock
@@ -63,6 +68,7 @@ function makeParams(id: string): { params: Promise<{ id: string }> } {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockWriteTuple.mockResolvedValue(undefined)
 })
 
 describe('POST /api/documents/[id]/restore', () => {
@@ -76,7 +82,7 @@ describe('POST /api/documents/[id]/restore', () => {
 
     expect(res.status).toBe(401)
     const body = await res.json()
-    expect(body.error).toBe('Unauthorized')
+    expect(body.error).toBe('unauthorized')
   })
 
   it('returns 404 for non-existent document', async () => {
@@ -90,7 +96,7 @@ describe('POST /api/documents/[id]/restore', () => {
 
     expect(res.status).toBe(404)
     const body = await res.json()
-    expect(body.error).toBe('Not found')
+    expect(body.error).toBe('not found')
   })
 
   it('returns 403 when user is not the owner', async () => {
@@ -109,7 +115,7 @@ describe('POST /api/documents/[id]/restore', () => {
 
     expect(res.status).toBe(403)
     const body = await res.json()
-    expect(body.error).toBe('Forbidden')
+    expect(body.error).toBe('forbidden')
   })
 
   it('returns 400 when document is not deleted', async () => {

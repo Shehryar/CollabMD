@@ -34,40 +34,40 @@ export default function OrgSwitcher() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+        className="flex items-center gap-1.5 rounded border border-border bg-bg px-[10px] py-[5px] font-mono text-[12px] text-fg-secondary hover:bg-bg-hover"
       >
         <span className="max-w-[150px] truncate">{activeName}</span>
-        <svg className="h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="h-3.5 w-3.5 text-fg-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+        <div className="absolute bottom-full left-0 z-50 mb-1 w-56 rounded border border-border bg-bg py-1 shadow">
           {orgList.map((org) => (
             <button
               key={org.id}
               onClick={() => switchOrg(org.id)}
-              className={`flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-50 ${
-                org.id === activeOrg?.id ? 'font-medium text-gray-900' : 'text-gray-600'
+              className={`flex w-full items-center px-3 py-2 text-left font-sans text-[13px] hover:bg-bg-hover ${
+                org.id === activeOrg?.id ? 'font-medium text-fg' : 'text-fg-secondary'
               }`}
             >
               <span className="truncate">{org.name}</span>
               {org.id === activeOrg?.id && (
-                <svg className="ml-auto h-4 w-4 text-gray-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="ml-auto h-4 w-4 text-fg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               )}
             </button>
           ))}
 
-          <div className="border-t border-gray-100 pt-1 mt-1">
+          <div className="mt-1 border-t border-border pt-1">
             <button
               onClick={() => {
                 setOpen(false)
                 router.push('/org/new')
               }}
-              className="flex w-full items-center px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-50"
+              className="flex w-full items-center px-3 py-2 text-left font-mono text-[12px] text-fg-muted hover:text-fg"
             >
               + New organization
             </button>
@@ -77,7 +77,7 @@ export default function OrgSwitcher() {
                   setOpen(false)
                   router.push(`/org/${activeOrg.slug}/settings`)
                 }}
-                className="flex w-full items-center px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-50"
+                className="flex w-full items-center px-3 py-2 text-left font-mono text-[12px] text-fg-muted hover:text-fg"
               >
                 Settings
               </button>

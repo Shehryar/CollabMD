@@ -15,14 +15,18 @@ vi.mock('@/lib/auth', () => ({
 
 const mockWriteTuple = vi.fn().mockResolvedValue(undefined)
 const mockListAccessible = vi.fn()
+const mockCheckPermission = vi.fn()
 vi.mock('@collabmd/shared', () => ({
   writeTuple: (...args: unknown[]) => mockWriteTuple(...args),
   listAccessibleObjects: (...args: unknown[]) => mockListAccessible(...args),
+  checkPermission: (...args: unknown[]) => mockCheckPermission(...args),
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
   rateLimit: vi.fn(() => ({ success: true, remaining: 99, reset: Date.now() + 60000 })),
   rateLimitResponse: vi.fn(),
+  enforceUserMutationRateLimit: vi.fn(() => null),
+  getClientIp: vi.fn(() => '127.0.0.1'),
 }))
 
 // Drizzle chain mock — track calls and return configurable results
@@ -57,6 +61,7 @@ vi.mock('@collabmd/db', () => ({
   },
   organizations: { id: 'org_id', metadata: 'metadata' },
   members: { organizationId: 'organization_id', userId: 'user_id' },
+  folders: { id: 'id', orgId: 'org_id' },
   eq: vi.fn((a: unknown, b: unknown) => ({ eq: [a, b] })),
   and: vi.fn((...args: unknown[]) => ({ and: args })),
   isNull: vi.fn((a: unknown) => ({ isNull: a })),
@@ -93,6 +98,8 @@ function jsonRequest(
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockDbResult.get.mockReturnValue({ organizationId: 'org-1', userId: 'user-1' })
+  mockCheckPermission.mockResolvedValue(true)
 })
 
 describe('POST /api/documents', () => {
@@ -107,7 +114,7 @@ describe('POST /api/documents', () => {
 
     expect(res.status).toBe(401)
     const body = await res.json()
-    expect(body.error).toBe('Unauthorized')
+    expect(body.error).toBe('unauthorized')
   })
 
   it('returns 400 when title is missing', async () => {
@@ -137,6 +144,8 @@ describe('POST /api/documents', () => {
   it('creates document and writes FGA owner + org tuples', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
 
+    // membership lookup
+    mockDbResult.get.mockReturnValueOnce({ organizationId: 'org-1', userId: 'user-1' })
     const fakeDoc = {
       id: 'doc-1',
       title: 'My Doc',
@@ -173,6 +182,10 @@ describe('POST /api/documents', () => {
   it('writes folder parent tuple when folderId is provided', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
 
+    // membership lookup
+    mockDbResult.get.mockReturnValueOnce({ organizationId: 'org-1', userId: 'user-1' })
+    // folder lookup
+    mockDbResult.get.mockReturnValueOnce({ id: 'folder-1', orgId: 'org-1' })
     const fakeDoc = {
       id: 'doc-2',
       title: 'Nested Doc',
@@ -201,6 +214,8 @@ describe('POST /api/documents', () => {
   it('applies org default document permissions to other members', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
 
+    // membership lookup
+    mockDbResult.get.mockReturnValueOnce({ organizationId: 'org-1', userId: 'user-1' })
     const fakeDoc = {
       id: 'doc-3',
       title: 'Shared Doc',
@@ -240,6 +255,8 @@ describe('POST /api/documents', () => {
   it('skips default permissions when org metadata has defaultDocPermission=none', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
 
+    // membership lookup
+    mockDbResult.get.mockReturnValueOnce({ organizationId: 'org-1', userId: 'user-1' })
     const fakeDoc = { id: 'doc-4', title: 'Private', orgId: 'org-1', ownerId: 'user-1' }
     mockDbResult.get.mockReturnValueOnce(fakeDoc)
     mockDbResult.get.mockReturnValueOnce({
@@ -271,7 +288,7 @@ describe('GET /api/documents', () => {
 
     expect(res.status).toBe(401)
     const body = await res.json()
-    expect(body.error).toBe('Unauthorized')
+    expect(body.error).toBe('unauthorized')
   })
 
   it('returns empty array when user has no accessible docs', async () => {

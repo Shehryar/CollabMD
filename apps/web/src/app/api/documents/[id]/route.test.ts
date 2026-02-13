@@ -53,6 +53,14 @@ vi.mock('@collabmd/db', () => ({
     updatedAt: 'updated_at',
     createdAt: 'created_at',
   },
+  folders: {
+    id: 'id',
+    orgId: 'org_id',
+  },
+  organizations: {
+    id: 'id',
+    metadata: 'metadata',
+  },
   eq: vi.fn((a: unknown, b: unknown) => ({ eq: [a, b] })),
   and: vi.fn((...args: unknown[]) => ({ and: args })),
   isNull: vi.fn((a: unknown) => ({ isNull: a })),
@@ -85,6 +93,16 @@ function jsonRequest(url: string, body: Record<string, unknown>): NextRequest {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockCheckPermission.mockResolvedValue(true)
+  mockReadTuples.mockResolvedValue([])
+  mockDbResult.get.mockReturnValue({
+    id: 'doc-1',
+    title: 'My Document',
+    orgId: 'org-1',
+    ownerId: 'user-1',
+    folderId: null,
+    deletedAt: null,
+  })
 })
 
 describe('GET /api/documents/[id]', () => {
@@ -106,7 +124,7 @@ describe('GET /api/documents/[id]', () => {
 
     expect(res.status).toBe(404)
     const body = await res.json()
-    expect(body.error).toBe('Not found')
+    expect(body.error).toBe('not found')
   })
 
   it('returns document when found', async () => {
@@ -120,6 +138,8 @@ describe('GET /api/documents/[id]', () => {
       deletedAt: null,
     }
     mockDbResult.get.mockReturnValueOnce(fakeDoc)
+    // Second .get() call is for organizations table (agent policy)
+    mockDbResult.get.mockReturnValueOnce({ metadata: null })
 
     const req = new NextRequest('http://localhost:3000/api/documents/doc-1')
     const res = await GET(req, makeParams('doc-1'))
@@ -154,7 +174,7 @@ describe('PATCH /api/documents/[id]', () => {
 
     expect(res.status).toBe(403)
     const body = await res.json()
-    expect(body.error).toBe('Forbidden')
+    expect(body.error).toBe('forbidden')
 
     expect(mockCheckPermission).toHaveBeenCalledWith(
       'user-1',
@@ -187,7 +207,7 @@ describe('PATCH /api/documents/[id]', () => {
       orgId: 'org-1',
       ownerId: 'user-1',
     }
-    mockDbResult.get.mockReturnValueOnce(updatedDoc)
+    mockDbResult.get.mockReturnValue(updatedDoc)
 
     const req = jsonRequest('http://localhost:3000/api/documents/doc-1', {
       title: 'Updated Title',
@@ -211,7 +231,7 @@ describe('PATCH /api/documents/[id]', () => {
       ownerId: 'user-1',
       folderId: 'folder-1',
     }
-    mockDbResult.get.mockReturnValueOnce(updatedDoc)
+    mockDbResult.get.mockReturnValue(updatedDoc)
 
     const req = jsonRequest('http://localhost:3000/api/documents/doc-1', {
       folderId: 'folder-1',
@@ -240,7 +260,7 @@ describe('PATCH /api/documents/[id]', () => {
       ownerId: 'user-1',
       folderId: 'folder-2',
     }
-    mockDbResult.get.mockReturnValueOnce(updatedDoc)
+    mockDbResult.get.mockReturnValue(updatedDoc)
 
     const req = jsonRequest('http://localhost:3000/api/documents/doc-1', {
       folderId: 'folder-2',
@@ -276,7 +296,7 @@ describe('PATCH /api/documents/[id]', () => {
       ownerId: 'user-1',
       folderId: null,
     }
-    mockDbResult.get.mockReturnValueOnce(updatedDoc)
+    mockDbResult.get.mockReturnValue(updatedDoc)
 
     const req = jsonRequest('http://localhost:3000/api/documents/doc-1', {
       folderId: null,
@@ -303,7 +323,7 @@ describe('PATCH /api/documents/[id]', () => {
       orgId: 'org-1',
       ownerId: 'user-1',
     }
-    mockDbResult.get.mockReturnValueOnce(updatedDoc)
+    mockDbResult.get.mockReturnValue(updatedDoc)
 
     const req = jsonRequest('http://localhost:3000/api/documents/doc-1', {
       title: 'New Title',
@@ -312,6 +332,38 @@ describe('PATCH /api/documents/[id]', () => {
 
     expect(res.status).toBe(200)
     expect(mockReadTuples).not.toHaveBeenCalled()
+  })
+
+  it('updates agentEditable when user is owner', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockCheckPermission.mockResolvedValueOnce(true) // can_edit
+    mockCheckPermission.mockResolvedValueOnce(true) // owner
+
+    const updatedDoc = { id: 'doc-1', title: 'My Doc', agentEditable: false }
+    mockDbResult.get.mockReturnValue(updatedDoc)
+
+    const req = jsonRequest('http://localhost:3000/api/documents/doc-1', {
+      agentEditable: false,
+    })
+    const res = await PATCH(req, makeParams('doc-1'))
+
+    expect(res.status).toBe(200)
+    expect(mockCheckPermission).toHaveBeenCalledWith('user-1', 'owner', 'document', 'doc-1')
+  })
+
+  it('returns 403 when non-owner tries to update agentEditable', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockCheckPermission.mockResolvedValueOnce(true) // can_edit
+    mockCheckPermission.mockResolvedValueOnce(false) // not owner
+
+    const req = jsonRequest('http://localhost:3000/api/documents/doc-1', {
+      agentEditable: true,
+    })
+    const res = await PATCH(req, makeParams('doc-1'))
+
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toContain('owner')
   })
 })
 
@@ -338,7 +390,7 @@ describe('DELETE /api/documents/[id]', () => {
 
     expect(res.status).toBe(403)
     const body = await res.json()
-    expect(body.error).toBe('Forbidden')
+    expect(body.error).toBe('forbidden')
 
     expect(mockCheckPermission).toHaveBeenCalledWith(
       'user-1',

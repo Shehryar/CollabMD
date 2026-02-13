@@ -28,12 +28,19 @@ interface OrgData {
 }
 
 type DocPermission = 'viewer' | 'commenter' | 'editor' | 'none'
+type AgentPolicy = 'enabled' | 'restricted' | 'disabled'
 
 const permissionOptions: { value: DocPermission; label: string }[] = [
   { value: 'none', label: 'None' },
   { value: 'viewer', label: 'Viewer' },
   { value: 'commenter', label: 'Commenter' },
   { value: 'editor', label: 'Editor' },
+]
+
+const agentPolicyOptions: { value: AgentPolicy; label: string }[] = [
+  { value: 'enabled', label: 'Enabled - agents can edit all documents' },
+  { value: 'restricted', label: 'Restricted - agents can only edit documents marked as agent-editable' },
+  { value: 'disabled', label: 'Disabled - agent editing is blocked' },
 ]
 
 export default function OrgSettingsPage({ params }: OrgSettingsProps) {
@@ -46,6 +53,11 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
   const [defaultPerm, setDefaultPerm] = useState<DocPermission>('none')
   const [savingPerm, setSavingPerm] = useState(false)
   const [permSaved, setPermSaved] = useState(false)
+  const [permError, setPermError] = useState('')
+  const [agentPolicy, setAgentPolicy] = useState<AgentPolicy>('enabled')
+  const [savingAgentPolicy, setSavingAgentPolicy] = useState(false)
+  const [agentPolicySaved, setAgentPolicySaved] = useState(false)
+  const [agentPolicyError, setAgentPolicyError] = useState('')
 
   const currentUserRole = org?.members.find((m) => m.user.id === session?.user?.id)?.role
   const isAdminOrOwner = currentUserRole === 'admin' || currentUserRole === 'owner'
@@ -73,11 +85,15 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
       const orgData = full as unknown as OrgData
       setOrg(orgData)
 
-      // Fetch org settings
-      const res = await fetch(`/api/orgs/${orgData.id}/settings`)
-      if (res.ok) {
-        const settings = await res.json()
-        setDefaultPerm(settings.defaultDocPermission ?? 'none')
+      try {
+        const res = await fetch(`/api/orgs/${orgData.id}/settings`)
+        if (res.ok) {
+          const settings = await res.json()
+          setDefaultPerm(settings.defaultDocPermission ?? 'none')
+          setAgentPolicy(settings.agentPolicy ?? 'enabled')
+        }
+      } catch {
+        setError('Failed to load organization settings')
       }
 
       setLoading(false)
@@ -89,6 +105,7 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
     if (!org) return
     setSavingPerm(true)
     setPermSaved(false)
+    setPermError('')
     try {
       const res = await fetch(`/api/orgs/${org.id}/settings`, {
         method: 'PATCH',
@@ -98,28 +115,60 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
       if (res.ok) {
         setPermSaved(true)
         setTimeout(() => setPermSaved(false), 2000)
+      } else {
+        setPermError('Failed to save default permission')
       }
+    } catch {
+      setPermError('Failed to save default permission')
     } finally {
       setSavingPerm(false)
     }
   }
 
+  async function saveAgentPolicy(nextPolicy: AgentPolicy) {
+    if (!org || savingAgentPolicy) return
+    const previous = agentPolicy
+    setAgentPolicy(nextPolicy)
+    setSavingAgentPolicy(true)
+    setAgentPolicySaved(false)
+    setAgentPolicyError('')
+    try {
+      const res = await fetch(`/api/orgs/${org.id}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentPolicy: nextPolicy }),
+      })
+      if (res.ok) {
+        setAgentPolicySaved(true)
+        setTimeout(() => setAgentPolicySaved(false), 2000)
+      } else {
+        setAgentPolicy(previous)
+        setAgentPolicyError('Failed to save agent access policy')
+      }
+    } catch {
+      setAgentPolicy(previous)
+      setAgentPolicyError('Failed to save agent access policy')
+    } finally {
+      setSavingAgentPolicy(false)
+    }
+  }
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <p className="text-sm text-gray-500">Loading...</p>
+      <div className="flex min-h-screen items-center justify-center bg-bg-subtle">
+        <p className="font-sans text-sm text-fg-muted">Loading...</p>
       </div>
     )
   }
 
   if (error || !org) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-bg-subtle">
         <div className="text-center">
-          <p className="text-sm text-red-600">{error}</p>
+          <p className="text-sm text-red">{error}</p>
           <button
             onClick={() => router.push('/')}
-            className="mt-2 text-sm text-gray-500 hover:text-gray-700"
+            className="mt-2 font-mono text-[11px] text-fg-muted hover:text-fg"
           >
             Go home
           </button>
@@ -129,28 +178,28 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-bg-subtle">
       <div className="mx-auto max-w-2xl px-4 py-12">
         <button
           onClick={() => router.push('/')}
-          className="mb-6 text-sm text-gray-500 hover:text-gray-700"
+          className="mb-6 font-mono text-[11px] text-fg-muted hover:text-fg"
         >
           &larr; Back
         </button>
 
-        <h1 className="text-xl font-semibold text-gray-900">{org.name}</h1>
-        <p className="mt-1 text-sm text-gray-500 font-mono">{org.slug}</p>
+        <h1 className="font-mono text-[18px] font-semibold tracking-[-0.03em] text-fg">{org.name}</h1>
+        <p className="mt-1 font-mono text-sm text-fg-muted">{org.slug}</p>
 
         <section className="mt-8">
-          <h2 className="text-sm font-medium text-gray-900">Members</h2>
-          <div className="mt-3 divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Members</h2>
+          <div className="mt-3 divide-y divide-border rounded border border-border bg-bg">
             {org.members.map((member) => (
               <div key={member.id} className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{member.user.name}</p>
-                  <p className="text-xs text-gray-500">{member.user.email}</p>
+                  <p className="font-sans text-sm font-medium text-fg">{member.user.name}</p>
+                  <p className="font-mono text-[11px] text-fg-muted">{member.user.email}</p>
                 </div>
-                <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                <span className="rounded-sm border border-border bg-bg-subtle px-[7px] py-[2px] font-mono text-[10px] font-medium text-fg-secondary">
                   {member.role}
                 </span>
               </div>
@@ -159,8 +208,8 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
         </section>
 
         <section className="mt-8">
-          <h2 className="text-sm font-medium text-gray-900">Invite member</h2>
-          <div className="mt-3 rounded-lg border border-gray-200 bg-white p-4">
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Invite member</h2>
+          <div className="mt-3 rounded border border-border bg-bg p-4">
             <InviteForm
               onInvited={() => {
                 router.refresh()
@@ -171,19 +220,19 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
 
         {isAdminOrOwner && (
           <section className="mt-8">
-            <h2 className="text-sm font-medium text-gray-900">Document defaults</h2>
-            <div className="mt-3 rounded-lg border border-gray-200 bg-white p-4">
-              <label className="block text-sm text-gray-700">
+            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Document defaults</h2>
+            <div className="mt-3 rounded border border-border bg-bg p-4">
+              <label className="block font-sans text-sm text-fg">
                 Default permission for new documents
               </label>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 font-sans text-xs text-fg-secondary">
                 When a new document is created, all org members will automatically receive this role.
               </p>
               <div className="mt-3 flex items-center gap-3">
                 <select
                   value={defaultPerm}
                   onChange={(e) => setDefaultPerm(e.target.value as DocPermission)}
-                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 shadow-sm focus:border-gray-400 focus:outline-none"
+                  className="rounded border border-border bg-bg px-3 py-1.5 font-mono text-sm text-fg focus:border-fg focus:outline-none"
                 >
                   {permissionOptions.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -194,12 +243,53 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
                 <button
                   onClick={saveDefaultPermission}
                   disabled={savingPerm}
-                  className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                  className="rounded bg-fg px-4 py-[7px] font-mono text-[12.5px] font-medium text-bg hover:bg-[#333] disabled:opacity-50"
                 >
                   {savingPerm ? 'Saving...' : 'Save'}
                 </button>
                 {permSaved && (
-                  <span className="text-xs text-green-600">Saved</span>
+                  <span className="text-xs text-green">Saved</span>
+                )}
+                {permError && (
+                  <span className="text-xs text-red">{permError}</span>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {isAdminOrOwner && (
+          <section className="mt-8">
+            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Agent access</h2>
+            <div className="mt-3 rounded border border-border bg-bg p-4">
+              <label className="block font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+                AGENT ACCESS POLICY
+              </label>
+              <p className="mt-1 text-fg-muted text-xs font-sans">
+                Controls whether AI agents connected via the CLI daemon can edit documents in this workspace.
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <select
+                  value={agentPolicy}
+                  onChange={(e) => {
+                    void saveAgentPolicy(e.target.value as AgentPolicy)
+                  }}
+                  className="rounded border border-border bg-bg px-3 py-1.5 font-mono text-sm text-fg focus:border-fg focus:outline-none"
+                >
+                  {agentPolicyOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {savingAgentPolicy && (
+                  <span className="text-xs text-fg-muted">Saving...</span>
+                )}
+                {agentPolicySaved && (
+                  <span className="text-xs text-green">Saved</span>
+                )}
+                {agentPolicyError && (
+                  <span className="text-xs text-red">{agentPolicyError}</span>
                 )}
               </div>
             </div>

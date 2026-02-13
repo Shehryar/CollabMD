@@ -56,6 +56,13 @@ class LinkWidget extends WidgetType {
   }
 }
 
+function isSafeLink(url: string): boolean {
+  const trimmed = url.trim()
+  if (!trimmed) return false
+  const lower = trimmed.toLowerCase()
+  return !(lower.startsWith('javascript:') || lower.startsWith('data:') || lower.startsWith('vbscript:'))
+}
+
 // --- Bullet widget ---
 
 class BulletWidget extends WidgetType {
@@ -262,7 +269,7 @@ function buildDecorations(state: EditorState): DecorationSet {
           const linkText = textMatch ? textMatch[1] : fullText
           const url = urlNode ? state.sliceDoc(urlNode.from, urlNode.to) : ''
 
-          if (linkText && url) {
+          if (linkText && url && isSafeLink(url)) {
             decorations.push(
               Decoration.replace({
                 widget: new LinkWidget(linkText, url),
@@ -283,7 +290,7 @@ function buildDecorations(state: EditorState): DecorationSet {
               decorations.push(
                 Decoration.replace({
                   widget: new CheckboxWidget(true),
-                }).range(from, to + 5)
+                }).range(from, to + 4)
               )
             } else if (afterMark.startsWith(' [ ]')) {
               decorations.push(
