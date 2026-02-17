@@ -29,6 +29,13 @@
       "when": 1770750000000,
       "tag": "0003_document_source",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1770753600000,
+      "tag": "0004_version_history",
+      "breakpoints": true
     }
   ]
 }

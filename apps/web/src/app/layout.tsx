@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import localFont from 'next/font/local'
 import './globals.css'
 
@@ -20,9 +20,12 @@ const plusJakartaSans = localFont({
   display: 'swap',
 })
 
+export const viewport: Viewport = { width: 'device-width', initialScale: 1 }
+
 export const metadata: Metadata = {
   title: 'CollabMD',
   description: 'Collaborative markdown editing for everyone',
+  icons: { icon: '/icon.svg' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

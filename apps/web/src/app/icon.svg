@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" fill="#f7f7f5" rx="6"/>
+  <!-- Active line highlight -->
+  <rect x="5" y="12.5" width="22" height="7" rx="1.5" fill="#c2682b" opacity="0.08"/>
+  <!-- Left cursor -->
+  <rect x="8" y="10" width="1.5" height="12" rx="0.75" fill="#c2682b" opacity="0.35"/>
+  <!-- Right cursor -->
+  <rect x="22.5" y="10" width="1.5" height="12" rx="0.75" fill="#c2682b" opacity="0.35"/>
+  <!-- Center merged cursor -->
+  <rect x="14.75" y="8" width="2.5" height="16" rx="1.25" fill="#c2682b"/>
+</svg>

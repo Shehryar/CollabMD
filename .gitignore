@@ -8,3 +8,7 @@ dist
 .env.*.local
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
+.collabmd/
+logo-concepts/

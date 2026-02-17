@@ -2,6 +2,12 @@
   "name": "@collabmd/db",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/collabmd/collabmd.git",
+    "directory": "packages/db"
+  },
   "type": "module",
   "exports": {
     ".": {

@@ -1,4 +1,5 @@
 import http from 'node:http'
+import { createHash } from 'node:crypto'
 import { WebSocketServer, type WebSocket } from 'ws'
 import * as Y from 'yjs'
 import * as syncProtocol from 'y-protocols/sync'
@@ -12,9 +13,16 @@ const messageAwareness = 1
 
 // Room-per-document: each room holds a shared Y.Doc and awareness state
 interface Room {
+  name: string
   doc: Y.Doc
   awareness: awarenessProtocol.Awareness
   conns: Map<WebSocket, Set<number>>
+  syncListeners: Map<WebSocket, (update: Uint8Array, origin: unknown) => void>
+  lastEditAt: number | null
+  lastEditUserId: string | null
+  lastEditSource: 'browser' | 'daemon' | null
+  snapshotTimer: NodeJS.Timeout | null
+  lastSnapshotHash: string | null
 }
 
 interface ConnMeta {
@@ -30,16 +38,64 @@ export interface SyncServerConfig {
     checkPermission: (userId: string, relation: string, objectType: string, objectId: string) => Promise<boolean>
   }
   checkAgentPolicy?: (docId: string, source: string) => Promise<{ allowed: boolean; code?: number; reason?: string }>
+  snapshotCallback?: (
+    docId: string,
+    snapshot: Uint8Array,
+    lastEditUserId: string | null,
+    lastEditSource: 'browser' | 'daemon' | null,
+  ) => Promise<void>
+  snapshotIntervalMs?: number
 }
 
 const MAX_CONNECTIONS_PER_USER = 20
 
 export function createSyncServer(config?: SyncServerConfig) {
   const rooms = new Map<string, Room>()
+  const snapshotIntervalMs = config?.snapshotIntervalMs ?? 300_000
   // Track active WebSocket connections per user for rate limiting
   const userConnections = new Map<string, Set<WebSocket>>()
   // Track connection metadata (source, userId)
   const connMeta = new Map<WebSocket, ConnMeta>()
+
+  function hashSnapshot(snapshot: Uint8Array): string {
+    return createHash('sha256').update(snapshot).digest('hex')
+  }
+
+  function clearSnapshotTimer(room: Room) {
+    if (room.snapshotTimer) {
+      clearTimeout(room.snapshotTimer)
+      room.snapshotTimer = null
+    }
+  }
+
+  async function maybePersistSnapshot(room: Room): Promise<void> {
+    if (!config?.snapshotCallback) return
+    if (room.lastEditAt === null) return
+    if (room.doc.store.clients.size === 0) return
+
+    const snapshot = Y.encodeStateAsUpdate(room.doc)
+    if (snapshot.byteLength === 0) return
+
+    const snapshotHash = hashSnapshot(snapshot)
+    if (snapshotHash === room.lastSnapshotHash) return
+
+    await config.snapshotCallback(
+      room.name,
+      snapshot,
+      room.lastEditUserId,
+      room.lastEditSource,
+    )
+    room.lastSnapshotHash = snapshotHash
+  }
+
+  function scheduleSnapshot(room: Room) {
+    clearSnapshotTimer(room)
+    room.snapshotTimer = setTimeout(() => {
+      void maybePersistSnapshot(room).catch(() => {
+        // Best-effort auto-snapshot.
+      })
+    }, snapshotIntervalMs)
+  }
 
   function getRoom(name: string): Room {
     const existing = rooms.get(name)
@@ -47,6 +103,18 @@ export function createSyncServer(config?: SyncServerConfig) {
 
     const doc = new Y.Doc()
     const awareness = new awarenessProtocol.Awareness(doc)
+    const room: Room = {
+      name,
+      doc,
+      awareness,
+      conns: new Map(),
+      syncListeners: new Map(),
+      lastEditAt: null,
+      lastEditUserId: null,
+      lastEditSource: null,
+      snapshotTimer: null,
+      lastSnapshotHash: null,
+    }
 
     awareness.on(
       'update',
@@ -74,7 +142,6 @@ export function createSyncServer(config?: SyncServerConfig) {
       },
     )
 
-    const room: Room = { doc, awareness, conns: new Map() }
     rooms.set(name, room)
     return room
   }
@@ -93,6 +160,13 @@ export function createSyncServer(config?: SyncServerConfig) {
         // Read-only users may complete handshake (type 0) but cannot push updates (type 1/2).
         if (meta?.canEdit === false && syncMessageType !== 0) {
           return
+        }
+
+        if (syncMessageType !== 0) {
+          room.lastEditAt = Date.now()
+          room.lastEditUserId = meta?.userId ?? null
+          room.lastEditSource = meta?.source ?? null
+          scheduleSnapshot(room)
         }
 
         const encoder = encoding.createEncoder()
@@ -145,6 +219,7 @@ export function createSyncServer(config?: SyncServerConfig) {
         ws.send(encoding.toUint8Array(updateEncoder))
       }
     }
+    room.syncListeners.set(ws, onUpdate)
     room.doc.on('update', onUpdate)
 
     ws.on('message', (raw: ArrayBuffer | Buffer) => {
@@ -161,10 +236,14 @@ export function createSyncServer(config?: SyncServerConfig) {
       }
     })
 
-    ws.on('close', () => {
+    ws.on('close', async () => {
       const controlledIds = room.conns.get(ws)
       room.conns.delete(ws)
-      room.doc.off('update', onUpdate)
+      const listener = room.syncListeners.get(ws)
+      if (listener) {
+        room.doc.off('update', listener)
+        room.syncListeners.delete(ws)
+      }
       connMeta.delete(ws)
 
       if (controlledIds) {
@@ -177,23 +256,28 @@ export function createSyncServer(config?: SyncServerConfig) {
 
       // Clean up empty rooms
       if (room.conns.size === 0) {
+        clearSnapshotTimer(room)
+        await maybePersistSnapshot(room).catch(() => {
+          // Best-effort final snapshot on room teardown.
+        })
         room.awareness.destroy()
         room.doc.destroy()
-        rooms.delete(
-          [...rooms.entries()].find(([, r]) => r === room)?.[0] ?? '',
-        )
+        rooms.delete(room.name)
       }
     })
   }
 
   // HTTP server for health check + WebSocket upgrade
   const server = http.createServer((req, res) => {
-    if (req.method === 'GET' && req.url === '/health') {
+    const url = new URL(req.url ?? '/', 'http://localhost')
+    const { pathname } = url
+
+    if (req.method === 'GET' && pathname === '/health') {
       res.writeHead(200, { 'Content-Type': 'text/plain' })
       res.end('OK')
       return
     }
-    if (req.method === 'GET' && req.url === '/connections') {
+    if (req.method === 'GET' && pathname === '/connections') {
       const result: Array<{ docId: string; userId: string; source: 'daemon' }> = []
       for (const [roomName, room] of rooms) {
         for (const [ws] of room.conns) {
@@ -205,6 +289,79 @@ export function createSyncServer(config?: SyncServerConfig) {
       }
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(result))
+      return
+    }
+    if (req.method === 'GET' && pathname.startsWith('/snapshot/')) {
+      const docId = decodeURIComponent(pathname.slice('/snapshot/'.length))
+      if (!docId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'invalid document id' }))
+        return
+      }
+
+      const room = rooms.get(docId)
+      if (!room) {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'room not found' }))
+        return
+      }
+
+      const snapshot = Y.encodeStateAsUpdate(room.doc)
+      res.writeHead(200, { 'Content-Type': 'application/octet-stream' })
+      res.end(Buffer.from(snapshot))
+      return
+    }
+    if (req.method === 'POST' && pathname.startsWith('/replace/')) {
+      const docId = decodeURIComponent(pathname.slice('/replace/'.length))
+      if (!docId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'invalid document id' }))
+        return
+      }
+
+      const room = rooms.get(docId)
+      if (!room) {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'room not found' }))
+        return
+      }
+
+      const chunks: Buffer[] = []
+      req.on('data', (chunk: Buffer) => {
+        chunks.push(chunk)
+      })
+      req.on('end', () => {
+        try {
+          const payload = Buffer.concat(chunks)
+          if (payload.byteLength === 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: 'empty payload' }))
+            return
+          }
+
+          const incomingUpdate = new Uint8Array(payload.buffer, payload.byteOffset, payload.byteLength)
+          const tempDoc = new Y.Doc()
+          Y.applyUpdate(tempDoc, incomingUpdate)
+          const normalizedUpdate = Y.encodeStateAsUpdate(tempDoc)
+          Y.applyUpdate(room.doc, normalizedUpdate)
+          tempDoc.destroy()
+
+          room.lastEditAt = Date.now()
+          room.lastEditUserId = null
+          room.lastEditSource = null
+          scheduleSnapshot(room)
+
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true }))
+        } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'invalid update payload' }))
+        }
+      })
+      req.on('error', () => {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'failed to read request body' }))
+      })
       return
     }
     res.writeHead(404)

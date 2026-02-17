@@ -67,6 +67,7 @@ describe('GlobalDaemon', () => {
         status: this.started && !this.stopped ? 'running' : 'stopped',
         fileCount: 0,
         serverUrl: this.serverUrl,
+        gitAutoCommit: false,
       }
     }
   }

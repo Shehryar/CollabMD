@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { SidebarProvider, useSidebar } from '@/components/sidebar/sidebar-context'
 import { Sidebar } from '@/components/sidebar/sidebar'
 import { WebMcpProvider } from '@/components/dev/webmcp-provider'
+import { ToastProvider } from '@/components/toast'
 
 function MobileMenuButton() {
   const { setOpen } = useSidebar()
@@ -75,7 +76,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center text-sm text-fg-muted">Loading...</div>}>
       <SidebarProvider>
-        <AppShell>{children}</AppShell>
+        <ToastProvider>
+          <AppShell>{children}</AppShell>
+        </ToastProvider>
       </SidebarProvider>
       {process.env.NODE_ENV === 'development' && <WebMcpProvider />}
     </Suspense>

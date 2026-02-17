@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useSidebar, type Folder } from '@/components/sidebar/sidebar-context'
 import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard'
+import { LandingHero } from '@/components/landing/hero'
 
 interface Doc {
   id: string
@@ -497,27 +498,8 @@ export default function HomePage() {
 
   if (!session) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="w-full max-w-sm text-center">
-          <h1 className="mb-2 font-mono text-[28px] font-semibold tracking-[-0.03em] text-fg">CollabMD</h1>
-          <p className="mb-6 font-sans text-sm text-fg-secondary">
-            Collaborative markdown editing for everyone
-          </p>
-          <div className="flex items-center justify-center gap-3">
-            <Link
-              href="/login"
-              className="rounded bg-fg px-4 py-[7px] font-mono text-[12.5px] font-medium text-bg"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/signup"
-              className="rounded border border-border-strong bg-bg px-4 py-[7px] font-mono text-[12.5px] font-medium text-fg"
-            >
-              Get started
-            </Link>
-          </div>
-        </div>
+      <div className="fixed inset-0 z-50 overflow-auto bg-bg-subtle">
+        <LandingHero />
       </div>
     )
   }

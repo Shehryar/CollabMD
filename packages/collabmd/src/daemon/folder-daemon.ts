@@ -1,5 +1,5 @@
 import { basename, join } from 'path'
-import { existsSync, readFileSync, unlinkSync } from 'fs'
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
 import { LeveldbPersistence } from 'y-leveldb'
@@ -10,6 +10,7 @@ import { FileWatcher } from './file-watcher.js'
 import { CrdtBridge } from './crdt-bridge.js'
 import { CommentBridge } from './comment-bridge.js'
 import { SyncClient } from './sync-client.js'
+import { GitSync } from './git-sync.js'
 
 interface DocState {
   ydoc: Y.Doc
@@ -42,11 +43,24 @@ export interface FolderDaemonStatus {
   status: 'starting' | 'running' | 'stopping' | 'stopped'
   fileCount: number
   serverUrl: string | null
+  gitAutoCommit: boolean
+}
+
+interface GitConfig {
+  autoCommit?: boolean
+  idleTimeout?: number
+  commitMessage?: string
 }
 
 interface ProjectConfig {
   server?: string
   orgId?: string
+  git?: GitConfig
+}
+
+interface ConflictsConfig {
+  conflicts: string[]
+  mergedAt: string
 }
 
 function loadProjectConfig(workDir: string): ProjectConfig {
@@ -77,13 +91,15 @@ export class FolderDaemon {
   private agentPolicy: 'enabled' | 'restricted' | 'disabled' = 'enabled'
   private cursorIdleTimers = new Map<string, NodeJS.Timeout>()
   private status: FolderDaemonStatus['status'] = 'stopped'
+  private projectConfig: ProjectConfig
+  private gitSync: GitSync | null = null
 
   constructor(options: FolderDaemonOptions) {
     this.workDir = options.workDir
 
-    const projectConfig = loadProjectConfig(this.workDir)
-    this.serverUrl = options.serverUrl ?? projectConfig.server ?? null
-    this.orgId = options.orgId ?? projectConfig.orgId ?? null
+    this.projectConfig = loadProjectConfig(this.workDir)
+    this.serverUrl = options.serverUrl ?? this.projectConfig.server ?? null
+    this.orgId = options.orgId ?? this.projectConfig.orgId ?? null
 
     const credential = options.credential ?? (this.serverUrl ? getCredential(this.serverUrl) : null)
     this.sessionToken = options.sessionToken ?? credential?.sessionToken ?? null
@@ -100,6 +116,17 @@ export class FolderDaemon {
 
     this.status = 'starting'
     this.shuttingDown = false
+    this.gitSync = new GitSync({
+      workDir: this.workDir,
+      enabled: this.projectConfig.git?.autoCommit === true,
+      idleTimeoutMs: typeof this.projectConfig.git?.idleTimeout === 'number'
+        ? this.projectConfig.git.idleTimeout * 1000
+        : undefined,
+      commitTemplate: typeof this.projectConfig.git?.commitMessage === 'string'
+        ? this.projectConfig.git.commitMessage
+        : undefined,
+    })
+    await this.gitSync.ready()
 
     if (this.serverUrl && this.sessionToken && this.orgId) {
       await this.fetchAgentPolicy()
@@ -131,6 +158,8 @@ export class FolderDaemon {
   async stop(): Promise<void> {
     this.status = 'stopping'
     this.shuttingDown = true
+    this.gitSync?.destroy()
+    this.gitSync = null
 
     if (this.inFlightSetups.size > 0) {
       await Promise.allSettled(this.inFlightSetups.values())
@@ -175,6 +204,7 @@ export class FolderDaemon {
       status: this.status,
       fileCount: this.docs.size,
       serverUrl: this.serverUrl,
+      gitAutoCommit: this.gitSync?.isEnabled() ?? false,
     }
   }
 
@@ -351,6 +381,7 @@ export class FolderDaemon {
   }
 
   private async handleFileAdd(relativePath: string): Promise<void> {
+    this.gitSync?.notifyFileChange(relativePath)
     if (this.docs.has(relativePath) || this.inFlightCreates.has(relativePath)) return
     this.inFlightCreates.add(relativePath)
 
@@ -398,6 +429,8 @@ export class FolderDaemon {
     const docState = this.docs.get(relativePath)
     if (!docState) return
     docState.bridge.onFileChange()
+    this.gitSync?.notifyFileChange(relativePath)
+    this.cleanupResolvedConflicts(relativePath)
     this.resetCursorIdleTimer(relativePath, docState.awareness)
   }
 
@@ -521,5 +554,61 @@ export class FolderDaemon {
     } catch {
       // keep running
     }
+  }
+
+  private cleanupResolvedConflicts(relativePath: string): void {
+    const conflictsPath = join(this.workDir, '.collabmd', 'conflicts.json')
+    const config = this.readConflictsConfig(conflictsPath)
+    if (!config || !config.conflicts.includes(relativePath)) return
+
+    const filePath = join(this.workDir, relativePath)
+    let content = ''
+    try {
+      content = readFileSync(filePath, 'utf-8')
+    } catch {
+      return
+    }
+
+    if (this.hasConflictMarkers(content)) return
+
+    const remaining = config.conflicts.filter((entry) => entry !== relativePath)
+    if (remaining.length === 0) {
+      try {
+        unlinkSync(conflictsPath)
+      } catch {
+        // keep running
+      }
+      return
+    }
+
+    const next: ConflictsConfig = {
+      ...config,
+      conflicts: remaining,
+    }
+
+    try {
+      writeFileSync(conflictsPath, JSON.stringify(next, null, 2) + '\n')
+    } catch {
+      // keep running
+    }
+  }
+
+  private readConflictsConfig(path: string): ConflictsConfig | null {
+    if (!existsSync(path)) return null
+
+    try {
+      const parsed = JSON.parse(readFileSync(path, 'utf-8')) as Partial<ConflictsConfig>
+      if (!Array.isArray(parsed.conflicts) || typeof parsed.mergedAt !== 'string') return null
+      return {
+        conflicts: parsed.conflicts.filter((entry): entry is string => typeof entry === 'string'),
+        mergedAt: parsed.mergedAt,
+      }
+    } catch {
+      return null
+    }
+  }
+
+  private hasConflictMarkers(content: string): boolean {
+    return /^<{7}|^={7}|^>{7}/m.test(content)
   }
 }

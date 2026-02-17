@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { and, db, documents, eq, inArray, isNull, members } from '@collabmd/db'
 import { auth } from '@/lib/auth'
+import { getSyncHttpUrl } from '@/lib/sync-url'
 
 interface SyncConnection {
   docId: string
@@ -9,17 +10,8 @@ interface SyncConnection {
   source: string
 }
 
-function getSyncHttpUrl(): string | null {
-  const syncUrl = process.env.NEXT_PUBLIC_SYNC_URL
-  if (!syncUrl) return null
-  if (syncUrl.startsWith('ws://')) return `http://${syncUrl.slice('ws://'.length)}`
-  if (syncUrl.startsWith('wss://')) return `https://${syncUrl.slice('wss://'.length)}`
-  return null
-}
-
 async function fetchDaemonConnections(): Promise<SyncConnection[]> {
   const syncHttpUrl = getSyncHttpUrl()
-  if (!syncHttpUrl) return []
 
   try {
     const res = await fetch(`${syncHttpUrl}/connections`, { cache: 'no-store' })

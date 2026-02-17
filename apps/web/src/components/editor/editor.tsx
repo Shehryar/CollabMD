@@ -32,6 +32,7 @@ import FormattingToolbar from './formatting-toolbar'
 import CommentPanel from './comment-panel'
 import CommentInput from './comment-input'
 import { createCommentDecorations, setActiveComment } from './comment-decorations'
+import { conflictPlugin, conflictTheme } from './conflict-decorations'
 import { useComments } from './use-comments'
 
 const editorTheme = EditorView.theme({
@@ -336,6 +337,8 @@ export default function CollabEditor({
             setActiveCommentId(commentId)
           },
         }),
+        conflictPlugin,
+        conflictTheme,
         ...(!editable ? [EditorView.editable.of(false), EditorState.readOnly.of(true)] : []),
         yCollab(yjs.ytext, yjs.awareness),
       ],

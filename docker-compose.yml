@@ -1,0 +1,38 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-changeme}
+      - BETTER_AUTH_URL=http://localhost:3000
+      - NEXT_PUBLIC_SYNC_URL=ws://localhost:4444
+      - SYNC_SERVER_INTERNAL_URL=http://sync-server:4444
+    volumes:
+      - db-data:/app/data
+    depends_on:
+      sync-server:
+        condition: service_healthy
+
+  sync-server:
+    build:
+      context: .
+      dockerfile: apps/sync-server/Dockerfile
+    ports:
+      - "4444:4444"
+    environment:
+      - NODE_ENV=production
+      - PORT=4444
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4444/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - db-data:/app/data
+
+volumes:
+  db-data:

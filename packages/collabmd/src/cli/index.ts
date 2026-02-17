@@ -16,6 +16,8 @@ import {
   serviceUninstallCommand,
 } from './service.js'
 import { runOnboardingFlow } from './onboarding.js'
+import { pushCommand } from './push.js'
+import { pullCommand } from './pull.js'
 
 const program = new Command()
 
@@ -108,6 +110,30 @@ program
     } catch {
       console.log('daemon is not running')
     }
+  })
+
+program
+  .command('push')
+  .description('Push local git commits to a remote')
+  .option('--remote <name>', 'Remote name', 'origin')
+  .option('--branch <name>', 'Branch name')
+  .action(async (opts: { remote: string; branch?: string }) => {
+    await pushCommand({
+      remote: opts.remote,
+      branch: opts.branch,
+    })
+  })
+
+program
+  .command('pull')
+  .description('Fetch and merge remote changes')
+  .option('--remote <name>', 'Remote name', 'origin')
+  .option('--branch <name>', 'Branch name')
+  .action(async (opts: { remote: string; branch?: string }) => {
+    await pullCommand({
+      remote: opts.remote,
+      branch: opts.branch,
+    })
   })
 
 program

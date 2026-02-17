@@ -1,13 +1,23 @@
 {
   "name": "create-collabmd",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/collabmd/collabmd.git",
+    "directory": "packages/create-collabmd"
+  },
+  "homepage": "https://github.com/collabmd/collabmd",
+  "bugs": {
+    "url": "https://github.com/collabmd/collabmd/issues"
+  },
   "type": "module",
   "bin": {
     "create-collabmd": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts",
-    "dev": "tsup src/index.ts --format esm --dts --watch",
+    "build": "tsup src/index.ts --format esm --dts --external readline",
+    "dev": "tsup src/index.ts --format esm --dts --watch --external readline",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

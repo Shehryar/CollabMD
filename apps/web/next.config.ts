@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@collabmd/shared'],
   serverExternalPackages: ['better-sqlite3', '@collabmd/db'],
   outputFileTracingRoot: path.join(__dirname, '../../'),
+  ...(process.env.DOCKER_BUILD === '1' && { output: 'standalone' }),
 }
 
 export default nextConfig

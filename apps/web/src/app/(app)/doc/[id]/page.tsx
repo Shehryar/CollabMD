@@ -63,6 +63,7 @@ export default function DocPage({ params }: DocPageProps) {
     : apiPermission
   const canEdit = permission === 'owner' || permission === 'editor'
   const canCommentPermission = canEdit || permission === 'commenter'
+  const canView = permission === 'owner' || permission === 'editor' || permission === 'commenter' || permission === 'viewer'
   const canComment = Boolean(session?.user.id) && canCommentPermission
   const canResolveComments = Boolean(session?.user.id) && canEdit
 
@@ -250,6 +251,14 @@ export default function DocPage({ params }: DocPageProps) {
             >
               Share
             </button>
+          )}
+          {canView && (
+            <a
+              href={`/doc/${id}/history`}
+              className="font-mono text-[11px] font-medium py-1 px-[10px] border border-border rounded bg-bg text-fg-secondary hover:text-fg hover:bg-bg-subtle"
+            >
+              History
+            </a>
           )}
           <span className="inline-flex items-center rounded border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-[10px] text-fg-secondary">
             {commentStats.comments} comment{commentStats.comments === 1 ? '' : 's'}

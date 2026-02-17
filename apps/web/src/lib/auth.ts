@@ -46,7 +46,9 @@ export const auth = betterAuth({
     }),
     magicLink({
       sendMagicLink: async ({ email, url }) => {
-        console.log(`\n=== MAGIC LINK ===\nTo: ${email}\n${url}\n==================\n`)
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`\n=== MAGIC LINK ===\nTo: ${email}\n${url}\n==================\n`)
+        }
       },
     }),
     jwt({

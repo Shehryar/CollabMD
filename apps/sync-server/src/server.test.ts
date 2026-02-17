@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { createSyncServer, type SyncServerConfig } from './server.js'
 import type { TokenPayload } from './auth.js'
 import { WebSocket } from 'ws'
@@ -873,6 +873,199 @@ describe('sync server coverage gaps', () => {
 
     ws1.close()
     ws2.close()
+  })
+
+  it('fires auto-snapshot after idle interval', async () => {
+    vi.useFakeTimers()
+    try {
+      const snapshotCallback = vi.fn(async () => {})
+      const port = await startServer({
+        snapshotCallback,
+        snapshotIntervalMs: 300_000,
+      })
+
+      const ws = await connectWsRaw(port, '/auto-snapshot-idle')
+      const nextDoc = new Y.Doc()
+      nextDoc.getText('codemirror').insert(0, 'auto-snapshot text')
+      const update = Y.encodeStateAsUpdate(nextDoc)
+      nextDoc.destroy()
+
+      const replaceRes = await fetch(`http://localhost:${port}/replace/auto-snapshot-idle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: Buffer.from(update),
+      })
+      expect(replaceRes.status).toBe(200)
+
+      await vi.advanceTimersByTimeAsync(300_000)
+
+      expect(snapshotCallback).toHaveBeenCalledTimes(1)
+      const snapshotCall = snapshotCallback.mock.calls[0] as unknown as
+        | [string, Uint8Array, string | null, 'browser' | 'daemon' | null]
+        | undefined
+      expect(snapshotCall?.[0]).toBe('auto-snapshot-idle')
+
+      ws.close()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('captures a final snapshot when the room is closed', async () => {
+    const snapshotCallback = vi.fn(async () => {})
+    const port = await startServer({
+      snapshotCallback,
+      snapshotIntervalMs: 300_000,
+    })
+
+    const ws = await connectWsRaw(port, '/snapshot-on-close')
+    const nextDoc = new Y.Doc()
+    nextDoc.getText('codemirror').insert(0, 'final state')
+    const update = Y.encodeStateAsUpdate(nextDoc)
+    nextDoc.destroy()
+
+    const replaceRes = await fetch(`http://localhost:${port}/replace/snapshot-on-close`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: Buffer.from(update),
+    })
+    expect(replaceRes.status).toBe(200)
+
+    await new Promise<void>((resolve) => {
+      ws.on('close', () => resolve())
+      ws.close()
+    })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(snapshotCallback).toHaveBeenCalledTimes(1)
+    const snapshotCall = snapshotCallback.mock.calls[0] as unknown as
+      | [string, Uint8Array, string | null, 'browser' | 'daemon' | null]
+      | undefined
+    expect(snapshotCall?.[0]).toBe('snapshot-on-close')
+  })
+
+  it('does not persist duplicate snapshots with the same hash', async () => {
+    vi.useFakeTimers()
+    try {
+      const snapshotCallback = vi.fn(async () => {})
+      const port = await startServer({
+        snapshotCallback,
+        snapshotIntervalMs: 5_000,
+      })
+
+      const ws = await connectWsRaw(port, '/snapshot-dedupe')
+      const nextDoc = new Y.Doc()
+      nextDoc.getText('codemirror').insert(0, 'same state')
+      const update = Y.encodeStateAsUpdate(nextDoc)
+      nextDoc.destroy()
+
+      await fetch(`http://localhost:${port}/replace/snapshot-dedupe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: Buffer.from(update),
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      await fetch(`http://localhost:${port}/replace/snapshot-dedupe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: Buffer.from(update),
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      expect(snapshotCallback).toHaveBeenCalledTimes(1)
+      ws.close()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('returns binary room state from GET /snapshot/:docId', async () => {
+    const port = await startServer()
+    const ws = await connectWsRaw(port, '/snapshot-endpoint')
+
+    const nextDoc = new Y.Doc()
+    nextDoc.getText('codemirror').insert(0, 'snapshot payload')
+    const update = Y.encodeStateAsUpdate(nextDoc)
+    nextDoc.destroy()
+
+    const replaceRes = await fetch(`http://localhost:${port}/replace/snapshot-endpoint`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: Buffer.from(update),
+    })
+    expect(replaceRes.status).toBe(200)
+
+    const snapshotRes = await fetch(`http://localhost:${port}/snapshot/snapshot-endpoint`)
+    expect(snapshotRes.status).toBe(200)
+    expect(snapshotRes.headers.get('content-type')).toBe('application/octet-stream')
+
+    const payload = new Uint8Array(await snapshotRes.arrayBuffer())
+    const loadedDoc = new Y.Doc()
+    Y.applyUpdate(loadedDoc, payload)
+    expect(loadedDoc.getText('codemirror').toString()).toBe('snapshot payload')
+    loadedDoc.destroy()
+
+    ws.close()
+  })
+
+  it('applies replacement state and broadcasts updates from POST /replace/:docId', async () => {
+    const port = await startServer()
+    const { ws: ws1, msgs: msgs1 } = await connectWs(port, 'replace-broadcast')
+    const { ws: ws2, msgs: msgs2 } = await connectWs(port, 'replace-broadcast')
+    const doc1 = new Y.Doc()
+    const doc2 = new Y.Doc()
+    await completeHandshake(ws1, msgs1, doc1)
+    await completeHandshake(ws2, msgs2, doc2)
+
+    const replacementDoc = new Y.Doc()
+    replacementDoc.getText('test').insert(0, 'replaced')
+    const replacementUpdate = Y.encodeStateAsUpdate(replacementDoc)
+    replacementDoc.destroy()
+
+    const replaceRes = await fetch(`http://localhost:${port}/replace/replace-broadcast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: Buffer.from(replacementUpdate),
+    })
+    expect(replaceRes.status).toBe(200)
+
+    await drainSyncMessages(ws2, msgs2, doc2, 250)
+    expect(doc2.getText('test').toString()).toBe('replaced')
+
+    ws1.close()
+    ws2.close()
+  })
+
+  it('passes last edit user and source to snapshotCallback', async () => {
+    const snapshotCallback = vi.fn(async () => {})
+    const port = await startServer({
+      auth: mockAuth({
+        verifyResult: validPayload,
+        permissions: { can_view: true, can_edit: true },
+      }),
+      snapshotCallback,
+      snapshotIntervalMs: 20,
+    })
+
+    const { ws, msgs } = await connectWsRawWithQueue(port, '/snapshot-meta', {
+      headers: { Authorization: 'Bearer valid' },
+    })
+    const localDoc = new Y.Doc()
+    await completeHandshake(ws, msgs, localDoc)
+
+    localDoc.getText('codemirror').insert(0, 'from daemon')
+    sendSyncUpdate(ws, Y.encodeStateAsUpdate(localDoc))
+
+    await new Promise((resolve) => setTimeout(resolve, 80))
+
+    expect(snapshotCallback).toHaveBeenCalledTimes(1)
+    const snapshotCall = snapshotCallback.mock.calls[0] as unknown as
+      | [string, Uint8Array, string | null, 'browser' | 'daemon' | null]
+      | undefined
+    expect(snapshotCall?.[2]).toBe('user-1')
+    expect(snapshotCall?.[3]).toBe('daemon')
+    ws.close()
   })
 
   it('skips agent policy for cookie auth but checks daemon auth', async () => {
