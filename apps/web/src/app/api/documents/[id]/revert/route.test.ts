@@ -8,31 +8,31 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession(...args) } },
+  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
 }))
 
 const mockCheckPermission = vi.fn()
 vi.mock('@collabmd/shared', () => ({
-  checkPermission: (...args: unknown[]) => mockCheckPermission(...args),
+  checkPermission: (...args: unknown[]) => mockCheckPermission.apply(undefined, args as never),
 }))
 
 const mockEnforceUserMutationRateLimit = vi.fn(() => null)
 const mockGetClientIp = vi.fn(() => '127.0.0.1')
 vi.mock('@/lib/rate-limit', () => ({
-  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit(...args),
-  getClientIp: (...args: unknown[]) => mockGetClientIp(...args),
+  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit.apply(undefined, args as never),
+  getClientIp: (...args: unknown[]) => mockGetClientIp.apply(undefined, args as never),
 }))
 
 const mockRequireJsonContentType = vi.fn(() => null)
 vi.mock('@/lib/http', () => ({
-  requireJsonContentType: (...args: unknown[]) => mockRequireJsonContentType(...args),
+  requireJsonContentType: (...args: unknown[]) => mockRequireJsonContentType.apply(undefined, args as never),
 }))
 
 const mockSelectGet = vi.fn()
 const mockWhereSelect = vi.fn(() => ({ get: mockSelectGet }))
 const mockFrom = vi.fn(() => ({ where: mockWhereSelect }))
 const mockInsertRun = vi.fn()
-const mockInsertValues = vi.fn(() => ({ run: mockInsertRun }))
+const mockInsertValues = vi.fn((values: unknown) => ({ run: mockInsertRun }))
 const mockEq = vi.fn((a: unknown, b: unknown) => ({ eq: [a, b] }))
 const mockAnd = vi.fn((...args: unknown[]) => ({ and: args }))
 
@@ -50,8 +50,8 @@ vi.mock('@collabmd/db', () => ({
     isAgentEdit: 'is_agent_edit',
     label: 'label',
   },
-  eq: (...args: unknown[]) => mockEq(...args),
-  and: (...args: unknown[]) => mockAnd(...args),
+  eq: (...args: unknown[]) => mockEq.apply(undefined, args as never),
+  and: (...args: unknown[]) => mockAnd.apply(undefined, args as never),
 }))
 
 import { POST } from './route'
@@ -140,7 +140,9 @@ describe('/api/documents/[id]/revert', () => {
     expect(res.status).toBe(200)
     expect(mockInsertValues).toHaveBeenCalledTimes(2)
 
-    const backupInsert = mockInsertValues.mock.calls[0]?.[0] as unknown as {
+    const backupInsertCall = mockInsertValues.mock.calls[0]
+    expect(backupInsertCall).toBeDefined()
+    const backupInsert = backupInsertCall[0] as unknown as {
       snapshot: Buffer
       label: string
     }
@@ -157,7 +159,9 @@ describe('/api/documents/[id]/revert', () => {
     const res = await POST(req, makeParams('doc-1'))
 
     expect(res.status).toBe(200)
-    const revertInsert = mockInsertValues.mock.calls[1]?.[0] as unknown as {
+    const revertInsertCall = mockInsertValues.mock.calls[1]
+    expect(revertInsertCall).toBeDefined()
+    const revertInsert = revertInsertCall[0] as unknown as {
       snapshot: Buffer
       label: string
     }

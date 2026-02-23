@@ -9,14 +9,17 @@ import { DocMapping } from './doc-mapping.js'
 import { FileWatcher } from './file-watcher.js'
 import { CrdtBridge } from './crdt-bridge.js'
 import { CommentBridge } from './comment-bridge.js'
+import { DiscussionBridge } from './discussion-bridge.js'
 import { SyncClient } from './sync-client.js'
 import { GitSync } from './git-sync.js'
+import { AgentRunner, type AgentRunnerConfig } from './agent-runner.js'
 
 interface DocState {
   ydoc: Y.Doc
   awareness: Awareness
   bridge: CrdtBridge
   commentBridge: CommentBridge
+  discussionBridge: DiscussionBridge
   syncClient: SyncClient
 }
 
@@ -56,6 +59,7 @@ interface ProjectConfig {
   server?: string
   orgId?: string
   git?: GitConfig
+  agents?: AgentRunnerConfig
 }
 
 interface ConflictsConfig {
@@ -88,11 +92,12 @@ export class FolderDaemon {
   private orgId: string | null
   private sessionToken: string | null
   private userName: string | null
-  private agentPolicy: 'enabled' | 'restricted' | 'disabled' = 'enabled'
+  private agentPolicy: 'enabled' | 'suggest-only' | 'restricted' | 'disabled' = 'enabled'
   private cursorIdleTimers = new Map<string, NodeJS.Timeout>()
   private status: FolderDaemonStatus['status'] = 'stopped'
   private projectConfig: ProjectConfig
   private gitSync: GitSync | null = null
+  private agentRunner: AgentRunner | null = null
 
   constructor(options: FolderDaemonOptions) {
     this.workDir = options.workDir
@@ -128,6 +133,11 @@ export class FolderDaemon {
     })
     await this.gitSync.ready()
 
+    this.agentRunner = new AgentRunner({
+      workDir: this.workDir,
+      config: this.projectConfig.agents ?? null,
+    })
+
     if (this.serverUrl && this.sessionToken && this.orgId) {
       await this.fetchAgentPolicy()
       if (this.agentPolicy === 'disabled') {
@@ -144,6 +154,8 @@ export class FolderDaemon {
       onChange: (relativePath) => this.handleFileChange(relativePath),
       onDelete: (relativePath) => this.handleFileDelete(relativePath),
       onCommentFileChange: (relativePath) => this.handleCommentFileChange(relativePath),
+      onDiscussionFileChange: (relativePath) => this.handleDiscussionFileChange(relativePath),
+      onAgentTriggerResponseFileChange: (relativePath) => this.handleAgentTriggerResponseFileChange(relativePath),
     })
     await this.fileWatcher.start()
 
@@ -158,6 +170,8 @@ export class FolderDaemon {
   async stop(): Promise<void> {
     this.status = 'stopping'
     this.shuttingDown = true
+    this.agentRunner?.destroy()
+    this.agentRunner = null
     this.gitSync?.destroy()
     this.gitSync = null
 
@@ -172,6 +186,7 @@ export class FolderDaemon {
       docState.syncClient.disconnect()
       docState.bridge.destroy()
       docState.commentBridge.destroy()
+      docState.discussionBridge.destroy()
       if (this.persistence && this.docMapping) {
         const docId = this.docMapping.getDocId(relativePath)
         if (docId) {
@@ -216,7 +231,7 @@ export class FolderDaemon {
       })
       if (res.ok) {
         const data = (await res.json()) as { agentPolicy?: string }
-        if (data.agentPolicy === 'disabled' || data.agentPolicy === 'restricted') {
+        if (data.agentPolicy === 'disabled' || data.agentPolicy === 'restricted' || data.agentPolicy === 'suggest-only') {
           this.agentPolicy = data.agentPolicy
         }
       }
@@ -270,8 +285,11 @@ export class FolderDaemon {
 
     const filePath = join(this.workDir, relativePath)
     const ycomments = ydoc.getArray<Y.Map<unknown>>('comments')
+    const ydiscussions = ydoc.getArray<Y.Map<unknown>>('discussions')
     const commentSidecarRelativePath = this.getCommentSidecarRelativePath(relativePath)
     const commentSidecarPath = join(this.workDir, commentSidecarRelativePath)
+    const discussionSidecarRelativePath = this.getDiscussionSidecarRelativePath(relativePath)
+    const discussionSidecarPath = join(this.workDir, discussionSidecarRelativePath)
     const bridge = new CrdtBridge({
       filePath,
       relativePath,
@@ -283,10 +301,26 @@ export class FolderDaemon {
       ydoc,
       ytext: ydoc.getText('codemirror'),
       ycomments,
+      workDir: this.workDir,
       documentPath: relativePath,
       sidecarPath: commentSidecarPath,
       sidecarRelativePath: commentSidecarRelativePath,
       fileWatcher: this.fileWatcher!,
+      onTriggerCreated: this.agentRunner?.isEnabled()
+        ? (path) => void this.agentRunner!.handleTriggerCreated(path)
+        : undefined,
+    })
+    const discussionBridge = new DiscussionBridge({
+      ydoc,
+      ydiscussions,
+      workDir: this.workDir,
+      documentPath: relativePath,
+      sidecarPath: discussionSidecarPath,
+      sidecarRelativePath: discussionSidecarRelativePath,
+      fileWatcher: this.fileWatcher!,
+      onTriggerCreated: this.agentRunner?.isEnabled()
+        ? (path) => void this.agentRunner!.handleTriggerCreated(path)
+        : undefined,
     })
 
     let bridgeInitialized = false
@@ -295,6 +329,7 @@ export class FolderDaemon {
       bridgeInitialized = true
       bridge.initialize()
       commentBridge.initialize()
+      discussionBridge.initialize()
       if (this.persistence) {
         this.persistence.storeUpdate(docId, Y.encodeStateAsUpdate(ydoc))
       }
@@ -309,7 +344,7 @@ export class FolderDaemon {
         token: '',
       })
       initializeBridge()
-      this.docs.set(relativePath, { ydoc, awareness, bridge, commentBridge, syncClient })
+      this.docs.set(relativePath, { ydoc, awareness, bridge, commentBridge, discussionBridge, syncClient })
       return
     }
 
@@ -325,7 +360,7 @@ export class FolderDaemon {
           token: '',
         })
         initializeBridge()
-        this.docs.set(relativePath, { ydoc, awareness, bridge, commentBridge, syncClient })
+        this.docs.set(relativePath, { ydoc, awareness, bridge, commentBridge, discussionBridge, syncClient })
         return
       }
     }
@@ -372,12 +407,13 @@ export class FolderDaemon {
       syncClient.disconnect()
       bridge.destroy()
       commentBridge.destroy()
+      discussionBridge.destroy()
       awareness.destroy()
       ydoc.destroy()
       return
     }
 
-    this.docs.set(relativePath, { ydoc, awareness, bridge, commentBridge, syncClient })
+    this.docs.set(relativePath, { ydoc, awareness, bridge, commentBridge, discussionBridge, syncClient })
   }
 
   private async handleFileAdd(relativePath: string): Promise<void> {
@@ -442,11 +478,13 @@ export class FolderDaemon {
       docState.syncClient.disconnect()
       docState.bridge.destroy()
       docState.commentBridge.destroy()
+      docState.discussionBridge.destroy()
       docState.awareness.destroy()
       docState.ydoc.destroy()
       this.docs.delete(relativePath)
     }
     this.deleteCommentSidecar(relativePath)
+    this.deleteDiscussionSidecar(relativePath)
     if (docId) this.clearPersistenceBuffer(docId)
     this.docMapping?.removeDoc(relativePath)
   }
@@ -457,6 +495,23 @@ export class FolderDaemon {
     const docState = this.docs.get(docRelativePath)
     if (!docState) return
     docState.commentBridge.onCommentFileChange()
+  }
+
+  private handleDiscussionFileChange(discussionRelativePath: string): void {
+    const docRelativePath = this.getDocPathFromDiscussionSidecar(discussionRelativePath)
+    if (!docRelativePath) return
+    const docState = this.docs.get(docRelativePath)
+    if (!docState) return
+    docState.discussionBridge.onDiscussionFileChange()
+  }
+
+  private handleAgentTriggerResponseFileChange(responseRelativePath: string): void {
+    const docRelativePath = this.getDocPathFromAgentTriggerResponse(responseRelativePath)
+    if (!docRelativePath) return
+    const docState = this.docs.get(docRelativePath)
+    if (!docState) return
+    docState.commentBridge.onAgentTriggerResponseFileChange(responseRelativePath)
+    docState.discussionBridge.onAgentTriggerResponseFileChange(responseRelativePath)
   }
 
   private queuePersistenceUpdate(docId: string, update: Uint8Array): void {
@@ -538,6 +593,11 @@ export class FolderDaemon {
     return `.collabmd/comments/${normalized}.comments.json`
   }
 
+  private getDiscussionSidecarRelativePath(relativePath: string): string {
+    const normalized = relativePath.replace(/\\/g, '/')
+    return `.collabmd/discussions/${normalized}.discussions.json`
+  }
+
   private getDocPathFromCommentSidecar(commentRelativePath: string): string | null {
     const normalized = commentRelativePath.replace(/\\/g, '/')
     const prefix = '.collabmd/comments/'
@@ -546,8 +606,37 @@ export class FolderDaemon {
     return normalized.slice(prefix.length, normalized.length - suffix.length)
   }
 
+  private getDocPathFromDiscussionSidecar(discussionRelativePath: string): string | null {
+    const normalized = discussionRelativePath.replace(/\\/g, '/')
+    const prefix = '.collabmd/discussions/'
+    const suffix = '.discussions.json'
+    if (!normalized.startsWith(prefix) || !normalized.endsWith(suffix)) return null
+    return normalized.slice(prefix.length, normalized.length - suffix.length)
+  }
+
+  private getDocPathFromAgentTriggerResponse(responseRelativePath: string): string | null {
+    const normalized = responseRelativePath.replace(/\\/g, '/')
+    const prefix = '.collabmd/agent-triggers/'
+    const suffix = '.response.json'
+    if (!normalized.startsWith(prefix) || !normalized.endsWith(suffix)) return null
+    const rest = normalized.slice(prefix.length, normalized.length - suffix.length)
+    const slashIndex = rest.lastIndexOf('/')
+    if (slashIndex < 0) return null
+    return rest.slice(0, slashIndex)
+  }
+
   private deleteCommentSidecar(relativePath: string): void {
     const sidecarPath = join(this.workDir, this.getCommentSidecarRelativePath(relativePath))
+    if (!existsSync(sidecarPath)) return
+    try {
+      unlinkSync(sidecarPath)
+    } catch {
+      // keep running
+    }
+  }
+
+  private deleteDiscussionSidecar(relativePath: string): void {
+    const sidecarPath = join(this.workDir, this.getDiscussionSidecarRelativePath(relativePath))
     if (!existsSync(sidecarPath)) return
     try {
       unlinkSync(sidecarPath)

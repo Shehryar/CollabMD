@@ -10,16 +10,16 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession(...args) } },
+  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
 }))
 
 const mockWriteTuple = vi.fn().mockResolvedValue(undefined)
 const mockListAccessible = vi.fn()
 const mockCheckPermission = vi.fn()
 vi.mock('@collabmd/shared', () => ({
-  writeTuple: (...args: unknown[]) => mockWriteTuple(...args),
-  listAccessibleObjects: (...args: unknown[]) => mockListAccessible(...args),
-  checkPermission: (...args: unknown[]) => mockCheckPermission(...args),
+  writeTuple: (...args: unknown[]) => mockWriteTuple.apply(undefined, args as never),
+  listAccessibleObjects: (...args: unknown[]) => mockListAccessible.apply(undefined, args as never),
+  checkPermission: (...args: unknown[]) => mockCheckPermission.apply(undefined, args as never),
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -34,6 +34,9 @@ const mockDbResult = { get: vi.fn(), all: vi.fn(), run: vi.fn() }
 const mockReturning = vi.fn(() => mockDbResult)
 const mockValues = vi.fn(() => ({ returning: mockReturning }))
 const mockOrderBy = vi.fn(() => mockDbResult)
+const mockDeleteRun = vi.fn()
+const mockDeleteWhere = vi.fn(() => ({ run: mockDeleteRun }))
+const mockDelete = vi.fn(() => ({ where: mockDeleteWhere }))
 const mockWhereInner = vi.fn(() => ({
   orderBy: mockOrderBy,
   get: mockDbResult.get,
@@ -47,6 +50,7 @@ vi.mock('@collabmd/db', () => ({
   db: {
     insert: vi.fn(() => ({ values: mockValues })),
     select: vi.fn(() => ({ from: mockFrom })),
+    delete: (...args: unknown[]) => mockDelete.apply(undefined, args as never),
   },
   documents: {
     id: 'id',
@@ -100,6 +104,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockDbResult.get.mockReturnValue({ organizationId: 'org-1', userId: 'user-1' })
   mockCheckPermission.mockResolvedValue(true)
+  mockDeleteRun.mockReset()
+  mockDeleteWhere.mockClear()
+  mockDelete.mockClear()
 })
 
 describe('POST /api/documents', () => {
@@ -274,6 +281,31 @@ describe('POST /api/documents', () => {
     // Only owner + org tuples, no additional permission tuples
     expect(mockWriteTuple).toHaveBeenCalledTimes(2)
   })
+
+  it('returns 503 and rolls back document when permission writes fail due to unavailable service', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockDbResult.get.mockReturnValueOnce({ organizationId: 'org-1', userId: 'user-1' })
+    mockDbResult.get.mockReturnValueOnce({
+      id: 'doc-rollback',
+      title: 'Rollback',
+      orgId: 'org-1',
+      ownerId: 'user-1',
+    })
+    mockWriteTuple.mockRejectedValueOnce(new Error('ECONNREFUSED: openfga'))
+
+    const req = jsonRequest('http://localhost:3000/api/documents', {
+      title: 'Rollback',
+      orgId: 'org-1',
+    })
+    const res = await POST(req)
+
+    expect(res.status).toBe(503)
+    const body = await res.json()
+    expect(body.error).toContain('Permissions service unavailable')
+    expect(mockDelete).toHaveBeenCalled()
+    expect(mockDeleteWhere).toHaveBeenCalled()
+    expect(mockDeleteRun).toHaveBeenCalled()
+  })
 })
 
 describe('GET /api/documents', () => {
@@ -393,5 +425,16 @@ describe('GET /api/documents', () => {
     const { eq, like } = await import('@collabmd/db')
     expect(eq).toHaveBeenCalledWith('folder_id', 'f1')
     expect(like).toHaveBeenCalledWith('title', '%test%')
+  })
+
+  it('returns 503 when permission service is unavailable during list', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockListAccessible.mockRejectedValueOnce(new Error('connect ECONNREFUSED 127.0.0.1:8081'))
+
+    const res = await GET(getRequest())
+
+    expect(res.status).toBe(503)
+    const body = await res.json()
+    expect(body.error).toContain('Permissions service unavailable')
   })
 })

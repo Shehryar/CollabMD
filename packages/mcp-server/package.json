@@ -1,0 +1,36 @@
+{
+  "name": "@collabmd/mcp-server",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/collabmd/collabmd.git",
+    "directory": "packages/mcp-server"
+  },
+  "homepage": "https://github.com/collabmd/collabmd",
+  "bugs": {
+    "url": "https://github.com/collabmd/collabmd/issues"
+  },
+  "type": "module",
+  "bin": {
+    "collabmd-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --external readline",
+    "dev": "tsup src/index.ts --format esm --dts --watch --external readline",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.27.0",
+    "eslint": "^9.27.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.32.1",
+    "vitest": "^4.0.18"
+  }
+}

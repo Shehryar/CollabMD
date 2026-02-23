@@ -23,6 +23,8 @@ interface Room {
   lastEditSource: 'browser' | 'daemon' | null
   snapshotTimer: NodeJS.Timeout | null
   lastSnapshotHash: string | null
+  hydratePromise: Promise<void> | null
+  hydrated: boolean
 }
 
 interface ConnMeta {
@@ -30,6 +32,15 @@ interface ConnMeta {
   userId?: string
   canEdit?: boolean
 }
+
+type SyncEventType =
+  | 'document.edited'
+  | 'comment.created'
+  | 'comment.mention'
+  | 'suggestion.created'
+  | 'suggestion.accepted'
+  | 'suggestion.dismissed'
+  | 'discussion.created'
 
 export interface SyncServerConfig {
   auth?: {
@@ -44,6 +55,15 @@ export interface SyncServerConfig {
     lastEditUserId: string | null,
     lastEditSource: 'browser' | 'daemon' | null,
   ) => Promise<void>
+  snapshotLoader?: (docId: string) => Promise<Uint8Array | null>
+  eventCallback?: (event: {
+    eventType: SyncEventType
+    documentId: string
+    actorId: string | null
+    actorSource: 'browser' | 'daemon' | null
+    timestamp: string
+    data?: Record<string, unknown>
+  }) => Promise<void>
   snapshotIntervalMs?: number
 }
 
@@ -66,6 +86,81 @@ export function createSyncServer(config?: SyncServerConfig) {
       clearTimeout(room.snapshotTimer)
       room.snapshotTimer = null
     }
+  }
+
+  function extractMentionedAgents(value: string): string[] {
+    const mentions = new Set<string>()
+    const matches = value.matchAll(/@([a-zA-Z0-9_-]+)/g)
+    for (const match of matches) {
+      const name = (match[1] ?? '').trim()
+      if (!name) continue
+      mentions.add(name)
+    }
+    return Array.from(mentions)
+  }
+
+  function captureDocEventState(doc: Y.Doc): {
+    commentIds: Set<string>
+    mentionSignatures: Set<string>
+    suggestionIds: Set<string>
+    suggestionStatusByCommentId: Map<string, 'pending' | 'accepted' | 'dismissed'>
+    discussionIds: Set<string>
+  } {
+    const commentIds = new Set<string>()
+    const mentionSignatures = new Set<string>()
+    const suggestionIds = new Set<string>()
+    const suggestionStatusByCommentId = new Map<string, 'pending' | 'accepted' | 'dismissed'>()
+    const discussionIds = new Set<string>()
+
+    const ycomments = doc.getArray<Y.Map<unknown>>('comments')
+    for (const comment of ycomments.toArray()) {
+      if (!(comment instanceof Y.Map)) continue
+      const id = typeof comment.get('id') === 'string' ? comment.get('id') as string : ''
+      const text = typeof comment.get('text') === 'string' ? comment.get('text') as string : ''
+      if (!id) continue
+
+      commentIds.add(id)
+      for (const agent of extractMentionedAgents(text)) {
+        mentionSignatures.add(`${id}\u0000${agent}`)
+      }
+
+      const suggestion = comment.get('suggestion')
+      if (!(suggestion instanceof Y.Map)) continue
+      suggestionIds.add(id)
+      const raw = suggestion.get('status')
+      const status = raw === 'accepted' || raw === 'dismissed' ? raw : 'pending'
+      suggestionStatusByCommentId.set(id, status)
+    }
+
+    const ydiscussions = doc.getArray<Y.Map<unknown>>('discussions')
+    for (const discussion of ydiscussions.toArray()) {
+      if (!(discussion instanceof Y.Map)) continue
+      const id = typeof discussion.get('id') === 'string' ? discussion.get('id') as string : ''
+      if (!id) continue
+      discussionIds.add(id)
+    }
+
+    return {
+      commentIds,
+      mentionSignatures,
+      suggestionIds,
+      suggestionStatusByCommentId,
+      discussionIds,
+    }
+  }
+
+  function emitEvent(event: {
+    eventType: SyncEventType
+    documentId: string
+    actorId: string | null
+    actorSource: 'browser' | 'daemon' | null
+    timestamp: string
+    data?: Record<string, unknown>
+  }): void {
+    if (!config?.eventCallback) return
+    void config.eventCallback(event).catch(() => {
+      // Best-effort event dispatch.
+    })
   }
 
   async function maybePersistSnapshot(room: Room): Promise<void> {
@@ -114,6 +209,8 @@ export function createSyncServer(config?: SyncServerConfig) {
       lastEditSource: null,
       snapshotTimer: null,
       lastSnapshotHash: null,
+      hydratePromise: null,
+      hydrated: false,
     }
 
     awareness.on(
@@ -146,6 +243,30 @@ export function createSyncServer(config?: SyncServerConfig) {
     return room
   }
 
+  async function hydrateRoom(room: Room): Promise<void> {
+    if (room.hydrated) return
+    if (room.hydratePromise) {
+      await room.hydratePromise
+      return
+    }
+
+    room.hydratePromise = (async () => {
+      const snapshot = await config?.snapshotLoader?.(room.name)
+      if (!snapshot || snapshot.byteLength === 0) {
+        room.hydrated = true
+        return
+      }
+
+      Y.applyUpdate(room.doc, snapshot)
+      room.lastSnapshotHash = hashSnapshot(snapshot)
+      room.hydrated = true
+    })().finally(() => {
+      room.hydratePromise = null
+    })
+
+    await room.hydratePromise
+  }
+
   function handleMessage(ws: WebSocket, room: Room, data: Uint8Array) {
     const meta = connMeta.get(ws)
     const decoder = decoding.createDecoder(data)
@@ -162,7 +283,12 @@ export function createSyncServer(config?: SyncServerConfig) {
           return
         }
 
-        if (syncMessageType !== 0) {
+        const shouldEmitDocEvents = syncMessageType !== 0
+        const beforeState = shouldEmitDocEvents
+          ? captureDocEventState(room.doc)
+          : null
+
+        if (shouldEmitDocEvents) {
           room.lastEditAt = Date.now()
           room.lastEditUserId = meta?.userId ?? null
           room.lastEditSource = meta?.source ?? null
@@ -174,6 +300,94 @@ export function createSyncServer(config?: SyncServerConfig) {
         syncProtocol.readSyncMessage(decoder, encoder, room.doc, ws)
         if (encoding.length(encoder) > 1) {
           ws.send(encoding.toUint8Array(encoder))
+        }
+
+        if (shouldEmitDocEvents && beforeState) {
+          const timestamp = new Date().toISOString()
+          const actorId = meta?.userId ?? null
+          const actorSource = meta?.source ?? null
+          const afterState = captureDocEventState(room.doc)
+
+          emitEvent({
+            eventType: 'document.edited',
+            documentId: room.name,
+            actorId,
+            actorSource,
+            timestamp,
+          })
+
+          for (const commentId of afterState.commentIds) {
+            if (beforeState.commentIds.has(commentId)) continue
+            emitEvent({
+              eventType: 'comment.created',
+              documentId: room.name,
+              actorId,
+              actorSource,
+              timestamp,
+              data: { commentId },
+            })
+          }
+
+          for (const signature of afterState.mentionSignatures) {
+            if (beforeState.mentionSignatures.has(signature)) continue
+            const [commentId, mentionedAgent] = signature.split('\u0000')
+            emitEvent({
+              eventType: 'comment.mention',
+              documentId: room.name,
+              actorId,
+              actorSource,
+              timestamp,
+              data: { commentId, mentionedAgent },
+            })
+          }
+
+          for (const commentId of afterState.suggestionIds) {
+            if (beforeState.suggestionIds.has(commentId)) continue
+            emitEvent({
+              eventType: 'suggestion.created',
+              documentId: room.name,
+              actorId,
+              actorSource,
+              timestamp,
+              data: { commentId },
+            })
+          }
+
+          for (const [commentId, status] of afterState.suggestionStatusByCommentId) {
+            const previous = beforeState.suggestionStatusByCommentId.get(commentId)
+            if (previous === status) continue
+            if (status === 'accepted') {
+              emitEvent({
+                eventType: 'suggestion.accepted',
+                documentId: room.name,
+                actorId,
+                actorSource,
+                timestamp,
+                data: { commentId },
+              })
+            } else if (status === 'dismissed') {
+              emitEvent({
+                eventType: 'suggestion.dismissed',
+                documentId: room.name,
+                actorId,
+                actorSource,
+                timestamp,
+                data: { commentId },
+              })
+            }
+          }
+
+          for (const discussionId of afterState.discussionIds) {
+            if (beforeState.discussionIds.has(discussionId)) continue
+            emitEvent({
+              eventType: 'discussion.created',
+              documentId: room.name,
+              actorId,
+              actorSource,
+              timestamp,
+              data: { discussionId },
+            })
+          }
         }
         break
       }
@@ -350,6 +564,13 @@ export function createSyncServer(config?: SyncServerConfig) {
           room.lastEditUserId = null
           room.lastEditSource = null
           scheduleSnapshot(room)
+          emitEvent({
+            eventType: 'document.edited',
+            documentId: room.name,
+            actorId: null,
+            actorSource: null,
+            timestamp: new Date().toISOString(),
+          })
 
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: true }))
@@ -435,6 +656,9 @@ export function createSyncServer(config?: SyncServerConfig) {
         }
       }
 
+      const room = getRoom(roomName)
+      await hydrateRoom(room)
+
       wss.handleUpgrade(req, socket, head, (ws) => {
         // Store connection metadata
         connMeta.set(ws, { source, userId: userId ?? undefined, canEdit })
@@ -454,10 +678,10 @@ export function createSyncServer(config?: SyncServerConfig) {
           })
         }
 
-        const room = getRoom(roomName)
         setupConnection(ws, room)
       })
-    } catch {
+    } catch (err) {
+      console.error('[sync-server] WebSocket upgrade error:', err)
       socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n')
       socket.destroy()
     }

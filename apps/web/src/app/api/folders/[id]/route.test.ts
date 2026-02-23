@@ -10,16 +10,16 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession(...args) } },
+  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
 }))
 
 const mockCheckPermission = vi.fn()
 const mockReadTuples = vi.fn()
 const mockDeleteTuple = vi.fn()
 vi.mock('@collabmd/shared', () => ({
-  checkPermission: (...args: unknown[]) => mockCheckPermission(...args),
-  readTuplesForEntity: (...args: unknown[]) => mockReadTuples(...args),
-  deleteTuple: (...args: unknown[]) => mockDeleteTuple(...args),
+  checkPermission: (...args: unknown[]) => mockCheckPermission.apply(undefined, args as never),
+  readTuplesForEntity: (...args: unknown[]) => mockReadTuples.apply(undefined, args as never),
+  deleteTuple: (...args: unknown[]) => mockDeleteTuple.apply(undefined, args as never),
 }))
 
 // Drizzle chain mock

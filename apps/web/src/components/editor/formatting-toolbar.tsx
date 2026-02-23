@@ -18,6 +18,7 @@ import {
   insertHorizontalRule,
   insertTable,
 } from './formatting-commands'
+import type { EditorMode } from './editor-mode'
 
 interface ToolbarButtonProps {
   label: string
@@ -70,22 +71,35 @@ interface FormattingToolbarProps {
   view: EditorView | null
   previewMode: boolean
   onTogglePreview: () => void
+  editorMode: EditorMode
+  onModeChange: (mode: EditorMode) => void
+  availableModes: EditorMode[]
+}
+
+const modeLabels: Record<EditorMode, string> = {
+  editing: 'Editing',
+  suggesting: 'Suggesting',
+  viewing: 'Viewing',
 }
 
 export default function FormattingToolbar({
   view,
   previewMode,
   onTogglePreview,
+  editorMode,
+  onModeChange,
+  availableModes,
 }: FormattingToolbarProps) {
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [activeIndex, setActiveIndex] = useState(0)
-  const buttonCount = 16
+  const modeButtonCount = availableModes.length
+  const buttonCount = 15 + modeButtonCount + 1
 
   const focusButton = useCallback((index: number) => {
     const normalized = (index + buttonCount) % buttonCount
     setActiveIndex(normalized)
     buttonRefs.current[normalized]?.focus()
-  }, [])
+  }, [buttonCount])
 
   const handleButtonKeyDown = useCallback((index: number, e: KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === 'ArrowRight') {
@@ -107,7 +121,7 @@ export default function FormattingToolbar({
       e.preventDefault()
       focusButton(buttonCount - 1)
     }
-  }, [focusButton])
+  }, [focusButton, buttonCount])
 
   const run = useCallback(
     (fn: (view: EditorView) => void) => {
@@ -312,16 +326,45 @@ export default function FormattingToolbar({
 
       <div className="flex-1" />
 
+      <div className="flex items-center gap-0 rounded border border-border bg-bg-subtle p-0.5" role="radiogroup" aria-label="editor mode">
+        {availableModes.map((mode, i) => {
+          const idx = 15 + i
+          const isActive = mode === editorMode
+          return (
+            <button
+              key={mode}
+              ref={(el) => {
+                buttonRefs.current[idx] = el
+              }}
+              type="button"
+              role="radio"
+              aria-checked={isActive}
+              onClick={() => onModeChange(mode)}
+              onFocus={() => setActiveIndex(idx)}
+              onKeyDown={(e) => handleButtonKeyDown(idx, e)}
+              tabIndex={activeIndex === idx ? 0 : -1}
+              className={`rounded px-2 py-1 font-mono text-[11px] ${
+                isActive
+                  ? 'bg-fg text-bg'
+                  : 'text-fg-secondary hover:bg-bg-subtle'
+              }`}
+            >
+              {modeLabels[mode]}
+            </button>
+          )
+        })}
+      </div>
+
       <ToolbarButton
         label={previewMode ? 'Preview' : 'Source'}
         title={previewMode ? 'Switch to source mode' : 'Switch to live preview'}
         ariaLabel={previewMode ? 'switch to source mode' : 'switch to live preview'}
         onClick={onTogglePreview}
-        tabIndex={activeIndex === 15 ? 0 : -1}
-        onFocus={() => setActiveIndex(15)}
-        onKeyDown={(e) => handleButtonKeyDown(15, e)}
+        tabIndex={activeIndex === 15 + modeButtonCount ? 0 : -1}
+        onFocus={() => setActiveIndex(15 + modeButtonCount)}
+        onKeyDown={(e) => handleButtonKeyDown(15 + modeButtonCount, e)}
         buttonRef={(el) => {
-          buttonRefs.current[15] = el
+          buttonRefs.current[15 + modeButtonCount] = el
         }}
         className={`flex h-[28px] items-center gap-1 px-2 font-mono text-[13px] ${
           previewMode

@@ -10,16 +10,16 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession(...args) } },
+  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
 }))
 
 const mockWriteTuple = vi.fn().mockResolvedValue(undefined)
 const mockListAccessible = vi.fn()
 const mockCheckPermission = vi.fn()
 vi.mock('@collabmd/shared', () => ({
-  writeTuple: (...args: unknown[]) => mockWriteTuple(...args),
-  listAccessibleObjects: (...args: unknown[]) => mockListAccessible(...args),
-  checkPermission: (...args: unknown[]) => mockCheckPermission(...args),
+  writeTuple: (...args: unknown[]) => mockWriteTuple.apply(undefined, args as never),
+  listAccessibleObjects: (...args: unknown[]) => mockListAccessible.apply(undefined, args as never),
+  checkPermission: (...args: unknown[]) => mockCheckPermission.apply(undefined, args as never),
 }))
 
 // Drizzle chain mock — track calls and return configurable results

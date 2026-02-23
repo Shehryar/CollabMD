@@ -1009,6 +1009,69 @@ describe('sync server coverage gaps', () => {
     ws.close()
   })
 
+  it('hydrates a room from snapshotLoader before first client sync', async () => {
+    const seededDoc = new Y.Doc()
+    seededDoc.getText('codemirror').insert(0, 'loaded from snapshot')
+    const seededUpdate = Y.encodeStateAsUpdate(seededDoc)
+    seededDoc.destroy()
+
+    const port = await startServer({
+      snapshotLoader: async (docId) => {
+        if (docId !== 'preloaded-room') return null
+        return seededUpdate
+      },
+    })
+
+    const { ws, msgs } = await connectWs(port, 'preloaded-room')
+    const localDoc = new Y.Doc()
+    await completeHandshake(ws, msgs, localDoc)
+    await drainSyncMessages(ws, msgs, localDoc, 120)
+
+    expect(localDoc.getText('codemirror').toString()).toBe('loaded from snapshot')
+
+    localDoc.destroy()
+    ws.close()
+  })
+
+  it('persists room state on disconnect and restores it after room recreation', async () => {
+    const snapshots = new Map<string, Uint8Array>()
+    const port = await startServer({
+      snapshotIntervalMs: 60_000,
+      snapshotCallback: async (docId, snapshot) => {
+        snapshots.set(docId, snapshot)
+      },
+      snapshotLoader: async (docId) => snapshots.get(docId) ?? null,
+    })
+
+    const { ws: ws1, msgs: msgs1 } = await connectWs(port, 'persisted-room')
+    const doc1 = new Y.Doc()
+    await completeHandshake(ws1, msgs1, doc1)
+
+    doc1.getText('codemirror').insert(0, 'persist me')
+    sendSyncUpdate(ws1, Y.encodeStateAsUpdate(doc1))
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    ws1.close()
+
+    const teardownDeadline = Date.now() + 1_000
+    while (Date.now() < teardownDeadline) {
+      if (!syncServer?.rooms.has('persisted-room')) break
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+    expect(syncServer?.rooms.has('persisted-room')).toBe(false)
+    expect(snapshots.has('persisted-room')).toBe(true)
+
+    const { ws: ws2, msgs: msgs2 } = await connectWs(port, 'persisted-room')
+    const doc2 = new Y.Doc()
+    await completeHandshake(ws2, msgs2, doc2)
+    await drainSyncMessages(ws2, msgs2, doc2, 120)
+
+    expect(doc2.getText('codemirror').toString()).toBe('persist me')
+
+    doc1.destroy()
+    doc2.destroy()
+    ws2.close()
+  })
+
   it('applies replacement state and broadcasts updates from POST /replace/:docId', async () => {
     const port = await startServer()
     const { ws: ws1, msgs: msgs1 } = await connectWs(port, 'replace-broadcast')
@@ -1123,5 +1186,129 @@ describe('sync server coverage gaps', () => {
     const res = await fetch(`http://localhost:${port}/health`)
     expect(res.status).toBe(200)
     expect(await res.text()).toBe('OK')
+  })
+})
+
+describe('webhook event emission', () => {
+  function sendSyncUpdate(ws: WebSocket, update: Uint8Array) {
+    const updateEnc = encoding.createEncoder()
+    encoding.writeVarUint(updateEnc, messageSync)
+    syncProtocol.writeUpdate(updateEnc, update)
+    ws.send(encoding.toUint8Array(updateEnc))
+  }
+
+  async function completeHandshake(ws: WebSocket, msgs: MsgQueue, doc: Y.Doc) {
+    const step1 = await msgs.next()
+    const dec = decoding.createDecoder(step1)
+    const outer = decoding.readVarUint(dec)
+    if (outer !== messageSync) {
+      throw new Error(`expected sync message, got ${outer}`)
+    }
+
+    const resp = encoding.createEncoder()
+    encoding.writeVarUint(resp, messageSync)
+    syncProtocol.readSyncMessage(dec, resp, doc, null)
+    if (encoding.length(resp) > 1) {
+      ws.send(encoding.toUint8Array(resp))
+    }
+
+    const ourStep1 = encoding.createEncoder()
+    encoding.writeVarUint(ourStep1, messageSync)
+    syncProtocol.writeSyncStep1(ourStep1, doc)
+    ws.send(encoding.toUint8Array(ourStep1))
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+
+  it('emits comment, mention, suggestion, and discussion events', async () => {
+    const receivedEvents: Array<{ eventType: string; data?: Record<string, unknown> }> = []
+    const eventCallback: NonNullable<SyncServerConfig['eventCallback']> = async (event) => {
+      receivedEvents.push({
+        eventType: event.eventType,
+        data: event.data,
+      })
+    }
+    const port = await startServer({ eventCallback })
+    const { ws, msgs } = await connectWsRawWithQueue(port, '/event-test')
+    const localDoc = new Y.Doc()
+    await completeHandshake(ws, msgs, localDoc)
+
+    localDoc.transact(() => {
+      const comment = new Y.Map<unknown>()
+      comment.set('id', 'comment-1')
+      comment.set('text', 'Please check @writer')
+      const suggestion = new Y.Map<unknown>()
+      suggestion.set('status', 'pending')
+      comment.set('suggestion', suggestion)
+      localDoc.getArray<Y.Map<unknown>>('comments').push([comment])
+
+      const discussion = new Y.Map<unknown>()
+      discussion.set('id', 'discussion-1')
+      localDoc.getArray<Y.Map<unknown>>('discussions').push([discussion])
+    }, 'test-event-update')
+    sendSyncUpdate(ws, Y.encodeStateAsUpdate(localDoc))
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    const eventTypes = receivedEvents.map((event) => event.eventType)
+    expect(eventTypes).toContain('document.edited')
+    expect(eventTypes).toContain('comment.created')
+    expect(eventTypes).toContain('comment.mention')
+    expect(eventTypes).toContain('suggestion.created')
+    expect(eventTypes).toContain('discussion.created')
+
+    const mentionEvent = receivedEvents.find((event) => event.eventType === 'comment.mention')
+    expect(mentionEvent?.data).toEqual({
+      commentId: 'comment-1',
+      mentionedAgent: 'writer',
+    })
+
+    ws.close()
+  })
+
+  it('emits suggestion accepted and dismissed events when status changes', async () => {
+    const receivedEvents: Array<{ eventType: string; data?: Record<string, unknown> }> = []
+    const eventCallback: NonNullable<SyncServerConfig['eventCallback']> = async (event) => {
+      receivedEvents.push({
+        eventType: event.eventType,
+        data: event.data,
+      })
+    }
+    const port = await startServer({ eventCallback })
+    const { ws, msgs } = await connectWsRawWithQueue(port, '/suggestion-event-test')
+    const localDoc = new Y.Doc()
+    await completeHandshake(ws, msgs, localDoc)
+
+    const comments = localDoc.getArray<Y.Map<unknown>>('comments')
+    const commentAccepted = new Y.Map<unknown>()
+    commentAccepted.set('id', 'comment-accepted')
+    const acceptedSuggestion = new Y.Map<unknown>()
+    acceptedSuggestion.set('status', 'pending')
+    commentAccepted.set('suggestion', acceptedSuggestion)
+    comments.push([commentAccepted])
+
+    const commentDismissed = new Y.Map<unknown>()
+    commentDismissed.set('id', 'comment-dismissed')
+    const dismissedSuggestion = new Y.Map<unknown>()
+    dismissedSuggestion.set('status', 'pending')
+    commentDismissed.set('suggestion', dismissedSuggestion)
+    comments.push([commentDismissed])
+
+    sendSyncUpdate(ws, Y.encodeStateAsUpdate(localDoc))
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    localDoc.transact(() => {
+      acceptedSuggestion.set('status', 'accepted')
+      dismissedSuggestion.set('status', 'dismissed')
+    }, 'test-status-update')
+    sendSyncUpdate(ws, Y.encodeStateAsUpdate(localDoc))
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    const accepted = receivedEvents.find((event) => event.eventType === 'suggestion.accepted')
+    const dismissed = receivedEvents.find((event) => event.eventType === 'suggestion.dismissed')
+
+    expect(accepted?.data).toEqual({ commentId: 'comment-accepted' })
+    expect(dismissed?.data).toEqual({ commentId: 'comment-dismissed' })
+
+    ws.close()
   })
 })

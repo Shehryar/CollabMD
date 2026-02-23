@@ -1,8 +1,8 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { download, getBinaryPath } from './setup-openfga.js'
 
-const OPENFGA_PORT = 8080
-const OPENFGA_HTTP_PORT = 8081
+const DEFAULT_GRPC_PORT = 8080
+const DEFAULT_HTTP_PORT = 8081
 
 let proc: ChildProcess | null = null
 
@@ -20,14 +20,17 @@ async function waitForReady(port: number, timeoutMs = 10000): Promise<void> {
   throw new Error(`OpenFGA did not start within ${timeoutMs}ms`)
 }
 
-export async function startOpenFGA(): Promise<ChildProcess> {
+export async function startOpenFGA(
+  httpPort = DEFAULT_HTTP_PORT,
+  grpcPort = DEFAULT_GRPC_PORT,
+): Promise<ChildProcess> {
   download()
   const binaryPath = getBinaryPath()
 
   console.log('Starting OpenFGA (in-memory store)...')
   proc = spawn(
     binaryPath,
-    ['run', '--playground-enabled=false', `--grpc-addr=:${OPENFGA_PORT}`, `--http-addr=:${OPENFGA_HTTP_PORT}`],
+    ['run', '--playground-enabled=false', `--grpc-addr=:${grpcPort}`, `--http-addr=:${httpPort}`],
     {
       stdio: ['ignore', 'pipe', 'pipe'],
     },
@@ -48,8 +51,8 @@ export async function startOpenFGA(): Promise<ChildProcess> {
     proc = null
   })
 
-  await waitForReady(OPENFGA_HTTP_PORT)
-  console.log(`OpenFGA ready on gRPC :${OPENFGA_PORT}, HTTP :${OPENFGA_HTTP_PORT}`)
+  await waitForReady(httpPort)
+  console.log(`OpenFGA ready on gRPC :${grpcPort}, HTTP :${httpPort}`)
   return proc
 }
 

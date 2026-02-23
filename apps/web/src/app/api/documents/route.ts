@@ -6,6 +6,18 @@ import { writeTuple, listAccessibleObjects, checkPermission } from '@collabmd/sh
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireJsonContentType } from '@/lib/http'
 
+function isPermissionsServiceUnavailable(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  return /ECONNREFUSED|fetch failed|connect|openfga/i.test(error.message)
+}
+
+function permissionsUnavailableResponse() {
+  return NextResponse.json(
+    { error: 'Permissions service unavailable. Start the full dev stack with `pnpm dev`.' },
+    { status: 503 },
+  )
+}
+
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
@@ -47,7 +59,16 @@ export async function POST(request: NextRequest) {
     if (folder.orgId !== orgId) {
       return NextResponse.json({ error: 'folder belongs to a different organization' }, { status: 400 })
     }
-    const canEditFolder = await checkPermission(session.user.id, 'can_edit', 'folder', folderId)
+    let canEditFolder = false
+    try {
+      canEditFolder = await checkPermission(session.user.id, 'can_edit', 'folder', folderId)
+    } catch (error) {
+      if (isPermissionsServiceUnavailable(error)) {
+        console.warn('[api/documents:POST] permissions unavailable during folder permission check', error)
+        return permissionsUnavailableResponse()
+      }
+      throw error
+    }
     if (!canEditFolder) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 })
     }
@@ -71,35 +92,48 @@ export async function POST(request: NextRequest) {
     .returning()
     .get()
 
-  await writeTuple(`user:${session.user.id}`, 'owner', `document:${id}`)
-  await writeTuple(`org:${orgId}`, 'org', `document:${id}`)
+  try {
+    await writeTuple(`user:${session.user.id}`, 'owner', `document:${id}`)
+    await writeTuple(`org:${orgId}`, 'org', `document:${id}`)
 
-  if (folderId) {
-    await writeTuple(`folder:${folderId}`, 'parent', `document:${id}`)
-  }
-
-  // Apply org-level default document permissions
-  const org = db.select().from(organizations).where(eq(organizations.id, orgId)).get()
-  if (org?.metadata) {
-    try {
-      const meta = JSON.parse(org.metadata)
-      const defaultPerm = meta.defaultDocPermission as string | undefined
-      if (defaultPerm && defaultPerm !== 'none') {
-        const orgMembers = db
-          .select()
-          .from(members)
-          .where(eq(members.organizationId, orgId))
-          .all()
-
-        const tuplePromises = orgMembers
-          .filter((m) => m.userId !== session.user.id)
-          .map((m) => writeTuple(`user:${m.userId}`, defaultPerm, `document:${id}`))
-
-        await Promise.all(tuplePromises)
-      }
-    } catch {
-      // invalid metadata JSON, skip defaults
+    if (folderId) {
+      await writeTuple(`folder:${folderId}`, 'parent', `document:${id}`)
     }
+
+    // Apply org-level default document permissions
+    const org = db.select().from(organizations).where(eq(organizations.id, orgId)).get()
+    if (org?.metadata) {
+      try {
+        const meta = JSON.parse(org.metadata)
+        const defaultPerm = meta.defaultDocPermission as string | undefined
+        if (defaultPerm && defaultPerm !== 'none') {
+          const orgMembers = db
+            .select()
+            .from(members)
+            .where(eq(members.organizationId, orgId))
+            .all()
+
+          const tuplePromises = orgMembers
+            .filter((m) => m.userId !== session.user.id)
+            .map((m) => writeTuple(`user:${m.userId}`, defaultPerm, `document:${id}`))
+
+          await Promise.all(tuplePromises)
+        }
+      } catch {
+        // invalid metadata JSON, skip defaults
+      }
+    }
+  } catch (error) {
+    try {
+      db.delete(documents).where(eq(documents.id, id)).run()
+    } catch {
+      // best effort cleanup
+    }
+    if (isPermissionsServiceUnavailable(error)) {
+      console.warn('[api/documents:POST] permissions unavailable during tuple writes', error)
+      return permissionsUnavailableResponse()
+    }
+    throw error
   }
 
   return NextResponse.json(doc, { status: 201 })
@@ -116,7 +150,16 @@ export async function GET(request: NextRequest) {
   const shared = searchParams.get('shared') === 'true'
   const search = searchParams.get('search')
 
-  const accessible = await listAccessibleObjects(session.user.id, 'can_view', 'document')
+  let accessible: string[]
+  try {
+    accessible = await listAccessibleObjects(session.user.id, 'can_view', 'document')
+  } catch (error) {
+    if (isPermissionsServiceUnavailable(error)) {
+      console.warn('[api/documents:GET] permissions unavailable during document listing', error)
+      return permissionsUnavailableResponse()
+    }
+    throw error
+  }
   const docIds = accessible.map((obj) => obj.replace('document:', ''))
 
   if (docIds.length === 0) {

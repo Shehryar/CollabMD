@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import * as Y from 'yjs'
@@ -49,6 +49,7 @@ describe('CommentBridge', () => {
       ydoc,
       ytext,
       ycomments,
+      workDir: tempDir,
       documentPath,
       sidecarPath: sidecarPath(),
       sidecarRelativePath,
@@ -528,5 +529,142 @@ describe('CommentBridge', () => {
 
     expect(ycomments.length).toBe(0)
     expect(warnSpy).toHaveBeenCalled()
+  })
+
+  it('writes agent trigger file when comment mentions an agent', () => {
+    ytext.insert(0, 'alpha\nbeta\ngamma')
+    initializeBridge()
+
+    addComment({
+      id: 'mention-1',
+      startIndex: lineStart(2),
+      endIndex: lineStart(2) + 4,
+      text: 'Please review this @writer',
+      authorName: 'PM',
+    })
+
+    const triggerPath = join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md', 'mention-1.json')
+    const trigger = JSON.parse(readFileSync(triggerPath, 'utf-8')) as {
+      commentId: string
+      mentionedAgent: string
+      commentText: string
+      anchorText: string
+      surroundingContext: string
+    }
+
+    expect(trigger.commentId).toBe('mention-1')
+    expect(trigger.mentionedAgent).toBe('writer')
+    expect(trigger.commentText).toContain('@writer')
+    expect(trigger.anchorText).toContain('beta')
+    expect(trigger.surroundingContext).toContain('alpha')
+  })
+
+  it('does not create duplicate trigger files for the same comment mention', () => {
+    ytext.insert(0, 'alpha\nbeta\ngamma')
+    initializeBridge()
+
+    addComment({
+      id: 'mention-dedupe',
+      startIndex: lineStart(2),
+      endIndex: lineStart(2) + 4,
+      text: 'Please review this @writer',
+      authorName: 'PM',
+    })
+
+    const triggerDir = join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md')
+    expect(readdirSync(triggerDir)).toEqual(['mention-dedupe.json'])
+
+    const comment = ycomments.get(0)
+    ydoc.transact(() => {
+      comment.set('text', 'Please review this @writer again')
+    }, 'test-comment-edit')
+
+    expect(readdirSync(triggerDir)).toEqual(['mention-dedupe.json'])
+  })
+
+  it('captures valid surrounding context at document boundaries', () => {
+    ytext.insert(0, 'line1\nline2\nline3\nline4\nline5\nline6')
+    initializeBridge()
+
+    addComment({
+      id: 'mention-top',
+      startIndex: lineStart(1),
+      endIndex: lineStart(1) + 5,
+      text: 'Top mention @writer',
+      authorName: 'PM',
+    })
+    addComment({
+      id: 'mention-bottom',
+      startIndex: lineStart(6),
+      endIndex: lineStart(6) + 5,
+      text: 'Bottom mention @writer',
+      authorName: 'PM',
+    })
+
+    const top = JSON.parse(
+      readFileSync(join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md', 'mention-top.json'), 'utf-8'),
+    ) as { anchorText: string; surroundingContext: string }
+    const bottom = JSON.parse(
+      readFileSync(join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md', 'mention-bottom.json'), 'utf-8'),
+    ) as { anchorText: string; surroundingContext: string }
+
+    expect(top.anchorText).toContain('line1')
+    expect(top.surroundingContext).toContain('line1')
+    expect(bottom.anchorText).toContain('line6')
+    expect(bottom.surroundingContext).toContain('line6')
+  })
+
+  it('applies agent response files as thread replies', () => {
+    ytext.insert(0, 'alpha beta')
+    addComment({
+      id: 'mention-2',
+      startIndex: 0,
+      endIndex: 5,
+      text: 'Please check @writer',
+      authorName: 'PM',
+    })
+    initializeBridge()
+
+    const responseRelativePath = '.collabmd/agent-triggers/docs/test.md/mention-2.response.json'
+    const responsePath = join(tempDir, responseRelativePath)
+    mkdirSync(join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md'), { recursive: true })
+    writeFileSync(responsePath, JSON.stringify({
+      commentId: 'mention-2',
+      mentionedAgent: 'writer',
+      replyText: 'Looks good to me',
+      resolved: true,
+    }, null, 2) + '\n', 'utf-8')
+
+    bridge!.onAgentTriggerResponseFileChange(responseRelativePath)
+
+    const comment = ycomments.get(0)
+    const thread = comment.get('thread') as Y.Array<Y.Map<unknown>>
+    expect(thread.length).toBe(1)
+    expect(thread.get(0).get('text')).toBe('Looks good to me')
+    expect(comment.get('resolved')).toBe(true)
+  })
+
+  it('ignores malformed agent response files without crashing', () => {
+    ytext.insert(0, 'alpha beta')
+    addComment({
+      id: 'mention-malformed',
+      startIndex: 0,
+      endIndex: 5,
+      text: 'Please check @writer',
+      authorName: 'PM',
+    })
+    initializeBridge()
+
+    const responseRelativePath = '.collabmd/agent-triggers/docs/test.md/mention-malformed.response.json'
+    const responsePath = join(tempDir, responseRelativePath)
+    mkdirSync(join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md'), { recursive: true })
+    writeFileSync(responsePath, '{bad json', 'utf-8')
+
+    bridge!.onAgentTriggerResponseFileChange(responseRelativePath)
+
+    const comment = ycomments.get(0)
+    const thread = comment.get('thread') as Y.Array<Y.Map<unknown>>
+    expect(thread.length).toBe(0)
+    expect(comment.get('resolved')).toBe(false)
   })
 })

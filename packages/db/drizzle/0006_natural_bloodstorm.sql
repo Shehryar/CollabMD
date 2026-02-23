@@ -1,0 +1,1 @@
+DROP INDEX `agent_keys_key_hash_idx`;

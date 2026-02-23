@@ -1,10 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useDroppable } from '@dnd-kit/core'
 import { useActiveOrganization } from '@/lib/auth-client'
 import { useSidebar, type Folder } from './sidebar-context'
+
+interface SidebarDoc {
+  id: string
+  title: string
+  folderId: string | null
+}
 
 function DroppableFolderRow({
   folder,
@@ -111,9 +118,11 @@ function DroppableFolderRow({
 export function FolderTree() {
   const { folders, connectedFolders, refreshFolders, setOpen } = useSidebar()
   const { data: activeOrg } = useActiveOrganization()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
   const activeFolderId = searchParams.get('folder')
+  const activeDocId = pathname.startsWith('/doc/') ? pathname.split('/')[2] : null
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [creating, setCreating] = useState<string | null>(null)
@@ -123,6 +132,7 @@ export function FolderTree() {
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [docs, setDocs] = useState<SidebarDoc[]>([])
   const createInputRef = useRef<HTMLInputElement>(null)
   const contextMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([])
 
@@ -141,6 +151,7 @@ export function FolderTree() {
   }
 
   const rootFolders = folders.filter((f) => !f.parentId)
+  const rootDocs = useMemo(() => docs.filter((doc) => !doc.folderId), [docs])
   const connectedFolderIds = useMemo(() => {
     return new Set(
       connectedFolders
@@ -153,6 +164,63 @@ export function FolderTree() {
     (parentId: string) => folders.filter((f) => f.parentId === parentId),
     [folders],
   )
+  const getDocsForFolder = useCallback(
+    (folderId: string) => docs.filter((doc) => doc.folderId === folderId),
+    [docs],
+  )
+
+  const refreshDocs = useCallback(async () => {
+    if (!activeOrg?.id) {
+      setDocs([])
+      return
+    }
+    try {
+      const res = await fetch('/api/documents', { cache: 'no-store' })
+      if (!res.ok) return
+      const body = await res.json() as unknown
+      if (!Array.isArray(body)) return
+      const nextDocs: SidebarDoc[] = body
+        .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+        .map((item) => ({
+          id: typeof item.id === 'string' ? item.id : '',
+          title: typeof item.title === 'string' && item.title.trim() ? item.title : 'Untitled',
+          folderId: typeof item.folderId === 'string' ? item.folderId : null,
+        }))
+        .filter((doc) => doc.id.length > 0)
+      setDocs(nextDocs)
+    } catch {
+      // Keep existing state when refresh fails.
+    }
+  }, [activeOrg?.id])
+
+  useEffect(() => {
+    void refreshDocs()
+  }, [refreshDocs])
+
+  useEffect(() => {
+    const onDocumentsChanged = () => {
+      void refreshDocs()
+    }
+
+    const onDocumentCreated = (event: Event) => {
+      const detail = (event as CustomEvent<SidebarDoc>).detail
+      if (!detail || typeof detail.id !== 'string' || !detail.id) return
+      setDocs((prev) => {
+        const existingIndex = prev.findIndex((doc) => doc.id === detail.id)
+        if (existingIndex === -1) return [detail, ...prev]
+        const next = [...prev]
+        next[existingIndex] = detail
+        return next
+      })
+    }
+
+    window.addEventListener('collabmd:documents-changed', onDocumentsChanged)
+    window.addEventListener('collabmd:document-created', onDocumentCreated)
+    return () => {
+      window.removeEventListener('collabmd:documents-changed', onDocumentsChanged)
+      window.removeEventListener('collabmd:document-created', onDocumentCreated)
+    }
+  }, [refreshDocs])
 
   const createFolder = async (parentId: string | null) => {
     if (busy) return
@@ -289,6 +357,7 @@ export function FolderTree() {
 
   const renderFolder = (folder: Folder, depth: number) => {
     const children = getChildren(folder.id)
+    const folderDocs = getDocsForFolder(folder.id)
     const hasChildren = children.length > 0
     const isExpanded = expanded.has(folder.id)
     const isActive = activeFolderId === folder.id
@@ -315,10 +384,32 @@ export function FolderTree() {
         {isExpanded && (
           <>
             {children.map((child) => renderFolder(child, depth + 1))}
+            {folderDocs.map((doc) => renderDoc(doc, depth + 1))}
             {creating === folder.id && renderCreateInput(folder.id, depth + 1)}
           </>
         )}
       </div>
+    )
+  }
+
+  const renderDoc = (doc: SidebarDoc, depth: number) => {
+    const isActive = activeDocId === doc.id
+    return (
+      <Link
+        key={doc.id}
+        href={`/doc/${doc.id}`}
+        onClick={() => setOpen(false)}
+        className={`group flex items-center rounded pr-1 text-[13px] ${
+          isActive
+            ? 'bg-bg text-fg shadow-sm'
+            : 'text-fg-secondary hover:bg-bg-hover hover:text-fg'
+        }`}
+        style={{ paddingLeft: `${depth * 12 + 8 + 20}px` }}
+        title={doc.title}
+      >
+        <span className={`mr-1.5 shrink-0 font-mono text-[11px] ${isActive ? 'text-fg-muted' : 'text-fg-faint'}`}>#</span>
+        <span className="min-w-0 flex-1 truncate py-[5px]">{doc.title}</span>
+      </Link>
     )
   }
 
@@ -364,9 +455,10 @@ export function FolderTree() {
 
       {rootFolders.map((folder) => renderFolder(folder, 0))}
       {creating === 'root' && renderCreateInput(null, 0)}
+      {rootDocs.map((doc) => renderDoc(doc, 0))}
 
-      {folders.length === 0 && creating === null && (
-        <p className="px-[10px] py-1 text-xs text-fg-faint">No folders yet</p>
+      {folders.length === 0 && rootDocs.length === 0 && creating === null && (
+        <p className="px-[10px] py-1 text-xs text-fg-faint">No folders or documents yet</p>
       )}
       {error && <p className="px-[10px] py-1 text-xs text-red">{error}</p>}
 

@@ -12,3 +12,7 @@ dist
 *.db-wal
 .collabmd/
 logo-concepts/
+apps/web/.next-e2e/
+playwright-report/
+test-results/
+e2e/.openfga.pid

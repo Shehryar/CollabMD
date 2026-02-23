@@ -8,28 +8,28 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession(...args) } },
+  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
 }))
 
 const mockCheckPermission = vi.fn()
 vi.mock('@collabmd/shared', () => ({
-  checkPermission: (...args: unknown[]) => mockCheckPermission(...args),
+  checkPermission: (...args: unknown[]) => mockCheckPermission.apply(undefined, args as never),
 }))
 
 const mockEnforceUserMutationRateLimit = vi.fn(() => null)
 const mockGetClientIp = vi.fn(() => '127.0.0.1')
 vi.mock('@/lib/rate-limit', () => ({
-  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit(...args),
-  getClientIp: (...args: unknown[]) => mockGetClientIp(...args),
+  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit.apply(undefined, args as never),
+  getClientIp: (...args: unknown[]) => mockGetClientIp.apply(undefined, args as never),
 }))
 
 const mockRequireJsonContentType = vi.fn(() => null)
 vi.mock('@/lib/http', () => ({
-  requireJsonContentType: (...args: unknown[]) => mockRequireJsonContentType(...args),
+  requireJsonContentType: (...args: unknown[]) => mockRequireJsonContentType.apply(undefined, args as never),
 }))
 
 const mockInsertRun = vi.fn()
-const mockInsertValues = vi.fn(() => ({ run: mockInsertRun }))
+const mockInsertValues = vi.fn((values: unknown) => ({ run: mockInsertRun }))
 const mockSelectAll = vi.fn()
 const mockWhereSelect = vi.fn(() => ({
   all: mockSelectAll,
@@ -52,7 +52,7 @@ vi.mock('@collabmd/db', () => ({
     createdBy: 'created_by',
     createdAt: 'created_at',
   },
-  eq: (...args: unknown[]) => mockEq(...args),
+  eq: (...args: unknown[]) => mockEq.apply(undefined, args as never),
 }))
 
 import { GET, POST } from './route'
@@ -112,7 +112,9 @@ describe('/api/documents/[id]/share-links', () => {
       const res = await POST(req, makeParams('doc-1'))
       expect(res.status).toBe(201)
 
-      const inserted = mockInsertValues.mock.calls[0][0] as {
+      const insertedCall = mockInsertValues.mock.calls[0]
+      expect(insertedCall).toBeDefined()
+      const inserted = insertedCall[0] as {
         documentId: string
         permission: string
         passwordHash: string | null

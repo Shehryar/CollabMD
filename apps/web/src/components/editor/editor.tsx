@@ -34,6 +34,16 @@ import CommentInput from './comment-input'
 import { createCommentDecorations, setActiveComment } from './comment-decorations'
 import { conflictPlugin, conflictTheme } from './conflict-decorations'
 import { useComments } from './use-comments'
+import { useDiscussions } from './use-discussions'
+import type { EditorMode } from './editor-mode'
+import {
+  editorModeField,
+  editableCompartment,
+  readOnlyCompartment,
+  editableExtensionsForMode,
+  dispatchModeChange,
+} from './editor-mode'
+import { createSuggestionInterceptor } from './suggestion-interceptor'
 
 const editorTheme = EditorView.theme({
   '&': {
@@ -80,11 +90,7 @@ interface SelectionAnchor {
   to: number
   buttonLeft: number
   buttonTop: number
-  popoverLeft: number
-  popoverTop: number
 }
-
-type ComposerMode = 'comment' | 'suggest'
 
 interface CollabEditorProps {
   yjs: YjsContext
@@ -92,6 +98,7 @@ interface CollabEditorProps {
   canEdit?: boolean
   canComment?: boolean
   canResolveComments?: boolean
+  orgId?: string
   currentUser?: {
     id: string
     name: string
@@ -116,16 +123,11 @@ function getSelectionAnchor(view: EditorView, from: number, to: number): Selecti
   if (!start || !end) return null
 
   const center = (Math.min(start.left, end.left) + Math.max(start.right, end.right)) / 2
-  const top = Math.min(start.top, end.top)
   const bottom = Math.max(start.bottom, end.bottom)
 
-  const popoverWidth = 288
-  const buttonWidth = 190
+  const buttonWidth = 100
   const viewportWidth = window.innerWidth
 
-  const popoverLeft = clamp(center - popoverWidth / 2, 12, viewportWidth - popoverWidth - 12)
-  const topPosition = top - 166
-  const popoverTop = topPosition > 10 ? topPosition : bottom + 10
   const buttonLeft = clamp(center - buttonWidth / 2, 12, viewportWidth - buttonWidth - 12)
 
   return {
@@ -133,8 +135,6 @@ function getSelectionAnchor(view: EditorView, from: number, to: number): Selecti
     to,
     buttonLeft,
     buttonTop: bottom + 8,
-    popoverLeft,
-    popoverTop,
   }
 }
 
@@ -145,10 +145,20 @@ function sameAnchor(a: SelectionAnchor | null, b: SelectionAnchor | null): boole
     a.from === b.from &&
     a.to === b.to &&
     Math.abs(a.buttonLeft - b.buttonLeft) < 1 &&
-    Math.abs(a.buttonTop - b.buttonTop) < 1 &&
-    Math.abs(a.popoverLeft - b.popoverLeft) < 1 &&
-    Math.abs(a.popoverTop - b.popoverTop) < 1
+    Math.abs(a.buttonTop - b.buttonTop) < 1
   )
+}
+
+function computeDefaultMode(canEditPerm: boolean, canCommentPerm: boolean): EditorMode {
+  if (canEditPerm) return 'editing'
+  if (canCommentPerm) return 'suggesting'
+  return 'viewing'
+}
+
+function computeAvailableModes(canEditPerm: boolean, canCommentPerm: boolean): EditorMode[] {
+  if (canEditPerm) return ['editing', 'suggesting', 'viewing']
+  if (canCommentPerm) return ['suggesting', 'viewing']
+  return ['viewing']
 }
 
 export default function CollabEditor({
@@ -157,25 +167,30 @@ export default function CollabEditor({
   canEdit,
   canComment,
   canResolveComments,
+  orgId,
   currentUser,
 }: CollabEditorProps) {
   const editable = canEdit ?? !readOnly
   const commentable = canComment ?? editable
   const canResolve = canResolveComments ?? editable
 
+  const defaultMode = computeDefaultMode(editable, commentable)
+  const availableModes = computeAvailableModes(editable, commentable)
+
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const [view, setView] = useState<EditorView | null>(null)
   const [previewMode, setPreviewMode] = useState(true)
+  const [editorMode, setEditorMode] = useState<EditorMode>(defaultMode)
   const [selectionAnchor, setSelectionAnchor] = useState<SelectionAnchor | null>(null)
   const [commentInputOpen, setCommentInputOpen] = useState(false)
-  const [composerMode, setComposerMode] = useState<ComposerMode>('comment')
   const [panelOpen, setPanelOpen] = useState(false)
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null)
+  const [activeDiscussionId, setActiveDiscussionId] = useState<string | null>(null)
   const previousCommentCountRef = useRef(0)
 
   const commentInputOpenRef = useRef(commentInputOpen)
-  const openComposerFromSelectionRef = useRef<(view: EditorView, mode?: ComposerMode) => boolean>(() => false)
+  const openCommentFromSelectionRef = useRef<(view: EditorView) => boolean>(() => false)
 
   const author = useMemo(() => ({
     id: currentUser?.id ?? 'anonymous',
@@ -201,11 +216,26 @@ export default function CollabEditor({
     canEdit: editable,
   })
 
+  const {
+    discussions,
+    createDiscussion,
+    replyToDiscussion,
+    setResolved: setDiscussionResolved,
+  } = useDiscussions({
+    ydoc: yjs.ydoc,
+    ydiscussions: yjs.ydiscussions,
+    currentUser: author,
+    canComment: commentable,
+    canResolve,
+  })
+
   const suggestionCount = useMemo(
     () => comments.reduce((count, comment) => count + (comment.suggestion ? 1 : 0), 0),
     [comments],
   )
   const regularCommentCount = comments.length - suggestionCount
+  const discussionCount = discussions.length
+  const totalPanelItems = comments.length + discussions.length
 
   useEffect(() => {
     commentInputOpenRef.current = commentInputOpen
@@ -213,21 +243,28 @@ export default function CollabEditor({
 
   useEffect(() => {
     const previousCount = previousCommentCountRef.current
-    if (comments.length > 0 && previousCount === 0) {
+    if (totalPanelItems > 0 && previousCount === 0) {
       setPanelOpen(true)
     }
-    if (comments.length === 0) {
+    if (totalPanelItems === 0) {
       setPanelOpen(false)
       setActiveCommentId(null)
+      setActiveDiscussionId(null)
     }
-    previousCommentCountRef.current = comments.length
-  }, [comments.length])
+    previousCommentCountRef.current = totalPanelItems
+  }, [totalPanelItems])
 
   useEffect(() => {
     if (!activeCommentId) return
     if (comments.some((comment) => comment.id === activeCommentId)) return
     setActiveCommentId(null)
   }, [activeCommentId, comments])
+
+  useEffect(() => {
+    if (!activeDiscussionId) return
+    if (discussions.some((discussion) => discussion.id === activeDiscussionId)) return
+    setActiveDiscussionId(null)
+  }, [activeDiscussionId, discussions])
 
   const updateSelectionAnchor = useCallback((editorView: EditorView) => {
     if (!commentable) {
@@ -256,7 +293,7 @@ export default function CollabEditor({
     setSelectionAnchor((previous) => (sameAnchor(previous, next) ? previous : next))
   }, [commentable])
 
-  const openComposerFromSelection = useCallback((editorView: EditorView, mode: ComposerMode = 'comment') => {
+  const openCommentFromSelection = useCallback((editorView: EditorView) => {
     if (!commentable) return false
 
     const selected = getSelectedRange(editorView.state.selection.main)
@@ -266,15 +303,23 @@ export default function CollabEditor({
     if (!nextAnchor) return false
 
     setSelectionAnchor(nextAnchor)
-    setComposerMode(mode)
     setCommentInputOpen(true)
     return true
   }, [commentable])
 
-  openComposerFromSelectionRef.current = openComposerFromSelection
+  openCommentFromSelectionRef.current = openCommentFromSelection
+
+  const handleModeChange = useCallback((mode: EditorMode) => {
+    const editorView = viewRef.current
+    if (!editorView) return
+    setEditorMode(mode)
+    dispatchModeChange(editorView, mode)
+  }, [])
 
   useEffect(() => {
     if (!containerRef.current) return
+
+    const initialExtensions = editableExtensionsForMode(defaultMode)
 
     const state = EditorState.create({
       doc: yjs.ytext.toString(),
@@ -300,17 +345,21 @@ export default function CollabEditor({
           indentWithTab,
         ]),
         formattingKeymap,
+        editorModeField,
+        editableCompartment.of(initialExtensions.editable),
+        readOnlyCompartment.of(initialExtensions.readOnly),
+        createSuggestionInterceptor({ createSuggestion }),
         ...(commentable
           ? [
               keymap.of([
                 {
                   key: 'Mod-Shift-m',
-                  run: (editorView) => openComposerFromSelectionRef.current(editorView, 'comment'),
+                  run: (editorView) => openCommentFromSelectionRef.current(editorView),
                 },
               ]),
               EditorView.domEventHandlers({
                 contextmenu: (event, editorView) => {
-                  const opened = openComposerFromSelectionRef.current(editorView, 'comment')
+                  const opened = openCommentFromSelectionRef.current(editorView)
                   if (!opened) return false
                   event.preventDefault()
                   return true
@@ -339,7 +388,6 @@ export default function CollabEditor({
         }),
         conflictPlugin,
         conflictTheme,
-        ...(!editable ? [EditorView.editable.of(false), EditorState.readOnly.of(true)] : []),
         yCollab(yjs.ytext, yjs.awareness),
       ],
     })
@@ -351,6 +399,7 @@ export default function CollabEditor({
 
     viewRef.current = editorView
     setView(editorView)
+    setEditorMode(defaultMode)
     updateSelectionAnchor(editorView)
 
     return () => {
@@ -360,7 +409,7 @@ export default function CollabEditor({
       setSelectionAnchor(null)
       setCommentInputOpen(false)
     }
-  }, [editable, commentable, updateSelectionAnchor, yjs])
+  }, [defaultMode, commentable, updateSelectionAnchor, yjs, createSuggestion])
 
   useEffect(() => {
     const editorView = viewRef.current
@@ -413,30 +462,6 @@ export default function CollabEditor({
     setActiveCommentId(commentId)
   }, [createComment, selectionAnchor])
 
-  const handleCreateSuggestion = useCallback((proposedText: string) => {
-    if (!selectionAnchor) return
-
-    const editorView = viewRef.current
-    if (!editorView) return
-
-    const originalText = editorView.state.doc.sliceString(selectionAnchor.from, selectionAnchor.to)
-    const commentId = createSuggestion({
-      from: selectionAnchor.from,
-      to: selectionAnchor.to,
-      text: 'Suggested edit',
-      originalText,
-      proposedText,
-      source: 'browser',
-    })
-
-    if (!commentId) return
-
-    setCommentInputOpen(false)
-    setSelectionAnchor(null)
-    setPanelOpen(true)
-    setActiveCommentId(commentId)
-  }, [createSuggestion, selectionAnchor])
-
   const handleReply = useCallback((commentId: string, text: string) => {
     replyToComment(commentId, text)
   }, [replyToComment])
@@ -453,32 +478,45 @@ export default function CollabEditor({
     dismissSuggestion(commentId)
   }, [dismissSuggestion])
 
-  const selectedText = useMemo(() => {
-    if (!selectionAnchor) return ''
-    const editorView = viewRef.current
-    if (!editorView) return ''
-    return editorView.state.doc.sliceString(selectionAnchor.from, selectionAnchor.to)
-  }, [selectionAnchor, view])
+  const handleCreateDiscussion = useCallback((title: string, text: string) => {
+    const discussionId = createDiscussion({ title, text })
+    if (!discussionId) return
+    setPanelOpen(true)
+    setActiveDiscussionId(discussionId)
+  }, [createDiscussion])
+
+  const handleReplyDiscussion = useCallback((discussionId: string, text: string) => {
+    replyToDiscussion(discussionId, text)
+  }, [replyToDiscussion])
+
+  const handleResolveDiscussion = useCallback((discussionId: string) => {
+    setDiscussionResolved(discussionId, true)
+  }, [setDiscussionResolved])
+
+  const showToolbar = editable || commentable
 
   return (
     <div className="flex h-full flex-col">
-      {editable && (
+      {showToolbar && (
         <FormattingToolbar
           view={view}
           previewMode={previewMode}
           onTogglePreview={handleTogglePreview}
+          editorMode={editorMode}
+          onModeChange={handleModeChange}
+          availableModes={availableModes}
         />
       )}
-      {!editable && (
+      {!showToolbar && (
         <div className="border-b border-border bg-bg-subtle px-5 py-2 text-center font-mono text-xs text-fg-muted">
-          {commentable ? 'Comment-only access: editing is disabled' : 'You have view-only access to this document'}
+          You have view-only access to this document
         </div>
       )}
       <div className="flex min-h-0 flex-1">
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           <div ref={containerRef} className="h-full min-h-0 overflow-hidden" />
 
-          {commentable && selectionAnchor && !commentInputOpen && (
+          {commentable && selectionAnchor && !commentInputOpen && editorMode !== 'suggesting' && (
             <div
               className="fixed z-30 flex items-center gap-1"
               style={{
@@ -491,22 +529,11 @@ export default function CollabEditor({
                 onClick={() => {
                   const editorView = viewRef.current
                   if (!editorView) return
-                  openComposerFromSelection(editorView, 'comment')
+                  openCommentFromSelection(editorView)
                 }}
                 className="rounded border border-accent bg-accent px-2.5 py-1 font-mono text-[11px] text-accent-text shadow-sm"
               >
                 Comment
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const editorView = viewRef.current
-                  if (!editorView) return
-                  openComposerFromSelection(editorView, 'suggest')
-                }}
-                className="rounded border border-border bg-bg px-2.5 py-1 font-mono text-[11px] text-fg-secondary shadow-sm hover:bg-bg-subtle"
-              >
-                Suggest
               </button>
             </div>
           )}
@@ -516,46 +543,54 @@ export default function CollabEditor({
               open={commentInputOpen}
               position={selectionAnchor
                 ? {
-                    left: selectionAnchor.popoverLeft,
-                    top: selectionAnchor.popoverTop,
+                    left: selectionAnchor.buttonLeft,
+                    top: selectionAnchor.buttonTop,
                   }
                 : null}
-              mode={composerMode}
-              selectedText={selectedText}
-              onModeChange={setComposerMode}
+              orgId={orgId}
               onSubmitComment={handleCreateComment}
-              onSubmitSuggestion={handleCreateSuggestion}
               onCancel={() => setCommentInputOpen(false)}
             />
           )}
 
-          {comments.length > 0 && !panelOpen && (
+          {totalPanelItems > 0 && !panelOpen && (
             <button
               type="button"
               onClick={() => setPanelOpen(true)}
               className="absolute right-3 top-3 z-20 rounded border border-border bg-bg px-2.5 py-1 font-mono text-[11px] text-fg-secondary shadow-sm hover:bg-bg-subtle"
             >
-              Comments ({regularCommentCount}
-              {suggestionCount > 0 ? ` · ${suggestionCount} suggestions` : ''})
+              Discussions ({discussionCount}) · Comments ({regularCommentCount}
+              {suggestionCount > 0 ? ` +${suggestionCount} suggestions` : ''})
             </button>
           )}
         </div>
 
         <CommentPanel
           comments={comments}
+          discussions={discussions}
           activeCommentId={activeCommentId}
+          activeDiscussionId={activeDiscussionId}
           onSelectComment={(commentId) => {
             setPanelOpen(true)
             setActiveCommentId(commentId)
+            setActiveDiscussionId(null)
+          }}
+          onSelectDiscussion={(discussionId) => {
+            setPanelOpen(true)
+            setActiveDiscussionId(discussionId)
+            setActiveCommentId(null)
           }}
           onReply={handleReply}
           onResolve={handleResolve}
           onAcceptSuggestion={handleAcceptSuggestion}
           onDismissSuggestion={handleDismissSuggestion}
+          onCreateDiscussion={handleCreateDiscussion}
+          onReplyDiscussion={handleReplyDiscussion}
+          onResolveDiscussion={handleResolveDiscussion}
           canReply={commentable}
           canResolve={canResolve}
           canEdit={editable}
-          open={panelOpen && comments.length > 0}
+          open={panelOpen && totalPanelItems > 0}
           onToggleOpen={() => setPanelOpen(false)}
         />
       </div>

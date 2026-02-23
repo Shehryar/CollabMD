@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import * as Y from 'yjs'
-import { CollabEditor, useYjs } from '@/components/editor'
+import { CollabEditor, useYjs, type YjsContext } from '@/components/editor'
 import { useSession } from '@/lib/auth-client'
 import ShareModal from '@/components/share-modal'
 
@@ -38,12 +38,115 @@ interface DocPageProps {
   params: Promise<{ id: string }>
 }
 
+type AwarenessStateShape = {
+  user?: {
+    id?: string
+    name?: string
+    color?: string
+  }
+  source?: string
+}
+
+type PresenceAvatar = {
+  key: string
+  name: string
+  color: string
+  initial: string
+  isAgent: boolean
+}
+
+function PresenceAvatars({ awareness }: { awareness: YjsContext['awareness'] }) {
+  const [, setVersion] = useState(0)
+
+  useEffect(() => {
+    const onChange = () => setVersion((value) => value + 1)
+    awareness.on('change', onChange)
+    return () => {
+      awareness.off('change', onChange)
+    }
+  }, [awareness])
+
+  const remotes: PresenceAvatar[] = []
+  const seenRemoteUserIds = new Set<string>()
+
+  for (const [clientId, rawState] of awareness.getStates()) {
+    if (clientId === awareness.clientID) continue
+
+    const state = rawState as AwarenessStateShape
+    const name = state.user?.name?.trim()
+    if (!name) continue
+
+    const userId = state.user?.id?.trim()
+    if (userId) {
+      if (seenRemoteUserIds.has(userId)) continue
+      seenRemoteUserIds.add(userId)
+    }
+
+    remotes.push({
+      key: userId || String(clientId),
+      name,
+      color: state.user?.color || '#8458B3',
+      initial: name.charAt(0).toUpperCase(),
+      isAgent: state.source === 'agent' || state.source === 'daemon',
+    })
+  }
+
+  if (remotes.length === 0) return null
+
+  const visible = remotes.length > 5 ? remotes.slice(0, 4) : remotes.slice(0, 5)
+  const overflow = remotes.length > 5 ? remotes.length - 4 : 0
+
+  return (
+    <div className="ml-2 flex max-w-[150px] shrink-0 items-center">
+      <div className="flex items-center -space-x-1">
+        {visible.map((person) => (
+          <div
+            key={person.key}
+            title={person.name}
+            aria-label={person.name}
+            className="relative inline-flex h-6 w-6 items-center justify-center rounded-full border border-bg text-[11px] font-mono font-medium text-white"
+            style={{ backgroundColor: person.color }}
+          >
+            <span>{person.initial}</span>
+            {person.isAgent && (
+              <span className="absolute bottom-0 right-0 inline-flex h-2.5 w-2.5 translate-x-0.5 translate-y-0.5 items-center justify-center rounded-full border border-border bg-bg text-fg">
+                <svg viewBox="0 0 16 16" className="h-2 w-2" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M5 6.5h6a2 2 0 0 1 2 2v2.5H3V8.5a2 2 0 0 1 2-2Z" />
+                  <path d="M6.5 11v1.5M9.5 11v1.5M6.5 4.5h3M8 4.5V3" />
+                  <circle cx="6.5" cy="8.75" r=".6" fill="currentColor" stroke="none" />
+                  <circle cx="9.5" cy="8.75" r=".6" fill="currentColor" stroke="none" />
+                </svg>
+              </span>
+            )}
+          </div>
+        ))}
+        {overflow > 0 && (
+          <div
+            title={`${overflow} more`}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-bg text-[11px] font-mono font-medium text-fg-secondary"
+          >
+            +{overflow}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function DocPage({ params }: DocPageProps) {
   const { id } = use(params)
   const searchParams = useSearchParams()
-  const yjs = useYjs(id)
   const { data: session } = useSession()
+  const yjs = useYjs(id, {
+    user: session?.user
+      ? {
+          id: session.user.id,
+          name: session.user.name ?? session.user.email,
+        }
+      : undefined,
+  })
   const [title, setTitle] = useState<string | null>(null)
+  const [orgId, setOrgId] = useState<string | null>(null)
   const [apiPermission, setApiPermission] = useState<DocumentPermission>('viewer')
   const [agentEditable, setAgentEditable] = useState(true)
   const [orgAgentPolicy, setOrgAgentPolicy] = useState<AgentPolicy>('enabled')
@@ -74,12 +177,14 @@ export default function DocPage({ params }: DocPageProps) {
       if (res.ok) {
         const doc = await res.json() as {
           title: string
+          orgId?: string
           permission?: string
           agentEditable?: boolean
           orgAgentPolicy?: string
         }
         setNotFound(false)
         setTitle(doc.title)
+        setOrgId(typeof doc.orgId === 'string' ? doc.orgId : null)
         setApiPermission(parsePermission(doc.permission) ?? 'viewer')
         setAgentEditable(doc.agentEditable ?? true)
         setOrgAgentPolicy(parseAgentPolicy(doc.orgAgentPolicy))
@@ -149,6 +254,7 @@ export default function DocPage({ params }: DocPageProps) {
         return
       }
       setTitle(trimmed)
+      window.dispatchEvent(new Event('collabmd:documents-changed'))
     } catch {
       setError('Failed to rename document.')
     } finally {
@@ -229,6 +335,7 @@ export default function DocPage({ params }: DocPageProps) {
             {title ?? id}
           </button>
         )}
+        <PresenceAvatars awareness={yjs.awareness} />
         <span className="ml-auto flex items-center gap-3">
           {session && permission === 'owner' && orgAgentPolicy === 'restricted' && (
             <label className="flex items-center gap-1.5 font-mono text-xs text-fg-secondary">
@@ -268,9 +375,19 @@ export default function DocPage({ params }: DocPageProps) {
           </span>
           <span className="flex items-center gap-1.5 font-mono text-[11px] text-fg-muted">
             <span
-              className={`inline-block h-1.5 w-1.5 rounded-full ${yjs.synced ? 'bg-green' : 'bg-accent animate-pulse'}`}
+              className={`inline-block h-1.5 w-1.5 rounded-full ${
+                yjs.synced
+                  ? 'bg-green'
+                  : yjs.connectionStatus === 'disconnected'
+                  ? 'bg-red'
+                  : 'bg-accent animate-pulse'
+              }`}
             />
-            {yjs.synced ? 'synced' : 'connecting'}
+            {yjs.synced
+              ? 'synced'
+              : yjs.connectionStatus === 'disconnected'
+              ? 'disconnected'
+              : 'connecting'}
           </span>
         </span>
       </header>
@@ -278,6 +395,7 @@ export default function DocPage({ params }: DocPageProps) {
       <main className="min-h-0 flex-1">
         <CollabEditor
           yjs={yjs}
+          orgId={orgId ?? undefined}
           canEdit={canEdit}
           canComment={canComment}
           canResolveComments={canResolveComments}

@@ -13,5 +13,6 @@ export type {
 } from './config.js'
 
 export * from './fga/index.js'
+export * from './webhooks.js'
 
 export { fonts, colors, radii, shadows, typeScale, cssVariables } from './design-system.js'

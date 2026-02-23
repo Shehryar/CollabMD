@@ -89,7 +89,10 @@ export async function readTuplesForEntity(
   const client = await getFgaClient()
   const [byObject, byUser] = await Promise.all([
     client.read({ object: entity }),
-    client.read({ user: entity }),
+    // The "by user" read may fail on strict OpenFGA versions when no object
+    // type is specified. Swallow the error — the "by object" read covers the
+    // primary use-case (cleaning up tuples for a deleted document).
+    client.read({ user: entity }).catch(() => ({ tuples: [] })),
   ])
 
   const seen = new Set<string>()

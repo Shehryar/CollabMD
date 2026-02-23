@@ -8,19 +8,19 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession(...args) } },
+  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
 }))
 
 const mockCheckPermission = vi.fn()
 vi.mock('@collabmd/shared', () => ({
-  checkPermission: (...args: unknown[]) => mockCheckPermission(...args),
+  checkPermission: (...args: unknown[]) => mockCheckPermission.apply(undefined, args as never),
 }))
 
 const mockEnforceUserMutationRateLimit = vi.fn(() => null)
 const mockGetClientIp = vi.fn(() => '127.0.0.1')
 vi.mock('@/lib/rate-limit', () => ({
-  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit(...args),
-  getClientIp: (...args: unknown[]) => mockGetClientIp(...args),
+  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit.apply(undefined, args as never),
+  getClientIp: (...args: unknown[]) => mockGetClientIp.apply(undefined, args as never),
 }))
 
 const mockRun = vi.fn()
@@ -36,8 +36,8 @@ vi.mock('@collabmd/db', () => ({
     id: 'id',
     documentId: 'document_id',
   },
-  eq: (...args: unknown[]) => mockEq(...args),
-  and: (...args: unknown[]) => mockAnd(...args),
+  eq: (...args: unknown[]) => mockEq.apply(undefined, args as never),
+  and: (...args: unknown[]) => mockAnd.apply(undefined, args as never),
 }))
 
 import { DELETE } from './route'

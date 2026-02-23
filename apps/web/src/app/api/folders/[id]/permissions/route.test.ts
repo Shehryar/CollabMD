@@ -8,7 +8,7 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession(...args) } },
+  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
 }))
 
 const mockCheckPermission = vi.fn()
@@ -16,22 +16,22 @@ const mockWriteTuple = vi.fn()
 const mockDeleteTuple = vi.fn()
 const mockReadTuples = vi.fn()
 vi.mock('@collabmd/shared', () => ({
-  checkPermission: (...args: unknown[]) => mockCheckPermission(...args),
-  writeTuple: (...args: unknown[]) => mockWriteTuple(...args),
-  deleteTuple: (...args: unknown[]) => mockDeleteTuple(...args),
-  readTuples: (...args: unknown[]) => mockReadTuples(...args),
+  checkPermission: (...args: unknown[]) => mockCheckPermission.apply(undefined, args as never),
+  writeTuple: (...args: unknown[]) => mockWriteTuple.apply(undefined, args as never),
+  deleteTuple: (...args: unknown[]) => mockDeleteTuple.apply(undefined, args as never),
+  readTuples: (...args: unknown[]) => mockReadTuples.apply(undefined, args as never),
 }))
 
-const mockEnforceUserMutationRateLimit = vi.fn(() => null)
+const mockEnforceUserMutationRateLimit = vi.fn((..._args: unknown[]): NextResponse | null => null)
 const mockGetClientIp = vi.fn(() => '127.0.0.1')
 vi.mock('@/lib/rate-limit', () => ({
-  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit(...args),
-  getClientIp: (...args: unknown[]) => mockGetClientIp(...args),
+  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit.apply(undefined, args as never),
+  getClientIp: (...args: unknown[]) => mockGetClientIp.apply(undefined, args as never),
 }))
 
 const mockRequireJsonContentType = vi.fn(() => null)
 vi.mock('@/lib/http', () => ({
-  requireJsonContentType: (...args: unknown[]) => mockRequireJsonContentType(...args),
+  requireJsonContentType: (...args: unknown[]) => mockRequireJsonContentType.apply(undefined, args as never),
 }))
 
 const mockDbResult = { get: vi.fn(), all: vi.fn() }
@@ -51,7 +51,7 @@ vi.mock('@collabmd/db', () => ({
     name: 'name',
     email: 'email',
   },
-  inArray: (...args: unknown[]) => mockInArray(...args),
+  inArray: (...args: unknown[]) => mockInArray.apply(undefined, args as never),
 }))
 
 import { DELETE, GET, POST } from './route'

@@ -2,47 +2,57 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react'
 
-type CommentInputMode = 'comment' | 'suggest'
-
 interface CommentInputProps {
   open: boolean
   position: { left: number; top: number } | null
-  mode: CommentInputMode
-  selectedText: string
-  onModeChange: (mode: CommentInputMode) => void
+  orgId?: string
   onSubmitComment: (text: string) => void
-  onSubmitSuggestion: (proposedText: string) => void
   onCancel: () => void
+}
+
+interface AgentEntry {
+  name: string
+  description: string
+  enabled: boolean
+}
+
+interface MentionState {
+  start: number
+  end: number
+  query: string
+}
+
+function findMentionAtCursor(value: string, cursor: number): MentionState | null {
+  const prefix = value.slice(0, cursor)
+  const match = /(^|\s)@([a-zA-Z0-9_-]*)$/.exec(prefix)
+  if (!match) return null
+  const query = match[2] ?? ''
+  const start = cursor - query.length - 1
+  return { start, end: cursor, query }
 }
 
 export default function CommentInput({
   open,
   position,
-  mode,
-  selectedText,
-  onModeChange,
+  orgId,
   onSubmitComment,
-  onSubmitSuggestion,
   onCancel,
 }: CommentInputProps) {
   const [text, setText] = useState('')
-  const [proposedText, setProposedText] = useState('')
+  const [agents, setAgents] = useState<AgentEntry[]>([])
+  const [mention, setMention] = useState<MentionState | null>(null)
+  const [mentionIndex, setMentionIndex] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const proposedRef = useRef<HTMLTextAreaElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) {
       setText('')
-      setProposedText('')
+      setMention(null)
       return
     }
 
     const frame = requestAnimationFrame(() => {
-      if (mode === 'suggest') {
-        proposedRef.current?.focus()
-        return
-      }
       textareaRef.current?.focus()
     })
 
@@ -66,18 +76,56 @@ export default function CommentInput({
       window.removeEventListener('mousedown', onPointerDown)
       window.removeEventListener('keydown', onEscape)
     }
-  }, [mode, open, onCancel])
+  }, [open, onCancel])
 
-  if (!open || !position) return null
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    if (mode === 'suggest') {
-      onSubmitSuggestion(proposedText)
-      setProposedText('')
+  useEffect(() => {
+    if (!orgId) {
+      setAgents([])
       return
     }
 
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/orgs/${orgId}/settings`, { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json() as { agents?: AgentEntry[] }
+        if (cancelled) return
+        setAgents(Array.isArray(data.agents) ? data.agents.filter((agent) => agent.enabled !== false) : [])
+      } catch {
+        if (!cancelled) setAgents([])
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [orgId])
+
+  if (!open || !position) return null
+
+  const mentionCandidates = mention
+    ? agents.filter((agent) => agent.name.toLowerCase().includes(mention.query.toLowerCase()))
+    : []
+
+  const applyMention = (name: string) => {
+    const input = textareaRef.current
+    if (!input || !mention) return
+    const before = text.slice(0, mention.start)
+    const after = text.slice(mention.end)
+    const next = `${before}@${name} ${after}`
+    const cursor = before.length + name.length + 2
+    setText(next)
+    setMention(null)
+    setMentionIndex(0)
+    requestAnimationFrame(() => {
+      input.focus()
+      input.setSelectionRange(cursor, cursor)
+    })
+  }
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
     const body = text.trim()
     if (!body) return
     onSubmitComment(body)
@@ -93,58 +141,59 @@ export default function CommentInput({
         top: `${position.top}px`,
       }}
       role="dialog"
-      aria-label={mode === 'suggest' ? 'Suggest inline edit' : 'Add inline comment'}
+      aria-label="Add inline comment"
     >
       <form onSubmit={submit} className="space-y-2">
-        <div className="flex items-center gap-1 rounded border border-border bg-bg-subtle p-1">
-          <button
-            type="button"
-            onClick={() => onModeChange('comment')}
-            className={`flex-1 rounded px-2 py-1 font-mono text-[11px] ${
-              mode === 'comment'
-                ? 'bg-bg text-fg shadow-sm'
-                : 'text-fg-secondary hover:bg-bg'
-            }`}
-          >
-            Comment
-          </button>
-          <button
-            type="button"
-            onClick={() => onModeChange('suggest')}
-            className={`flex-1 rounded px-2 py-1 font-mono text-[11px] ${
-              mode === 'suggest'
-                ? 'bg-bg text-fg shadow-sm'
-                : 'text-fg-secondary hover:bg-bg'
-            }`}
-          >
-            Suggest
-          </button>
-        </div>
-
-        {mode === 'suggest' ? (
-          <div className="space-y-2">
-            <div className="rounded border border-red/20 bg-red-subtle px-2.5 py-2">
-              <p className="font-mono text-[10px] uppercase tracking-wide text-red">Original</p>
-              <p className="mt-1 whitespace-pre-wrap text-[12px] text-red line-through">{selectedText}</p>
-            </div>
-            <textarea
-              ref={proposedRef}
-              rows={4}
-              value={proposedText}
-              onChange={(event) => setProposedText(event.target.value)}
-              placeholder="Proposed replacement text"
-              className="w-full resize-none rounded border border-border bg-bg px-2.5 py-2 font-sans text-[13px] text-fg outline-none focus:border-accent"
-            />
+        <textarea
+          ref={textareaRef}
+          rows={4}
+          value={text}
+          onChange={(event) => {
+            const value = event.target.value
+            setText(value)
+            const cursor = event.target.selectionStart ?? value.length
+            const nextMention = findMentionAtCursor(value, cursor)
+            setMention(nextMention)
+            setMentionIndex(0)
+          }}
+          onKeyDown={(event) => {
+            if (!mention || mentionCandidates.length === 0) return
+            if (event.key === 'ArrowDown') {
+              event.preventDefault()
+              setMentionIndex((value) => (value + 1) % mentionCandidates.length)
+              return
+            }
+            if (event.key === 'ArrowUp') {
+              event.preventDefault()
+              setMentionIndex((value) => (value - 1 + mentionCandidates.length) % mentionCandidates.length)
+              return
+            }
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              const target = mentionCandidates[mentionIndex] ?? mentionCandidates[0]
+              if (target) applyMention(target.name)
+            }
+          }}
+          placeholder="Add a comment"
+          className="w-full resize-none rounded border border-border bg-bg px-2.5 py-2 font-sans text-[13px] text-fg outline-none focus:border-accent"
+        />
+        {mention && mentionCandidates.length > 0 && (
+          <div className="max-h-36 overflow-y-auto rounded border border-border bg-bg">
+            {mentionCandidates.map((agent, index) => (
+              <button
+                key={agent.name}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => applyMention(agent.name)}
+                className={`flex w-full flex-col px-2.5 py-1.5 text-left ${index === mentionIndex ? 'bg-bg-subtle' : 'hover:bg-bg-subtle'}`}
+              >
+                <span className="font-mono text-[11px] text-fg">@{agent.name}</span>
+                {agent.description && (
+                  <span className="text-[11px] text-fg-muted">{agent.description}</span>
+                )}
+              </button>
+            ))}
           </div>
-        ) : (
-          <textarea
-            ref={textareaRef}
-            rows={4}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            placeholder="Add a comment"
-            className="w-full resize-none rounded border border-border bg-bg px-2.5 py-2 font-sans text-[13px] text-fg outline-none focus:border-accent"
-          />
         )}
         <div className="flex items-center justify-end gap-2">
           <button
@@ -156,10 +205,10 @@ export default function CommentInput({
           </button>
           <button
             type="submit"
-            disabled={mode === 'comment' && text.trim().length === 0}
+            disabled={text.trim().length === 0}
             className="rounded border border-accent bg-accent px-2.5 py-1 font-mono text-[11px] text-accent-text disabled:cursor-not-allowed disabled:opacity-55"
           >
-            {mode === 'suggest' ? 'Create suggestion' : 'Add comment'}
+            Add comment
           </button>
         </div>
       </form>

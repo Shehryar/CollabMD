@@ -1,6 +1,6 @@
 'use client'
 
-import { useSession } from '@/lib/auth-client'
+import { useActiveOrganization, useSession } from '@/lib/auth-client'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -263,6 +263,7 @@ function DraggableDocRow({
 
 export default function HomePage() {
   const { data: session, isPending } = useSession()
+  const { data: activeOrg } = useActiveOrganization()
   const searchParams = useSearchParams()
   const router = useRouter()
   const { folders, connectedFolders, onboardingStatus, onboardingLoading, refreshOnboardingStatus } = useSidebar()
@@ -309,7 +310,16 @@ export default function HomePage() {
     try {
       const res = await fetch(`/api/documents${qs ? `?${qs}` : ''}`)
       if (!res.ok) {
-        setError('Failed to load documents.')
+        let nextError = 'Failed to load documents.'
+        try {
+          const body = await res.json() as { error?: unknown }
+          if (typeof body.error === 'string' && body.error.trim()) {
+            nextError = body.error
+          }
+        } catch {
+          // Use fallback message when API response body is not JSON.
+        }
+        setError(nextError)
         return
       }
       setDocs(await res.json())
@@ -361,8 +371,11 @@ export default function HomePage() {
 
   const createDoc = async () => {
     if (creatingDoc) return
-    const activeOrgId = session?.session?.activeOrganizationId
-    if (!activeOrgId) return
+    const activeOrgId = activeOrg?.id ?? session?.session?.activeOrganizationId ?? onboardingStatus?.orgId
+    if (!activeOrgId) {
+      setError('Select a workspace before creating a document.')
+      return
+    }
     setCreatingDoc(true)
     setError(null)
     try {
@@ -372,12 +385,29 @@ export default function HomePage() {
         body: JSON.stringify({ title: 'Untitled', orgId: activeOrgId, folderId }),
       })
       if (!res.ok) {
-        setError('Failed to create document.')
+        let nextError = 'Failed to create document.'
+        try {
+          const body = await res.json() as { error?: unknown }
+          if (typeof body.error === 'string' && body.error.trim()) {
+            nextError = body.error
+          }
+        } catch {
+          // Use fallback message when API response body is not JSON.
+        }
+        setError(nextError)
         return
       }
       const doc = await res.json()
-      await refreshOnboardingStatus()
+      window.dispatchEvent(new Event('collabmd:documents-changed'))
+      window.dispatchEvent(new CustomEvent('collabmd:document-created', {
+        detail: {
+          id: doc.id,
+          title: doc.title ?? 'Untitled',
+          folderId: doc.folderId ?? null,
+        },
+      }))
       router.push(`/doc/${doc.id}`)
+      void refreshOnboardingStatus()
     } catch {
       setError('Failed to create document.')
     } finally {

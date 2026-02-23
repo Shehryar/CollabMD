@@ -18,6 +18,8 @@ import {
 import { runOnboardingFlow } from './onboarding.js'
 import { pushCommand } from './push.js'
 import { pullCommand } from './pull.js'
+import { mcpCommand, mcpConfigCommand } from './mcp.js'
+import { agentAddCommand, agentListCommand, agentRemoveCommand } from './agent.js'
 
 const program = new Command()
 
@@ -137,6 +139,30 @@ program
   })
 
 program
+  .command('mcp')
+  .description('Run CollabMD MCP server over stdio')
+  .option('--api-key <key>', 'Agent API key (or COLLABMD_API_KEY env)')
+  .option('--server-url <url>', 'CollabMD server URL (or COLLABMD_SERVER_URL env)')
+  .action((opts: { apiKey?: string; serverUrl?: string }) => {
+    mcpCommand({
+      apiKey: opts.apiKey,
+      serverUrl: opts.serverUrl,
+    })
+  })
+
+program
+  .command('mcp-config')
+  .description('Print a Claude Code MCP config snippet')
+  .option('--api-key <key>', 'Agent API key (optional; never printed inline)')
+  .option('--server-url <url>', 'CollabMD server URL (default: http://localhost:3000)')
+  .action((opts: { apiKey?: string; serverUrl?: string }) => {
+    mcpConfigCommand({
+      apiKey: opts.apiKey,
+      serverUrl: opts.serverUrl,
+    })
+  })
+
+program
   .command('login')
   .description('Authenticate with CollabMD server')
   .option('-s, --server <url>', 'Server URL', 'http://localhost:3000')
@@ -233,6 +259,32 @@ service
   .description('Restart background service')
   .action(() => {
     serviceControlCommand('restart')
+  })
+
+const agent = program.command('agent').description('Manage local agent commands')
+
+agent
+  .command('add <name>')
+  .description('Add an agent command to collabmd.json')
+  .requiredOption('-c, --command <cmd>', 'Shell command to execute when agent is @mentioned')
+  .option('-t, --timeout <seconds>', 'Timeout in seconds')
+  .option('--cwd <dir>', 'Working directory for the command')
+  .action((name: string, opts: { command: string; timeout?: string; cwd?: string }) => {
+    agentAddCommand(name, opts)
+  })
+
+agent
+  .command('list')
+  .description('List configured agent commands')
+  .action(() => {
+    agentListCommand()
+  })
+
+agent
+  .command('remove <name>')
+  .description('Remove an agent command from collabmd.json')
+  .action((name: string) => {
+    agentRemoveCommand(name)
   })
 
 program.parse()

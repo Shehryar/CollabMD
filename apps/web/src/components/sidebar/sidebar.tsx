@@ -18,6 +18,7 @@ export function Sidebar() {
   const { open, setOpen, onboardingStatus, onboardingLoading, refreshOnboardingStatus } = useSidebar()
   const { data: activeOrg } = useActiveOrganization()
   const [creatingDoc, setCreatingDoc] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   const isActive = (path: string) => pathname === path && !searchParams.get('view') && !searchParams.get('folder')
   const isSharedView = searchParams.get('view') === 'shared'
@@ -25,9 +26,13 @@ export function Sidebar() {
   const createDoc = async () => {
     if (creatingDoc) return
 
-    const activeOrgId = session?.session?.activeOrganizationId
-    if (!activeOrgId) return
+    const activeOrgId = activeOrg?.id ?? session?.session?.activeOrganizationId
+    if (!activeOrgId) {
+      setCreateError('Select a workspace before creating a document.')
+      return
+    }
 
+    setCreateError(null)
     setCreatingDoc(true)
     try {
       const res = await fetch('/api/documents', {
@@ -35,12 +40,32 @@ export function Sidebar() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'Untitled', orgId: activeOrgId }),
       })
-      if (!res.ok) return
+      if (!res.ok) {
+        let nextError = 'Failed to create document.'
+        try {
+          const body = await res.json() as { error?: unknown }
+          if (typeof body.error === 'string' && body.error.trim()) {
+            nextError = body.error
+          }
+        } catch {
+          // Use fallback message when API response body is not JSON.
+        }
+        setCreateError(nextError)
+        return
+      }
       const doc = await res.json()
-      await refreshOnboardingStatus()
+      window.dispatchEvent(new Event('collabmd:documents-changed'))
+      window.dispatchEvent(new CustomEvent('collabmd:document-created', {
+        detail: {
+          id: doc.id,
+          title: doc.title ?? 'Untitled',
+          folderId: doc.folderId ?? null,
+        },
+      }))
       router.push(`/doc/${doc.id}`)
+      void refreshOnboardingStatus()
     } catch {
-      // Keep sidebar quiet; page-level feedback is sufficient for now.
+      setCreateError('Failed to create document.')
     } finally {
       setCreatingDoc(false)
     }
@@ -112,6 +137,11 @@ export function Sidebar() {
             </button>
           </div>
         </div>
+        {createError && (
+          <div className="mx-3 mt-2 rounded border border-border bg-red-subtle px-2 py-1 font-mono text-[11px] text-red">
+            {createError}
+          </div>
+        )}
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3" aria-label="primary">
           {navLink('/', 'All documents', isActive('/'),

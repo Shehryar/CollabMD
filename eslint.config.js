@@ -11,4 +11,11 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
+  {
+    files: ['**/*.test.ts'],
+    rules: {
+      'prefer-spread': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+    },
+  },
 )

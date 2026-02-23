@@ -6,14 +6,35 @@ import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireJsonContentType } from '@/lib/http'
 
 type DocPermission = 'viewer' | 'commenter' | 'editor' | 'none'
-type AgentPolicy = 'enabled' | 'restricted' | 'disabled'
+type AgentPolicy = 'enabled' | 'suggest-only' | 'restricted' | 'disabled'
+interface AgentRegistryEntry {
+  name: string
+  description: string
+  enabled: boolean
+}
 
 const validPermissions: DocPermission[] = ['viewer', 'commenter', 'editor', 'none']
-const validAgentPolicies: AgentPolicy[] = ['enabled', 'restricted', 'disabled']
+const validAgentPolicies: AgentPolicy[] = ['enabled', 'suggest-only', 'restricted', 'disabled']
 
 interface OrgSettings {
   defaultDocPermission: DocPermission
   agentPolicy: AgentPolicy
+  agents: AgentRegistryEntry[]
+}
+
+function parseAgentRegistry(value: unknown): AgentRegistryEntry[] {
+  if (!Array.isArray(value)) return []
+  const result: AgentRegistryEntry[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    const candidate = item as Record<string, unknown>
+    const name = typeof candidate.name === 'string' ? candidate.name.trim() : ''
+    if (!name) continue
+    const description = typeof candidate.description === 'string' ? candidate.description : ''
+    const enabled = candidate.enabled !== false
+    result.push({ name, description, enabled })
+  }
+  return result
 }
 
 function parseOrgSettings(metadata: string | null): OrgSettings {
@@ -25,11 +46,12 @@ function parseOrgSettings(metadata: string | null): OrgSettings {
     const policy = validAgentPolicies.includes(parsed.agentPolicy)
       ? parsed.agentPolicy
       : 'enabled'
-    return { defaultDocPermission: perm, agentPolicy: policy }
+    const agents = parseAgentRegistry(parsed.agents)
+    return { defaultDocPermission: perm, agentPolicy: policy, agents }
   } catch {
     // invalid JSON, return defaults
   }
-  return { defaultDocPermission: 'none', agentPolicy: 'enabled' }
+  return { defaultDocPermission: 'none', agentPolicy: 'enabled', agents: [] }
 }
 
 export async function GET(
@@ -97,9 +119,10 @@ export async function PATCH(
   }
 
   const body = await request.json()
-  const { defaultDocPermission, agentPolicy } = body as {
+  const { defaultDocPermission, agentPolicy, agents } = body as {
     defaultDocPermission?: string
     agentPolicy?: string
+    agents?: unknown
   }
 
   if (defaultDocPermission !== undefined && !validPermissions.includes(defaultDocPermission as DocPermission)) {
@@ -112,6 +135,13 @@ export async function PATCH(
   if (agentPolicy !== undefined && !validAgentPolicies.includes(agentPolicy as AgentPolicy)) {
     return NextResponse.json(
       { error: `invalid agent policy; must be one of: ${validAgentPolicies.join(', ')}` },
+      { status: 400 },
+    )
+  }
+
+  if (agents !== undefined && !Array.isArray(agents)) {
+    return NextResponse.json(
+      { error: 'invalid agents; must be an array' },
       { status: 400 },
     )
   }
@@ -130,6 +160,7 @@ export async function PATCH(
 
   if (defaultDocPermission !== undefined) existingMetadata.defaultDocPermission = defaultDocPermission
   if (agentPolicy !== undefined) existingMetadata.agentPolicy = agentPolicy
+  if (agents !== undefined) existingMetadata.agents = parseAgentRegistry(agents)
 
   db.update(organizations)
     .set({ metadata: JSON.stringify(existingMetadata) })

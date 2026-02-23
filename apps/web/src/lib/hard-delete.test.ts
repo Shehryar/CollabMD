@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockReadTuplesForEntity = vi.fn()
 const mockDeleteTuple = vi.fn()
 vi.mock('@collabmd/shared', () => ({
-  readTuplesForEntity: (...args: unknown[]) => mockReadTuplesForEntity(...args),
-  deleteTuple: (...args: unknown[]) => mockDeleteTuple(...args),
+  readTuplesForEntity: (...args: unknown[]) => mockReadTuplesForEntity.apply(undefined, args as never),
+  deleteTuple: (...args: unknown[]) => mockDeleteTuple.apply(undefined, args as never),
 }))
 
 const mockRun = vi.fn()
@@ -18,7 +18,7 @@ const mockEq = vi.fn((a: unknown, b: unknown) => ({ eq: [a, b] }))
 
 vi.mock('@collabmd/db', () => ({
   db: {
-    transaction: (...args: unknown[]) => mockTransaction(...args),
+    transaction: (...args: unknown[]) => mockTransaction.apply(undefined, args as never),
   },
   documents: {
     id: 'id',
@@ -29,7 +29,7 @@ vi.mock('@collabmd/db', () => ({
   documentSnapshots: {
     documentId: 'document_id',
   },
-  eq: (...args: unknown[]) => mockEq(...args),
+  eq: (...args: unknown[]) => mockEq.apply(undefined, args as never),
 }))
 
 import { hardDeleteDocument } from './hard-delete'

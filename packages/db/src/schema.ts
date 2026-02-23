@@ -190,3 +190,61 @@ export const shareLinks = sqliteTable('share_links', {
   documentIdIdx: index('share_links_document_id_idx').on(table.documentId),
   createdByIdx: index('share_links_created_by_idx').on(table.createdBy),
 }))
+
+export const webhooks = sqliteTable('webhooks', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  secret: text('secret').notNull(),
+  events: text('events').notNull(),
+  createdBy: text('created_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+}, (table) => ({
+  orgIdIdx: index('webhooks_org_id_idx').on(table.orgId),
+  createdByIdx: index('webhooks_created_by_idx').on(table.createdBy),
+  activeIdx: index('webhooks_active_idx').on(table.active),
+}))
+
+export const webhookDeliveries = sqliteTable('webhook_deliveries', {
+  id: text('id').primaryKey(),
+  webhookId: text('webhook_id')
+    .notNull()
+    .references(() => webhooks.id, { onDelete: 'cascade' }),
+  eventType: text('event_type').notNull(),
+  payload: text('payload').notNull(),
+  statusCode: integer('status_code'),
+  responseBody: text('response_body'),
+  attemptCount: integer('attempt_count').notNull().default(1),
+  lastAttemptAt: integer('last_attempt_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+}, (table) => ({
+  webhookIdIdx: index('webhook_deliveries_webhook_id_idx').on(table.webhookId),
+  eventTypeIdx: index('webhook_deliveries_event_type_idx').on(table.eventType),
+  createdAtIdx: index('webhook_deliveries_created_at_idx').on(table.createdAt),
+}))
+
+export const agentKeys = sqliteTable('agent_keys', {
+  id: text('id').primaryKey(),
+  keyHash: text('key_hash').notNull().unique(),
+  keyPrefix: text('key_prefix').notNull(),
+  orgId: text('org_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  scopes: text('scopes').notNull(),
+  createdBy: text('created_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  lastUsedAt: integer('last_used_at', { mode: 'timestamp' }),
+  revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+}, (table) => ({
+  orgIdIdx: index('agent_keys_org_id_idx').on(table.orgId),
+  createdByIdx: index('agent_keys_created_by_idx').on(table.createdBy),
+  revokedAtIdx: index('agent_keys_revoked_at_idx').on(table.revokedAt),
+}))

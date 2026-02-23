@@ -36,6 +36,20 @@
       "when": 1770753600000,
       "tag": "0004_version_history",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1771309046517,
+      "tag": "0005_omniscient_demogoblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1771355496475,
+      "tag": "0006_natural_bloodstorm",
+      "breakpoints": true
     }
   ]
 }

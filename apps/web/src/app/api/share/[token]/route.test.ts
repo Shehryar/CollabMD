@@ -27,8 +27,8 @@ const mockRateLimitResponse = vi.fn(
 )
 
 vi.mock('@/lib/rate-limit', () => ({
-  rateLimit: (...args: unknown[]) => mockRateLimit(...args),
-  rateLimitResponse: (...args: unknown[]) => mockRateLimitResponse(...args),
+  rateLimit: (...args: unknown[]) => mockRateLimit.apply(undefined, args as never),
+  rateLimitResponse: (...args: unknown[]) => mockRateLimitResponse.apply(undefined, args as never),
 }))
 
 // Drizzle chain mock
@@ -71,7 +71,7 @@ function shareRequest(
   body?: Record<string, unknown>,
   headers?: Record<string, string>,
 ): NextRequest {
-  const init: RequestInit = {
+  const init: ConstructorParameters<typeof NextRequest>[1] = {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
   }

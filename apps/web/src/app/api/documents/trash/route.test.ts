@@ -7,7 +7,7 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession(...args) } },
+  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
 }))
 
 const mockAll = vi.fn()
@@ -27,10 +27,10 @@ vi.mock('@collabmd/db', () => ({
     ownerId: 'owner_id',
     deletedAt: 'deleted_at',
   },
-  eq: (...args: unknown[]) => mockEq(...args),
-  and: (...args: unknown[]) => mockAnd(...args),
-  isNotNull: (...args: unknown[]) => mockIsNotNull(...args),
-  desc: (...args: unknown[]) => mockDesc(...args),
+  eq: (...args: unknown[]) => mockEq.apply(undefined, args as never),
+  and: (...args: unknown[]) => mockAnd.apply(undefined, args as never),
+  isNotNull: (...args: unknown[]) => mockIsNotNull.apply(undefined, args as never),
+  desc: (...args: unknown[]) => mockDesc.apply(undefined, args as never),
 }))
 
 import { GET } from './route'

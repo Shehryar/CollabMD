@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { authClient } from '@/lib/auth-client'
 
@@ -159,20 +159,26 @@ export function OnboardingWizard({
   const createDocumentAndClose = async () => {
     if (creatingDoc) return
     setCreatingDoc(true)
+    let nextDocId: string | null = null
     try {
       const res = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'Untitled', orgId }),
       })
-      if (!res.ok) {
-        return
+      if (res.ok) {
+        const doc = await res.json() as { id?: unknown }
+        if (typeof doc.id === 'string' && doc.id.trim()) {
+          nextDocId = doc.id
+        }
       }
-      const doc = await res.json() as { id: string }
-      finish()
-      router.push(`/doc/${doc.id}`)
     } finally {
       setCreatingDoc(false)
+    }
+
+    finish()
+    if (nextDocId) {
+      router.push(`/doc/${nextDocId}`)
     }
   }
 
@@ -320,10 +326,7 @@ export function OnboardingWizard({
 
             <div className="mt-4 flex items-center justify-between">
               <button
-                onClick={() => {
-                  void createDocumentAndClose()
-                }}
-                disabled={creatingDoc}
+                onClick={finish}
                 className="font-mono text-[11px] text-fg-muted hover:text-fg"
               >
                 Skip

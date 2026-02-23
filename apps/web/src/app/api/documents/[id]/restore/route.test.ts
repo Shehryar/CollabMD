@@ -11,11 +11,11 @@ vi.mock('next/headers', () => ({
 const mockGetSession = vi.fn()
 const mockWriteTuple = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession(...args) } },
+  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
 }))
 
 vi.mock('@collabmd/shared', () => ({
-  writeTuple: (...args: unknown[]) => mockWriteTuple(...args),
+  writeTuple: (...args: unknown[]) => mockWriteTuple.apply(undefined, args as never),
 }))
 
 // Drizzle chain mock

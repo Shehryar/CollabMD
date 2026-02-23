@@ -204,4 +204,34 @@ describe('FileWatcher', () => {
 
     expect(commentChanges).toEqual([sidecar])
   })
+
+  it('routes discussion sidecar changes to onDiscussionFileChange', async () => {
+    const discussionChanges: string[] = []
+    watcher = new FileWatcher('/tmp/test', {
+      onAdd: () => {},
+      onChange: () => {},
+      onDelete: () => {},
+      onDiscussionFileChange: (path) => discussionChanges.push(path),
+    })
+    await watcher.start()
+
+    mockWatcher.emit('change', '.collabmd/discussions/docs/file.md.discussions.json')
+
+    expect(discussionChanges).toEqual(['.collabmd/discussions/docs/file.md.discussions.json'])
+  })
+
+  it('routes agent trigger response files to onAgentTriggerResponseFileChange', async () => {
+    const responses: string[] = []
+    watcher = new FileWatcher('/tmp/test', {
+      onAdd: () => {},
+      onChange: () => {},
+      onDelete: () => {},
+      onAgentTriggerResponseFileChange: (path) => responses.push(path),
+    })
+    await watcher.start()
+
+    mockWatcher.emit('change', '.collabmd/agent-triggers/docs/file.md/c-1.response.json')
+
+    expect(responses).toEqual(['.collabmd/agent-triggers/docs/file.md/c-1.response.json'])
+  })
 })

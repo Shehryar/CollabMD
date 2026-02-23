@@ -1,7 +1,7 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { useSession, useActiveOrganization } from '@/lib/auth-client'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { authClient, useSession, useActiveOrganization, useListOrganizations } from '@/lib/auth-client'
 
 export interface Folder {
   id: string
@@ -47,12 +47,25 @@ const SidebarContext = createContext<SidebarState | null>(null)
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession()
   const { data: activeOrg } = useActiveOrganization()
+  const { data: orgs } = useListOrganizations()
+  const autoActivated = useRef(false)
   const [open, setOpen] = useState(false)
   const [folders, setFolders] = useState<Folder[]>([])
   const [connectedFolders, setConnectedFolders] = useState<ConnectedFolder[]>([])
   const [loading, setLoading] = useState(true)
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null)
   const [onboardingLoading, setOnboardingLoading] = useState(true)
+
+  // Auto-activate first org when user has orgs but none is active
+  useEffect(() => {
+    if (autoActivated.current) return
+    if (!session?.user) return
+    if (activeOrg?.id || session.session?.activeOrganizationId) return
+    if (!orgs || orgs.length === 0) return
+
+    autoActivated.current = true
+    authClient.organization.setActive({ organizationId: orgs[0].id })
+  }, [session, activeOrg, orgs])
 
   const orgId = activeOrg?.id ?? session?.session?.activeOrganizationId
 

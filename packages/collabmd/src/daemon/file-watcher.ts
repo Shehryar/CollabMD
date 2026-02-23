@@ -5,6 +5,8 @@ export interface FileWatcherCallbacks {
   onChange: (relativePath: string) => void
   onDelete: (relativePath: string) => void
   onCommentFileChange?: (relativePath: string) => void
+  onDiscussionFileChange?: (relativePath: string) => void
+  onAgentTriggerResponseFileChange?: (relativePath: string) => void
 }
 
 export class FileWatcher {
@@ -19,7 +21,12 @@ export class FileWatcher {
   }
 
   async start(): Promise<void> {
-    this.watcher = watch(['**/*.md', '.collabmd/comments/**/*.comments.json'], {
+    this.watcher = watch([
+      '**/*.md',
+      '.collabmd/comments/**/*.comments.json',
+      '.collabmd/discussions/**/*.discussions.json',
+      '.collabmd/agent-triggers/**/*.response.json',
+    ], {
       cwd: this.workDir,
       ignored: ['node_modules/**', '.git/**', '.collabmd/yjs-cache/**'],
       awaitWriteFinish: { stabilityThreshold: 300 },
@@ -70,6 +77,16 @@ export class FileWatcher {
       return
     }
 
+    if (this.isDiscussionSidecar(normalizedPath)) {
+      this.callbacks.onDiscussionFileChange?.(normalizedPath)
+      return
+    }
+
+    if (this.isAgentTriggerResponseFile(normalizedPath)) {
+      this.callbacks.onAgentTriggerResponseFileChange?.(normalizedPath)
+      return
+    }
+
     if (type === 'add') {
       this.callbacks.onAdd(normalizedPath)
       return
@@ -84,6 +101,14 @@ export class FileWatcher {
 
   private isCommentSidecar(relativePath: string): boolean {
     return relativePath.startsWith('.collabmd/comments/') && relativePath.endsWith('.comments.json')
+  }
+
+  private isDiscussionSidecar(relativePath: string): boolean {
+    return relativePath.startsWith('.collabmd/discussions/') && relativePath.endsWith('.discussions.json')
+  }
+
+  private isAgentTriggerResponseFile(relativePath: string): boolean {
+    return relativePath.startsWith('.collabmd/agent-triggers/') && relativePath.endsWith('.response.json')
   }
 
   private normalizePath(relativePath: string): string {

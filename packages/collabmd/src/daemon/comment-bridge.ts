@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { dirname } from 'path'
+import { dirname, join, basename } from 'path'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import * as Y from 'yjs'
 import type { FileWatcher } from './file-watcher.js'
@@ -52,10 +52,19 @@ interface ParsedSidecarComment {
   suggestion?: SidecarSuggestion
 }
 
+interface AgentTriggerPayload {
+  commentId: string
+  mentionedAgent: string
+  commentText: string
+  anchorText: string
+  surroundingContext: string
+}
+
 export class CommentBridge {
   private ydoc: Y.Doc
   private ytext: Y.Text
   private ycomments: Y.Array<Y.Map<unknown>>
+  private workDir: string
   private documentPath: string
   private sidecarPath: string
   private sidecarRelativePath: string
@@ -64,25 +73,32 @@ export class CommentBridge {
   private writeTimer: NodeJS.Timeout | null = null
   private observer: ((events: Y.YEvent<Y.AbstractType<unknown>>[], transaction: Y.Transaction) => void) | null = null
   private lastSidecarHash = ''
+  private processedMentions = new Set<string>()
+  private responseHashes = new Map<string, string>()
+  private onTriggerCreated?: (triggerRelativePath: string) => void
 
   constructor(options: {
     ydoc: Y.Doc
     ytext: Y.Text
     ycomments: Y.Array<Y.Map<unknown>>
+    workDir: string
     documentPath: string
     sidecarPath: string
     sidecarRelativePath: string
     fileWatcher: FileWatcher
     writeDebounceMs?: number
+    onTriggerCreated?: (triggerRelativePath: string) => void
   }) {
     this.ydoc = options.ydoc
     this.ytext = options.ytext
     this.ycomments = options.ycomments
+    this.workDir = options.workDir
     this.documentPath = options.documentPath
     this.sidecarPath = options.sidecarPath
     this.sidecarRelativePath = options.sidecarRelativePath
     this.fileWatcher = options.fileWatcher
     this.writeDebounceMs = options.writeDebounceMs ?? DEFAULT_WRITE_DEBOUNCE_MS
+    this.onTriggerCreated = options.onTriggerCreated
   }
 
   initialize(): void {
@@ -95,6 +111,67 @@ export class CommentBridge {
 
   onCommentFileChange(): void {
     this.readFromSidecar()
+  }
+
+  onAgentTriggerResponseFileChange(responseRelativePath: string): void {
+    const responsePath = join(this.workDir, responseRelativePath)
+    if (!existsSync(responsePath)) return
+
+    let raw = ''
+    try {
+      raw = readFileSync(responsePath, 'utf-8')
+    } catch {
+      return
+    }
+    const nextHash = this.hash(raw)
+    const prevHash = this.responseHashes.get(responseRelativePath)
+    if (prevHash === nextHash) return
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return
+    }
+    if (!parsed || typeof parsed !== 'object') return
+    const payload = parsed as {
+      commentId?: unknown
+      replyText?: unknown
+      text?: unknown
+      author?: unknown
+      mentionedAgent?: unknown
+      resolved?: unknown
+    }
+
+    const commentId = this.asString(payload.commentId).trim() || basename(responseRelativePath, '.response.json')
+    const text = this.asString(payload.replyText).trim() || this.asString(payload.text).trim()
+    if (!commentId || !text) return
+    const author = this.asString(payload.author).trim()
+      || this.asString(payload.mentionedAgent).trim()
+      || 'Agent'
+    const createdAt = new Date().toISOString()
+    const shouldResolve = payload.resolved === true
+
+    const comment = this.getCommentMapById().get(commentId)
+    if (!comment) return
+
+    this.ydoc.transact(() => {
+      const threadValue = comment.get('thread')
+      const thread = threadValue instanceof Y.Array
+        ? threadValue as Y.Array<Y.Map<unknown>>
+        : new Y.Array<Y.Map<unknown>>()
+      if (!(threadValue instanceof Y.Array)) comment.set('thread', thread)
+
+      const reply = new Y.Map<unknown>()
+      reply.set('authorId', author)
+      reply.set('authorName', author)
+      reply.set('text', text)
+      reply.set('createdAt', createdAt)
+      thread.push([reply])
+      if (shouldResolve) comment.set('resolved', true)
+    }, COMMENT_BRIDGE_ORIGIN)
+
+    this.responseHashes.set(responseRelativePath, nextHash)
   }
 
   destroy(): void {
@@ -112,6 +189,7 @@ export class CommentBridge {
   private setupObserver(): void {
     this.observer = (_events, transaction) => {
       if (transaction.origin === COMMENT_BRIDGE_ORIGIN) return
+      this.syncMentionsToTriggerFiles()
       this.scheduleWrite()
     }
 
@@ -461,6 +539,88 @@ export class CommentBridge {
       if (this.serializeComment(value)) return true
     }
     return false
+  }
+
+  private syncMentionsToTriggerFiles(): void {
+    for (const value of this.ycomments.toArray()) {
+      if (!(value instanceof Y.Map)) continue
+      const id = this.asString(value.get('id')).trim()
+      const text = this.asString(value.get('text')).trim()
+      if (!id || !text) continue
+
+      const mentions = this.extractMentionedAgents(text)
+      if (mentions.length === 0) continue
+
+      for (const agent of mentions) {
+        const signature = `${id}\u0000${agent}`
+        if (this.processedMentions.has(signature)) continue
+
+        const payload = this.buildAgentTriggerPayload(value, id, agent, text)
+        const relativePath = this.getAgentTriggerRelativePath(id)
+        const triggerPath = join(this.workDir, relativePath)
+
+        mkdirSync(dirname(triggerPath), { recursive: true })
+        try {
+          writeFileSync(triggerPath, JSON.stringify(payload, null, 2) + '\n', 'utf-8')
+          this.processedMentions.add(signature)
+          this.onTriggerCreated?.(relativePath)
+        } catch {
+          // Keep daemon running.
+        }
+      }
+    }
+  }
+
+  private buildAgentTriggerPayload(
+    comment: Y.Map<unknown>,
+    commentId: string,
+    mentionedAgent: string,
+    commentText: string,
+  ): AgentTriggerPayload {
+    const range = this.getCommentRange(comment)
+    const content = this.ytext.toString()
+
+    const anchorText = range
+      ? content.slice(Math.max(0, range.from), Math.max(0, range.to))
+      : ''
+
+    const surroundingContext = range
+      ? this.getSurroundingContext(range.from, range.to)
+      : content
+
+    return {
+      commentId,
+      mentionedAgent,
+      commentText,
+      anchorText,
+      surroundingContext,
+    }
+  }
+
+  private getSurroundingContext(from: number, to: number): string {
+    const content = this.ytext.toString()
+    if (!content) return ''
+
+    const lines = content.split('\n')
+    const startLine = Math.max(1, this.lineFromIndex(from) - 5)
+    const endLine = Math.min(lines.length, this.lineFromIndex(to) + 5)
+    return lines.slice(startLine - 1, endLine).join('\n')
+  }
+
+  private getAgentTriggerRelativePath(commentId: string): string {
+    const normalizedDocPath = this.documentPath.replace(/\\/g, '/')
+    return `.collabmd/agent-triggers/${normalizedDocPath}/${commentId}.json`
+  }
+
+  private extractMentionedAgents(value: string): string[] {
+    const matches = value.matchAll(/@([a-zA-Z0-9_-]+)/g)
+    const agents = new Set<string>()
+    for (const match of matches) {
+      const name = (match[1] ?? '').trim()
+      if (!name) continue
+      agents.add(name)
+    }
+    return Array.from(agents)
   }
 
   private serializeComment(value: unknown): SidecarComment | null {

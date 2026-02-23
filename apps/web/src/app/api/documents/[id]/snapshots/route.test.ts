@@ -8,24 +8,24 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession(...args) } },
+  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
 }))
 
 const mockCheckPermission = vi.fn()
 vi.mock('@collabmd/shared', () => ({
-  checkPermission: (...args: unknown[]) => mockCheckPermission(...args),
+  checkPermission: (...args: unknown[]) => mockCheckPermission.apply(undefined, args as never),
 }))
 
 const mockEnforceUserMutationRateLimit = vi.fn(() => null)
 const mockGetClientIp = vi.fn(() => '127.0.0.1')
 vi.mock('@/lib/rate-limit', () => ({
-  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit(...args),
-  getClientIp: (...args: unknown[]) => mockGetClientIp(...args),
+  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit.apply(undefined, args as never),
+  getClientIp: (...args: unknown[]) => mockGetClientIp.apply(undefined, args as never),
 }))
 
 const mockRequireJsonContentType = vi.fn(() => null)
 vi.mock('@/lib/http', () => ({
-  requireJsonContentType: (...args: unknown[]) => mockRequireJsonContentType(...args),
+  requireJsonContentType: (...args: unknown[]) => mockRequireJsonContentType.apply(undefined, args as never),
 }))
 
 vi.mock('@/lib/sync-url', () => ({
@@ -39,7 +39,7 @@ const mockWhereSelect = vi.fn(() => ({ orderBy: mockOrderBy }))
 const mockLeftJoin = vi.fn(() => ({ where: mockWhereSelect }))
 const mockFrom = vi.fn(() => ({ leftJoin: mockLeftJoin }))
 const mockInsertRun = vi.fn()
-const mockInsertValues = vi.fn(() => ({ run: mockInsertRun }))
+const mockInsertValues = vi.fn((values: unknown) => ({ run: mockInsertRun }))
 const mockEq = vi.fn((a: unknown, b: unknown) => ({ eq: [a, b] }))
 const mockDesc = vi.fn((a: unknown) => ({ desc: a }))
 
@@ -61,8 +61,8 @@ vi.mock('@collabmd/db', () => ({
     id: 'id',
     name: 'name',
   },
-  eq: (...args: unknown[]) => mockEq(...args),
-  desc: (...args: unknown[]) => mockDesc(...args),
+  eq: (...args: unknown[]) => mockEq.apply(undefined, args as never),
+  desc: (...args: unknown[]) => mockDesc.apply(undefined, args as never),
 }))
 
 import { GET, POST } from './route'
@@ -182,7 +182,9 @@ describe('/api/documents/[id]/snapshots', () => {
       expect.objectContaining({ method: 'GET' }),
     )
     expect(mockInsertValues).toHaveBeenCalledTimes(1)
-    const inserted = mockInsertValues.mock.calls[0]?.[0] as unknown as {
+    const insertedCall = mockInsertValues.mock.calls[0]
+    expect(insertedCall).toBeDefined()
+    const inserted = insertedCall[0] as unknown as {
       documentId: string
       snapshot: Buffer
       createdBy: string
