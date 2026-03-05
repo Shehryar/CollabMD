@@ -83,7 +83,10 @@ describe('AgentRunner', () => {
 
     await runner.handleTriggerCreated(triggerRelativePath)
 
-    const responsePath = join(tempDir, '.collabmd/agent-triggers/docs/test.md/discussion-disc-1.response.json')
+    const responsePath = join(
+      tempDir,
+      '.collabmd/agent-triggers/docs/test.md/discussion-disc-1.response.json',
+    )
     expect(existsSync(responsePath)).toBe(true)
 
     const response = JSON.parse(readFileSync(responsePath, 'utf-8')) as Record<string, unknown>
@@ -118,7 +121,10 @@ describe('AgentRunner', () => {
 
     await runner.handleTriggerCreated(triggerRelativePath)
 
-    const responsePath = join(tempDir, '.collabmd/agent-triggers/docs/test.md/comment-2.response.json')
+    const responsePath = join(
+      tempDir,
+      '.collabmd/agent-triggers/docs/test.md/comment-2.response.json',
+    )
     expect(existsSync(responsePath)).toBe(false)
 
     runner.destroy()
@@ -183,7 +189,10 @@ describe('AgentRunner', () => {
 
     await runner.handleTriggerCreated(triggerRelativePath)
 
-    const responsePath = join(tempDir, '.collabmd/agent-triggers/docs/test.md/comment-4.response.json')
+    const responsePath = join(
+      tempDir,
+      '.collabmd/agent-triggers/docs/test.md/comment-4.response.json',
+    )
     expect(existsSync(responsePath)).toBe(false)
 
     runner.destroy()
@@ -213,7 +222,10 @@ describe('AgentRunner', () => {
 
     await runner.handleTriggerCreated(triggerRelativePath)
 
-    const responsePath = join(tempDir, '.collabmd/agent-triggers/docs/test.md/comment-5.response.json')
+    const responsePath = join(
+      tempDir,
+      '.collabmd/agent-triggers/docs/test.md/comment-5.response.json',
+    )
     expect(existsSync(responsePath)).toBe(false)
 
     runner.destroy()
@@ -272,7 +284,8 @@ describe('AgentRunner', () => {
         enabled: true,
         commands: {
           'echo-agent': {
-            command: 'cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps({\'replyText\': \'got: \' + d[\'commentText\']}))"',
+            command:
+              "cat | python3 -c \"import sys,json; d=json.load(sys.stdin); print(json.dumps({'replyText': 'got: ' + d['commentText']}))\"",
           },
         },
       },
@@ -280,7 +293,10 @@ describe('AgentRunner', () => {
 
     await runner.handleTriggerCreated(triggerRelativePath)
 
-    const responsePath = join(tempDir, '.collabmd/agent-triggers/docs/test.md/comment-7.response.json')
+    const responsePath = join(
+      tempDir,
+      '.collabmd/agent-triggers/docs/test.md/comment-7.response.json',
+    )
     if (existsSync(responsePath)) {
       const response = JSON.parse(readFileSync(responsePath, 'utf-8')) as Record<string, unknown>
       expect(response.replyText).toBe('got: @echo-agent test stdin')

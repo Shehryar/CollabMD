@@ -23,9 +23,7 @@ let view: EditorView
 function createView(doc: string, anchor: number, head?: number): EditorView {
   const state = EditorState.create({
     doc,
-    selection: EditorSelection.create([
-      EditorSelection.range(anchor, head ?? anchor),
-    ]),
+    selection: EditorSelection.create([EditorSelection.range(anchor, head ?? anchor)]),
   })
   const parent = document.createElement('div')
   view = new EditorView({ state, parent })

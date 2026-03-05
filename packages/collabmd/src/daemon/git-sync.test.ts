@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckIsRepo,
-  mockStatus,
-  mockAdd,
-  mockCommit,
-  simpleGitFactory,
-} = vi.hoisted(() => {
+const { mockCheckIsRepo, mockStatus, mockAdd, mockCommit, simpleGitFactory } = vi.hoisted(() => {
   const checkIsRepo = vi.fn()
   const status = vi.fn()
   const add = vi.fn()
@@ -35,7 +29,9 @@ vi.mock('simple-git', () => ({
 import { GitSync } from './git-sync.js'
 
 function makeStatus(files: Array<{ path: string; kind?: 'M' | 'A' | '?' }>) {
-  const modified = files.filter((entry) => entry.kind === 'M' || !entry.kind).map((entry) => entry.path)
+  const modified = files
+    .filter((entry) => entry.kind === 'M' || !entry.kind)
+    .map((entry) => entry.path)
   const created = files.filter((entry) => entry.kind === 'A').map((entry) => entry.path)
   const notAdded = files.filter((entry) => entry.kind === '?').map((entry) => entry.path)
 
@@ -100,10 +96,7 @@ describe('GitSync', () => {
     })
     await sync.ready()
 
-    mockStatus.mockResolvedValue(makeStatus([
-      { path: 'docs/a.md' },
-      { path: 'docs/b.md' },
-    ]))
+    mockStatus.mockResolvedValue(makeStatus([{ path: 'docs/a.md' }, { path: 'docs/b.md' }]))
 
     sync.notifyFileChange('docs/b.md')
     sync.notifyFileChange('docs/a.md')
@@ -124,11 +117,9 @@ describe('GitSync', () => {
     })
     await sync.ready()
 
-    mockStatus.mockResolvedValue(makeStatus([
-      { path: 'docs/a.md' },
-      { path: 'docs/notes.txt' },
-      { path: 'docs/meta.json' },
-    ]))
+    mockStatus.mockResolvedValue(
+      makeStatus([{ path: 'docs/a.md' }, { path: 'docs/notes.txt' }, { path: 'docs/meta.json' }]),
+    )
 
     sync.notifyFileChange('docs/a.md')
     sync.notifyFileChange('docs/notes.txt')

@@ -10,7 +10,9 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 const mockWriteTuple = vi.fn().mockResolvedValue(undefined)
@@ -68,11 +70,7 @@ const fakeSession = {
   session: { id: 'session-1', activeOrganizationId: 'org-1' },
 }
 
-function jsonRequest(
-  url: string,
-  body: Record<string, unknown>,
-  method = 'POST',
-): NextRequest {
+function jsonRequest(url: string, body: Record<string, unknown>, method = 'POST'): NextRequest {
   return new NextRequest(url, {
     method,
     body: JSON.stringify(body),
@@ -268,10 +266,7 @@ describe('GET /api/folders', () => {
 
   it('returns accessible folders for org', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
-    mockListAccessible.mockResolvedValueOnce([
-      'folder:folder-1',
-      'folder:folder-2',
-    ])
+    mockListAccessible.mockResolvedValueOnce(['folder:folder-1', 'folder:folder-2'])
 
     const fakeFolders = [
       { id: 'folder-1', name: 'Alpha', path: '/Alpha', orgId: 'org-1' },

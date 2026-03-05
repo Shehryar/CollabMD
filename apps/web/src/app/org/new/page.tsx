@@ -39,14 +39,19 @@ export default function NewOrgPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-subtle">
       <div className="w-full max-w-sm rounded-lg border border-border bg-bg p-8 shadow">
-        <h1 className="font-mono text-[18px] font-semibold tracking-[-0.02em] text-fg">Create organization</h1>
+        <h1 className="font-mono text-[18px] font-semibold tracking-[-0.02em] text-fg">
+          Create organization
+        </h1>
         <p className="mt-1 font-sans text-sm text-fg-secondary">
           Set up a new workspace for your team.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
-            <label htmlFor="name" className="block font-mono text-[11px] font-medium uppercase tracking-[0.02em] text-fg-secondary">
+            <label
+              htmlFor="name"
+              className="block font-mono text-[11px] font-medium uppercase tracking-[0.02em] text-fg-secondary"
+            >
               Organization name
             </label>
             <input
@@ -58,16 +63,10 @@ export default function NewOrgPage() {
               className="mt-1 block w-full rounded border border-border bg-bg px-3 py-[7px] font-mono text-[13px] text-fg placeholder:text-fg-faint focus:border-fg focus:outline-none"
               required
             />
-            {slug && (
-              <p className="mt-1 font-mono text-[11px] text-fg-muted">
-                Slug: {slug}
-              </p>
-            )}
+            {slug && <p className="mt-1 font-mono text-[11px] text-fg-muted">Slug: {slug}</p>}
           </div>
 
-          {error && (
-            <p className="text-sm text-red">{error}</p>
-          )}
+          {error && <p className="text-sm text-red">{error}</p>}
 
           <button
             type="submit"

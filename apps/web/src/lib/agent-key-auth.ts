@@ -40,11 +40,14 @@ function extractAgentToken(request: NextRequest): string | null {
   return token
 }
 
-export async function authenticateAgentKey(request: NextRequest): Promise<{
-  context: AgentKeyContext
-} | {
-  error: NextResponse
-}> {
+export async function authenticateAgentKey(request: NextRequest): Promise<
+  | {
+      context: AgentKeyContext
+    }
+  | {
+      error: NextResponse
+    }
+> {
   const rawKey = extractAgentToken(request)
   if (!rawKey) {
     return {
@@ -65,10 +68,7 @@ export async function authenticateAgentKey(request: NextRequest): Promise<{
     }
   }
 
-  db.update(agentKeys)
-    .set({ lastUsedAt: new Date() })
-    .where(eq(agentKeys.id, key.id))
-    .run()
+  db.update(agentKeys).set({ lastUsedAt: new Date() }).where(eq(agentKeys.id, key.id)).run()
 
   return {
     context: {

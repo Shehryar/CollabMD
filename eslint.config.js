@@ -1,21 +1,5 @@
-import js from '@eslint/js'
-import tseslint from 'typescript-eslint'
-
-export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/.next/**', '**/.turbo/**'] },
-  js.configs.recommended,
-  ...tseslint.configs.recommended,
+export default [
   {
-    rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-explicit-any': 'warn',
-    },
+    ignores: ['**/node_modules/**', '**/dist/**', '**/.next/**', '**/.turbo/**'],
   },
-  {
-    files: ['**/*.test.ts'],
-    rules: {
-      'prefer-spread': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
-    },
-  },
-)
+]

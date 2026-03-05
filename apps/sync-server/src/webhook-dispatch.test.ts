@@ -24,14 +24,23 @@ describe('webhook dispatch helpers', () => {
   })
 
   it('filters webhook events by subscription payload', () => {
-    expect(webhookSubscribedToEvent(JSON.stringify(['comment.created', 'discussion.created']), 'discussion.created')).toBe(true)
-    expect(webhookSubscribedToEvent(JSON.stringify(['comment.created']), 'discussion.created')).toBe(false)
+    expect(
+      webhookSubscribedToEvent(
+        JSON.stringify(['comment.created', 'discussion.created']),
+        'discussion.created',
+      ),
+    ).toBe(true)
+    expect(
+      webhookSubscribedToEvent(JSON.stringify(['comment.created']), 'discussion.created'),
+    ).toBe(false)
     expect(webhookSubscribedToEvent('not-json', 'discussion.created')).toBe(false)
   })
 
   it('invokes parse-error callback for malformed webhook event JSON', () => {
     const onInvalidJson = vi.fn()
-    expect(webhookSubscribedToEvent('not-json', 'discussion.created', { onInvalidJson })).toBe(false)
+    expect(webhookSubscribedToEvent('not-json', 'discussion.created', { onInvalidJson })).toBe(
+      false,
+    )
     expect(onInvalidJson).toHaveBeenCalledOnce()
   })
 
@@ -94,18 +103,21 @@ describe('webhook dispatch helpers', () => {
     let peak = 0
     const resolvers: Array<() => void> = []
 
-    const baseFetch = vi.fn(() => new Promise<Response>((resolve) => {
-      active += 1
-      peak = Math.max(peak, active)
-      resolvers.push(() => {
-        active -= 1
-        resolve({
-          ok: true,
-          status: 200,
-          text: async () => 'ok',
-        } as Response)
-      })
-    }))
+    const baseFetch = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          active += 1
+          peak = Math.max(peak, active)
+          resolvers.push(() => {
+            active -= 1
+            resolve({
+              ok: true,
+              status: 200,
+              text: async () => 'ok',
+            } as Response)
+          })
+        }),
+    )
 
     const limitedFetch = createConcurrencyLimitedFetch(2, baseFetch as unknown as typeof fetch)
     const pending = [

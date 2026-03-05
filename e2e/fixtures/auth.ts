@@ -1,11 +1,6 @@
 import { test as base, type Page, type BrowserContext } from '@playwright/test'
 import crypto from 'crypto'
-import {
-  createTestUser,
-  createTestOrg,
-  createTestSession,
-  addOrgMember,
-} from '../helpers/db'
+import { createTestUser, createTestOrg, createTestSession, addOrgMember } from '../helpers/db'
 import { grantDocAccess, grantOrgMembership, setDocOrg } from '../helpers/openfga'
 
 const BETTER_AUTH_SECRET = 'e2e-test-secret'
@@ -15,10 +10,7 @@ const BETTER_AUTH_SECRET = 'e2e-test-secret'
  * Cookie value format: encodeURIComponent(`${token}.${base64_signature}`)
  */
 function signSessionToken(token: string): string {
-  const signature = crypto
-    .createHmac('sha256', BETTER_AUTH_SECRET)
-    .update(token)
-    .digest('base64')
+  const signature = crypto.createHmac('sha256', BETTER_AUTH_SECRET).update(token).digest('base64')
   return encodeURIComponent(`${token}.${signature}`)
 }
 

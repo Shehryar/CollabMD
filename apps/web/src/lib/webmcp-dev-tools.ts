@@ -81,7 +81,10 @@ const tools: ToolDef[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        orgId: { type: 'string', description: 'Organization ID. If omitted, clears all collabmd keys.' },
+        orgId: {
+          type: 'string',
+          description: 'Organization ID. If omitted, clears all collabmd keys.',
+        },
       },
     },
     handler: async (input) => {
@@ -244,7 +247,9 @@ const tools: ToolDef[] = [
 
 export function registerDevTools(): boolean {
   if (!navigator.modelContext) {
-    console.log('[webmcp] navigator.modelContext not available. Enable WebMCP flag in chrome://flags.')
+    console.log(
+      '[webmcp] navigator.modelContext not available. Enable WebMCP flag in chrome://flags.',
+    )
     return false
   }
 

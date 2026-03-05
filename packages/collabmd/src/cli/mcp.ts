@@ -17,9 +17,8 @@ interface McpServerPackageJson {
 function resolveMcpBinPath(): string {
   const packageJsonPath = require.resolve('@collabmd/mcp-server/package.json')
   const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as McpServerPackageJson
-  const binValue = typeof packageJson.bin === 'string'
-    ? packageJson.bin
-    : packageJson.bin?.['collabmd-mcp']
+  const binValue =
+    typeof packageJson.bin === 'string' ? packageJson.bin : packageJson.bin?.['collabmd-mcp']
 
   if (!binValue) {
     throw new Error('Could not locate collabmd-mcp bin in @collabmd/mcp-server package.json')
@@ -62,7 +61,9 @@ export function mcpCommand(options: McpCommandOptions): void {
 export function mcpConfigCommand(options: McpCommandOptions): void {
   const serverUrl = options.serverUrl || process.env.COLLABMD_SERVER_URL || 'http://localhost:3000'
   if (options.apiKey) {
-    console.error('Warning: --api-key is not embedded in output to avoid leaking secrets. Set COLLABMD_API_KEY in the MCP env block.')
+    console.error(
+      'Warning: --api-key is not embedded in output to avoid leaking secrets. Set COLLABMD_API_KEY in the MCP env block.',
+    )
   }
 
   const config = {

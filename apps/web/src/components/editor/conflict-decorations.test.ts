@@ -60,7 +60,9 @@ describe('conflict decorations', () => {
   it('Accept Current removes conflict markers and keeps current text', () => {
     createView(conflictDoc)
 
-    const button = view?.dom.querySelector<HTMLButtonElement>('.cm-conflict-btn[data-action="current"]')
+    const button = view?.dom.querySelector<HTMLButtonElement>(
+      '.cm-conflict-btn[data-action="current"]',
+    )
     button?.click()
 
     expect(getDoc()).toBe('before\ncurrent line\nafter')
@@ -69,7 +71,9 @@ describe('conflict decorations', () => {
   it('Accept Incoming removes conflict markers and keeps incoming text', () => {
     createView(conflictDoc)
 
-    const button = view?.dom.querySelector<HTMLButtonElement>('.cm-conflict-btn[data-action="incoming"]')
+    const button = view?.dom.querySelector<HTMLButtonElement>(
+      '.cm-conflict-btn[data-action="incoming"]',
+    )
     button?.click()
 
     expect(getDoc()).toBe('before\nincoming line\nafter')

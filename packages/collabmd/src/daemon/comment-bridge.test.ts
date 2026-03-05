@@ -79,7 +79,11 @@ describe('CommentBridge', () => {
     authorName?: string
     createdAt?: string
     thread?: Array<{ authorName: string; text: string; createdAt: string }>
-    suggestion?: { originalText: string; proposedText: string; status: 'pending' | 'accepted' | 'dismissed' }
+    suggestion?: {
+      originalText: string
+      proposedText: string
+      status: 'pending' | 'accepted' | 'dismissed'
+    }
   }): void => {
     ydoc.transact(() => {
       const ycomment = new Y.Map<unknown>()
@@ -140,23 +144,32 @@ describe('CommentBridge', () => {
       createdAt: string
       resolved: boolean
       thread: Array<{ author: string; text: string; createdAt: string }>
-      suggestion?: { originalText: string; proposedText: string; status: 'pending' | 'accepted' | 'dismissed' }
+      suggestion?: {
+        originalText: string
+        proposedText: string
+        status: 'pending' | 'accepted' | 'dismissed'
+      }
     }>
-  } => JSON.parse(readFileSync(sidecarPath(), 'utf-8')) as {
-    documentPath: string
-    comments: Array<{
-      id: string
-      line: number
-      endLine: number
-      author: string
-      source: 'browser' | 'daemon'
-      text: string
-      createdAt: string
-      resolved: boolean
-      thread: Array<{ author: string; text: string; createdAt: string }>
-      suggestion?: { originalText: string; proposedText: string; status: 'pending' | 'accepted' | 'dismissed' }
-    }>
-  }
+  } =>
+    JSON.parse(readFileSync(sidecarPath(), 'utf-8')) as {
+      documentPath: string
+      comments: Array<{
+        id: string
+        line: number
+        endLine: number
+        author: string
+        source: 'browser' | 'daemon'
+        text: string
+        createdAt: string
+        resolved: boolean
+        thread: Array<{ author: string; text: string; createdAt: string }>
+        suggestion?: {
+          originalText: string
+          proposedText: string
+          status: 'pending' | 'accepted' | 'dismissed'
+        }
+      }>
+    }
 
   it('writes CRDT comments to sidecar with line numbers', () => {
     ytext.insert(0, 'line 1\nline 2\nline 3\n')
@@ -543,7 +556,14 @@ describe('CommentBridge', () => {
       authorName: 'PM',
     })
 
-    const triggerPath = join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md', 'mention-1.json')
+    const triggerPath = join(
+      tempDir,
+      '.collabmd',
+      'agent-triggers',
+      'docs',
+      'test.md',
+      'mention-1.json',
+    )
     const trigger = JSON.parse(readFileSync(triggerPath, 'utf-8')) as {
       commentId: string
       mentionedAgent: string
@@ -602,10 +622,16 @@ describe('CommentBridge', () => {
     })
 
     const top = JSON.parse(
-      readFileSync(join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md', 'mention-top.json'), 'utf-8'),
+      readFileSync(
+        join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md', 'mention-top.json'),
+        'utf-8',
+      ),
     ) as { anchorText: string; surroundingContext: string }
     const bottom = JSON.parse(
-      readFileSync(join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md', 'mention-bottom.json'), 'utf-8'),
+      readFileSync(
+        join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md', 'mention-bottom.json'),
+        'utf-8',
+      ),
     ) as { anchorText: string; surroundingContext: string }
 
     expect(top.anchorText).toContain('line1')
@@ -628,12 +654,20 @@ describe('CommentBridge', () => {
     const responseRelativePath = '.collabmd/agent-triggers/docs/test.md/mention-2.response.json'
     const responsePath = join(tempDir, responseRelativePath)
     mkdirSync(join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md'), { recursive: true })
-    writeFileSync(responsePath, JSON.stringify({
-      commentId: 'mention-2',
-      mentionedAgent: 'writer',
-      replyText: 'Looks good to me',
-      resolved: true,
-    }, null, 2) + '\n', 'utf-8')
+    writeFileSync(
+      responsePath,
+      JSON.stringify(
+        {
+          commentId: 'mention-2',
+          mentionedAgent: 'writer',
+          replyText: 'Looks good to me',
+          resolved: true,
+        },
+        null,
+        2,
+      ) + '\n',
+      'utf-8',
+    )
 
     bridge!.onAgentTriggerResponseFileChange(responseRelativePath)
 
@@ -655,7 +689,8 @@ describe('CommentBridge', () => {
     })
     initializeBridge()
 
-    const responseRelativePath = '.collabmd/agent-triggers/docs/test.md/mention-malformed.response.json'
+    const responseRelativePath =
+      '.collabmd/agent-triggers/docs/test.md/mention-malformed.response.json'
     const responsePath = join(tempDir, responseRelativePath)
     mkdirSync(join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'test.md'), { recursive: true })
     writeFileSync(responsePath, '{bad json', 'utf-8')

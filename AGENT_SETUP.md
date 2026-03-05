@@ -34,10 +34,12 @@ cp .env.example apps/web/.env.local
 ```
 
 Edit `apps/web/.env.local`:
+
 - Set `BETTER_AUTH_SECRET` to any random 32+ char string
 - Leave everything else as defaults for local dev
 
 Start everything:
+
 ```bash
 pnpm dev
 ```
@@ -46,14 +48,14 @@ This launches the web app on `http://localhost:3000` and the sync server on `ws:
 
 ## Key commands
 
-| Command | What it does |
-|---------|-------------|
-| `pnpm dev` | Start web app + sync server |
-| `pnpm build` | Build all packages |
-| `pnpm test` | Run all tests (vitest) |
-| `pnpm typecheck` | Type-check all packages |
-| `pnpm lint` | Lint all packages |
-| `pnpm format` | Format with Prettier |
+| Command             | What it does                     |
+| ------------------- | -------------------------------- |
+| `pnpm dev`          | Start web app + sync server      |
+| `pnpm build`        | Build all packages               |
+| `pnpm test`         | Run all tests (vitest)           |
+| `pnpm typecheck`    | Type-check all packages          |
+| `pnpm lint`         | Lint all packages                |
+| `pnpm format`       | Format with Prettier             |
 | `pnpm format:check` | Check formatting without writing |
 
 ## Tech stack
@@ -72,6 +74,7 @@ This launches the web app on `http://localhost:3000` and the sync server on `ws:
 **Drizzle imports:** Always import operators (eq, and, isNull, etc.) from `@collabmd/db`, never directly from `drizzle-orm`. pnpm hoisting causes dual-instance type conflicts otherwise.
 
 **API routes:** Live in `apps/web/src/app/api/`. Every route has a co-located `.test.ts` file. Auth pattern:
+
 ```typescript
 const session = await auth.api.getSession({ headers: await headers() })
 if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -94,6 +97,7 @@ if (!session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 
 ## CRDT architecture
 
 Each document has a Yjs Y.Doc containing:
+
 - `Y.Text('codemirror')` — the document content
 - `Y.Array('comments')` — inline comments (each is a Y.Map with anchor, text, thread, optional suggestion)
 - `Y.Array('discussions')` — document-level discussion threads
@@ -124,6 +128,7 @@ Each comment has: id, line range, author, text, thread (replies), resolved statu
 To add a comment as an agent, append to the JSON array. The daemon syncs it to the CRDT automatically.
 
 To propose a suggestion, add a comment with a `suggestion` object:
+
 ```json
 {
   "id": "uuid",

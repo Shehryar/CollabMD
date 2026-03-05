@@ -28,11 +28,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const { token } = await params
 
-  const link = db
-    .select()
-    .from(shareLinks)
-    .where(eq(shareLinks.token, token))
-    .get()
+  const link = db.select().from(shareLinks).where(eq(shareLinks.token, token)).get()
 
   if (!link) {
     return NextResponse.json({ error: 'not found' }, { status: 404 })

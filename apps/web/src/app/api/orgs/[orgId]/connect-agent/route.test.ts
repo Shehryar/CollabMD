@@ -8,7 +8,9 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -116,7 +118,10 @@ describe('POST /api/orgs/[orgId]/connect-agent', () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
     mockDbResult.get.mockReturnValueOnce({ role: 'admin' })
 
-    const res = await POST(makeRequest({ name: 'writer', webhookUrl: 'not-a-url' }), makeParams('org-1'))
+    const res = await POST(
+      makeRequest({ name: 'writer', webhookUrl: 'not-a-url' }),
+      makeParams('org-1'),
+    )
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toBe('webhookUrl must be a valid URL')
@@ -126,7 +131,10 @@ describe('POST /api/orgs/[orgId]/connect-agent', () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
     mockDbResult.get.mockReturnValueOnce({ role: 'admin' })
 
-    const res = await POST(makeRequest({ name: 'writer', webhookUrl: 'ftp://example.com/hook' }), makeParams('org-1'))
+    const res = await POST(
+      makeRequest({ name: 'writer', webhookUrl: 'ftp://example.com/hook' }),
+      makeParams('org-1'),
+    )
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toBe('webhookUrl must use http or https')
@@ -138,7 +146,10 @@ describe('POST /api/orgs/[orgId]/connect-agent', () => {
     // org lookup for registry update
     mockDbResult.get.mockReturnValueOnce({ id: 'org-1', metadata: '{}' })
 
-    const res = await POST(makeRequest({ name: 'writer', description: 'Writes content' }), makeParams('org-1'))
+    const res = await POST(
+      makeRequest({ name: 'writer', description: 'Writes content' }),
+      makeParams('org-1'),
+    )
 
     expect(res.status).toBe(201)
     const body = await res.json()

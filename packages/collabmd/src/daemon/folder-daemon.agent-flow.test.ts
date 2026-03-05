@@ -59,8 +59,14 @@ describe('FolderDaemon agent trigger flow', () => {
     ydoc.transact(() => {
       const comment = new Y.Map<unknown>()
       comment.set('id', 'comment-1')
-      comment.set('anchorStart', Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, 6)))
-      comment.set('anchorEnd', Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, 10)))
+      comment.set(
+        'anchorStart',
+        Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, 6)),
+      )
+      comment.set(
+        'anchorEnd',
+        Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, 10)),
+      )
       comment.set('authorId', 'user-1')
       comment.set('authorName', 'User')
       comment.set('source', 'browser')
@@ -72,7 +78,10 @@ describe('FolderDaemon agent trigger flow', () => {
     }, 'test-comment')
 
     const triggerPath = join(tempDir, '.collabmd/agent-triggers/docs/test.md/comment-1.json')
-    const triggerPayload = JSON.parse(readFileSync(triggerPath, 'utf-8')) as { commentId: string; mentionedAgent: string }
+    const triggerPayload = JSON.parse(readFileSync(triggerPath, 'utf-8')) as {
+      commentId: string
+      mentionedAgent: string
+    }
     expect(triggerPayload).toMatchObject({
       commentId: 'comment-1',
       mentionedAgent: 'writer',
@@ -98,16 +107,20 @@ describe('FolderDaemon agent trigger flow', () => {
     mkdirSync(join(tempDir, '.collabmd/agent-triggers/docs/test.md'), { recursive: true })
     writeFileSync(
       responsePath,
-      JSON.stringify({
-        commentId: 'comment-1',
-        mentionedAgent: 'writer',
-        replyText: 'Updated section looks good.',
-      }, null, 2) + '\n',
+      JSON.stringify(
+        {
+          commentId: 'comment-1',
+          mentionedAgent: 'writer',
+          replyText: 'Updated section looks good.',
+        },
+        null,
+        2,
+      ) + '\n',
       'utf-8',
     )
-
-    ;(daemon as unknown as { handleAgentTriggerResponseFileChange: (path: string) => void })
-      .handleAgentTriggerResponseFileChange(responseRelativePath)
+    ;(
+      daemon as unknown as { handleAgentTriggerResponseFileChange: (path: string) => void }
+    ).handleAgentTriggerResponseFileChange(responseRelativePath)
 
     const comment = ycomments.get(0)
     const thread = comment.get('thread') as Y.Array<Y.Map<unknown>>

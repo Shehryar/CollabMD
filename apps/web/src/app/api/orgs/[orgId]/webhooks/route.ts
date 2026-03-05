@@ -39,9 +39,12 @@ function parseStoredEvents(value: string): WebhookEventType[] {
   }
 }
 
-async function requireOrgAdmin(orgId: string): Promise<{
-  session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>
-} | NextResponse> {
+async function requireOrgAdmin(orgId: string): Promise<
+  | {
+      session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>
+    }
+  | NextResponse
+> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -57,7 +60,10 @@ async function requireOrgAdmin(orgId: string): Promise<{
     return NextResponse.json({ error: 'not a member of this organization' }, { status: 403 })
   }
   if (membership.role !== 'admin' && membership.role !== 'owner') {
-    return NextResponse.json({ error: 'only admins and owners can manage webhooks' }, { status: 403 })
+    return NextResponse.json(
+      { error: 'only admins and owners can manage webhooks' },
+      { status: 403 },
+    )
   }
 
   return { session }
@@ -78,15 +84,17 @@ export async function GET(
     .orderBy(desc(webhooks.createdAt))
     .all()
 
-  return NextResponse.json(rows.map((row) => ({
-    id: row.id,
-    orgId: row.orgId,
-    url: row.url,
-    events: parseStoredEvents(row.events),
-    createdBy: row.createdBy,
-    createdAt: row.createdAt.toISOString(),
-    active: row.active,
-  })))
+  return NextResponse.json(
+    rows.map((row) => ({
+      id: row.id,
+      orgId: row.orgId,
+      url: row.url,
+      events: parseStoredEvents(row.events),
+      createdBy: row.createdBy,
+      createdAt: row.createdAt.toISOString(),
+      active: row.active,
+    })),
+  )
 }
 
 export async function POST(
@@ -97,13 +105,15 @@ export async function POST(
   const authz = await requireOrgAdmin(orgId)
   if (authz instanceof NextResponse) return authz
 
-  const rateLimitError = enforceUserMutationRateLimit(authz.session.user.id, { ip: getClientIp(request) })
+  const rateLimitError = enforceUserMutationRateLimit(authz.session.user.id, {
+    ip: getClientIp(request),
+  })
   if (rateLimitError) return rateLimitError
 
   const contentTypeError = requireJsonContentType(request)
   if (contentTypeError) return contentTypeError
 
-  const body = await request.json() as {
+  const body = (await request.json()) as {
     url?: string
     secret?: string
     events?: unknown[]
@@ -125,12 +135,16 @@ export async function POST(
 
   const events = parseEvents(body.events)
   if (events.length === 0) {
-    return NextResponse.json({ error: `events must include at least one of: ${webhookEventTypes.join(', ')}` }, { status: 400 })
+    return NextResponse.json(
+      { error: `events must include at least one of: ${webhookEventTypes.join(', ')}` },
+      { status: 400 },
+    )
   }
 
-  const secret = typeof body.secret === 'string' && body.secret.trim()
-    ? body.secret.trim()
-    : crypto.randomBytes(32).toString('hex')
+  const secret =
+    typeof body.secret === 'string' && body.secret.trim()
+      ? body.secret.trim()
+      : crypto.randomBytes(32).toString('hex')
   const encryptedSecret = encryptWebhookSecret(secret)
 
   const created = {
@@ -146,14 +160,17 @@ export async function POST(
 
   db.insert(webhooks).values(created).run()
 
-  return NextResponse.json({
-    id: created.id,
-    orgId: created.orgId,
-    url: created.url,
-    secret,
-    events,
-    createdBy: created.createdBy,
-    createdAt: created.createdAt.toISOString(),
-    active: created.active,
-  }, { status: 201 })
+  return NextResponse.json(
+    {
+      id: created.id,
+      orgId: created.orgId,
+      url: created.url,
+      secret,
+      events,
+      createdBy: created.createdBy,
+      createdAt: created.createdAt.toISOString(),
+      active: created.active,
+    },
+    { status: 201 },
+  )
 }

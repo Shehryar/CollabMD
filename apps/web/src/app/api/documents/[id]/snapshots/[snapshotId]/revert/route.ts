@@ -3,21 +3,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { checkPermission } from '@collabmd/shared'
-import {
-  and,
-  db,
-  documentSnapshots,
-  eq,
-} from '@collabmd/db'
+import { and, db, documentSnapshots, eq } from '@collabmd/db'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getSyncHttpUrl } from '@/lib/sync-url'
 
 type RouteParams = { params: Promise<{ id: string; snapshotId: string }> }
 
-export async function POST(
-  request: NextRequest,
-  { params }: RouteParams,
-) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -39,10 +31,7 @@ export async function POST(
       createdAt: documentSnapshots.createdAt,
     })
     .from(documentSnapshots)
-    .where(and(
-      eq(documentSnapshots.id, snapshotId),
-      eq(documentSnapshots.documentId, docId),
-    ))
+    .where(and(eq(documentSnapshots.id, snapshotId), eq(documentSnapshots.documentId, docId)))
     .get()
 
   if (!snapshot) {
@@ -62,15 +51,17 @@ export async function POST(
     return NextResponse.json({ error: 'failed to replace document state' }, { status: 502 })
   }
 
-  db.insert(documentSnapshots).values({
-    id: crypto.randomUUID(),
-    documentId: docId,
-    snapshot: snapshot.snapshot,
-    createdAt: new Date(),
-    createdBy: session.user.id,
-    isAgentEdit: false,
-    label: `Reverted to ${snapshot.createdAt.toISOString()}`,
-  }).run()
+  db.insert(documentSnapshots)
+    .values({
+      id: crypto.randomUUID(),
+      documentId: docId,
+      snapshot: snapshot.snapshot,
+      createdAt: new Date(),
+      createdBy: session.user.id,
+      isAgentEdit: false,
+      label: `Reverted to ${snapshot.createdAt.toISOString()}`,
+    })
+    .run()
 
   return NextResponse.json({ ok: true })
 }

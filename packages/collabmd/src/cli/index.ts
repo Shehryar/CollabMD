@@ -23,10 +23,7 @@ import { agentAddCommand, agentListCommand, agentRemoveCommand } from './agent.j
 
 const program = new Command()
 
-program
-  .name('collabmd')
-  .description('Collaborative markdown editing CLI')
-  .version('0.0.0')
+program.name('collabmd').description('Collaborative markdown editing CLI').version('0.0.0')
 
 program
   .command('dev')
@@ -71,7 +68,9 @@ program
     const logStream = createWriteStream(logPath, { flags: 'a' })
 
     const writeLog = (level: 'INFO' | 'ERROR', args: unknown[]) => {
-      const message = args.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg))).join(' ')
+      const message = args
+        .map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg)))
+        .join(' ')
       logStream.write(`[${new Date().toISOString()}] [${level}] ${message}\n`)
     }
 

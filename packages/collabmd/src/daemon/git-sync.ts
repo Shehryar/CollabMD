@@ -125,7 +125,11 @@ export class GitSync {
       changed.add(this.normalizePath(renamed.to))
     }
 
-    for (const entry of status.files as Array<{ path?: string; index?: string; working_dir?: string }>) {
+    for (const entry of status.files as Array<{
+      path?: string
+      index?: string
+      working_dir?: string
+    }>) {
       if (!entry.path) continue
       if (entry.index === 'D' || entry.working_dir === 'D') continue
       changed.add(this.normalizePath(entry.path))

@@ -21,8 +21,16 @@ function loadDotenv(filePath: string): Record<string, string> {
   return vars
 }
 
-function spawnChild(cmd: string, args: string[], opts?: { cwd?: string; env?: NodeJS.ProcessEnv }): ChildProcess {
-  const child = spawn(cmd, args, { stdio: 'inherit', env: opts?.env ?? process.env, cwd: opts?.cwd })
+function spawnChild(
+  cmd: string,
+  args: string[],
+  opts?: { cwd?: string; env?: NodeJS.ProcessEnv },
+): ChildProcess {
+  const child = spawn(cmd, args, {
+    stdio: 'inherit',
+    env: opts?.env ?? process.env,
+    cwd: opts?.cwd,
+  })
   children.push(child)
   return child
 }
@@ -34,7 +42,9 @@ async function buildWorkspacePackage(name: string): Promise<void> {
     env: process.env,
   })
   await new Promise<void>((resolve, reject) => {
-    build.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`${name} build exited ${code}`))))
+    build.on('exit', (code) =>
+      code === 0 ? resolve() : reject(new Error(`${name} build exited ${code}`)),
+    )
   })
 }
 
@@ -49,7 +59,9 @@ async function runWorkspaceCommand(
     env: env ?? process.env,
   })
   await new Promise<void>((resolve, reject) => {
-    proc.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`${filterName}:${script} exited ${code}`))))
+    proc.on('exit', (code) =>
+      code === 0 ? resolve() : reject(new Error(`${filterName}:${script} exited ${code}`)),
+    )
   })
 }
 
@@ -69,7 +81,9 @@ async function writeTupleSafe(user: string, relation: string, object: string): P
   }
 }
 
-function parseDefaultDocPermission(metadata: string | null): 'editor' | 'commenter' | 'viewer' | null {
+function parseDefaultDocPermission(
+  metadata: string | null,
+): 'editor' | 'commenter' | 'viewer' | null {
   if (!metadata) return null
   try {
     const parsed = JSON.parse(metadata) as { defaultDocPermission?: unknown }
@@ -83,14 +97,7 @@ function parseDefaultDocPermission(metadata: string | null): 'editor' | 'comment
 
 async function rehydrateFgaTuplesFromDb(): Promise<void> {
   const dbModuleUrl = pathToFileURL(join(process.cwd(), 'packages', 'db', 'dist', 'index.js')).href
-  const {
-    db,
-    members,
-    folders,
-    documents,
-    organizations,
-    isNull,
-  } = await import(dbModuleUrl)
+  const { db, members, folders, documents, organizations, isNull } = await import(dbModuleUrl)
 
   const orgMembers = db
     .select({
@@ -163,7 +170,10 @@ async function rehydrateFgaTuplesFromDb(): Promise<void> {
     if (await writeTupleSafe(`org:${doc.orgId}`, 'org', `document:${doc.id}`)) {
       created += 1
     }
-    if (doc.folderId && await writeTupleSafe(`folder:${doc.folderId}`, 'parent', `document:${doc.id}`)) {
+    if (
+      doc.folderId &&
+      (await writeTupleSafe(`folder:${doc.folderId}`, 'parent', `document:${doc.id}`))
+    ) {
       created += 1
     }
 
@@ -186,9 +196,11 @@ async function main() {
   const webEnvPath = join(process.cwd(), 'apps', 'web', '.env.local')
   const webEnv = loadDotenv(webEnvPath)
   const port = process.env.PORT ?? webEnv.PORT ?? '3000'
-  const authUrl = process.env.BETTER_AUTH_URL ?? webEnv.BETTER_AUTH_URL ?? `http://localhost:${port}`
+  const authUrl =
+    process.env.BETTER_AUTH_URL ?? webEnv.BETTER_AUTH_URL ?? `http://localhost:${port}`
   const openFgaUrl = 'http://localhost:8081'
-  const databaseUrl = process.env.DATABASE_URL ?? `file:${join(process.cwd(), 'apps', 'web', 'local.db')}`
+  const databaseUrl =
+    process.env.DATABASE_URL ?? `file:${join(process.cwd(), 'apps', 'web', 'local.db')}`
   process.env.OPENFGA_URL = openFgaUrl
   process.env.DATABASE_URL = databaseUrl
 

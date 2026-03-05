@@ -24,7 +24,13 @@ function readRequestBody(req: IncomingMessage): Promise<string> {
 function parseCallbackPayload(
   req: IncomingMessage,
   body: string,
-): { token: string | null; state: string | null; userId: string | null; email: string | null; name: string | null } {
+): {
+  token: string | null
+  state: string | null
+  userId: string | null
+  email: string | null
+  name: string | null
+} {
   // Legacy GET flow uses query params.
   if (req.method === 'GET') {
     const url = new URL(req.url ?? '/', 'http://localhost')

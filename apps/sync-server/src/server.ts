@@ -46,9 +46,17 @@ export interface SyncServerConfig {
   auth?: {
     verifyToken: (token: string) => Promise<TokenPayload | null>
     verifySessionCookie?: (cookieHeader: string) => Promise<TokenPayload | null>
-    checkPermission: (userId: string, relation: string, objectType: string, objectId: string) => Promise<boolean>
+    checkPermission: (
+      userId: string,
+      relation: string,
+      objectType: string,
+      objectId: string,
+    ) => Promise<boolean>
   }
-  checkAgentPolicy?: (docId: string, source: string) => Promise<{ allowed: boolean; code?: number; reason?: string }>
+  checkAgentPolicy?: (
+    docId: string,
+    source: string,
+  ) => Promise<{ allowed: boolean; code?: number; reason?: string }>
   snapshotCallback?: (
     docId: string,
     snapshot: Uint8Array,
@@ -115,8 +123,8 @@ export function createSyncServer(config?: SyncServerConfig) {
     const ycomments = doc.getArray<Y.Map<unknown>>('comments')
     for (const comment of ycomments.toArray()) {
       if (!(comment instanceof Y.Map)) continue
-      const id = typeof comment.get('id') === 'string' ? comment.get('id') as string : ''
-      const text = typeof comment.get('text') === 'string' ? comment.get('text') as string : ''
+      const id = typeof comment.get('id') === 'string' ? (comment.get('id') as string) : ''
+      const text = typeof comment.get('text') === 'string' ? (comment.get('text') as string) : ''
       if (!id) continue
 
       commentIds.add(id)
@@ -135,7 +143,7 @@ export function createSyncServer(config?: SyncServerConfig) {
     const ydiscussions = doc.getArray<Y.Map<unknown>>('discussions')
     for (const discussion of ydiscussions.toArray()) {
       if (!(discussion instanceof Y.Map)) continue
-      const id = typeof discussion.get('id') === 'string' ? discussion.get('id') as string : ''
+      const id = typeof discussion.get('id') === 'string' ? (discussion.get('id') as string) : ''
       if (!id) continue
       discussionIds.add(id)
     }
@@ -174,12 +182,7 @@ export function createSyncServer(config?: SyncServerConfig) {
     const snapshotHash = hashSnapshot(snapshot)
     if (snapshotHash === room.lastSnapshotHash) return
 
-    await config.snapshotCallback(
-      room.name,
-      snapshot,
-      room.lastEditUserId,
-      room.lastEditSource,
-    )
+    await config.snapshotCallback(room.name, snapshot, room.lastEditUserId, room.lastEditSource)
     room.lastSnapshotHash = snapshotHash
   }
 
@@ -284,9 +287,7 @@ export function createSyncServer(config?: SyncServerConfig) {
         }
 
         const shouldEmitDocEvents = syncMessageType !== 0
-        const beforeState = shouldEmitDocEvents
-          ? captureDocEventState(room.doc)
-          : null
+        const beforeState = shouldEmitDocEvents ? captureDocEventState(room.doc) : null
 
         if (shouldEmitDocEvents) {
           room.lastEditAt = Date.now()
@@ -415,10 +416,7 @@ export function createSyncServer(config?: SyncServerConfig) {
       encoding.writeVarUint(awarenessEncoder, messageAwareness)
       encoding.writeVarUint8Array(
         awarenessEncoder,
-        awarenessProtocol.encodeAwarenessUpdate(
-          room.awareness,
-          Array.from(awarenessStates.keys()),
-        ),
+        awarenessProtocol.encodeAwarenessUpdate(room.awareness, Array.from(awarenessStates.keys())),
       )
       ws.send(encoding.toUint8Array(awarenessEncoder))
     }
@@ -438,9 +436,10 @@ export function createSyncServer(config?: SyncServerConfig) {
 
     ws.on('message', (raw: ArrayBuffer | Buffer) => {
       try {
-        const data = raw instanceof ArrayBuffer
-          ? new Uint8Array(raw)
-          : new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength)
+        const data =
+          raw instanceof ArrayBuffer
+            ? new Uint8Array(raw)
+            : new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength)
         handleMessage(ws, room, data)
       } catch {
         // Malformed protocol payload from client.
@@ -461,11 +460,7 @@ export function createSyncServer(config?: SyncServerConfig) {
       connMeta.delete(ws)
 
       if (controlledIds) {
-        awarenessProtocol.removeAwarenessStates(
-          room.awareness,
-          Array.from(controlledIds),
-          null,
-        )
+        awarenessProtocol.removeAwarenessStates(room.awareness, Array.from(controlledIds), null)
       }
 
       // Clean up empty rooms
@@ -553,7 +548,11 @@ export function createSyncServer(config?: SyncServerConfig) {
             return
           }
 
-          const incomingUpdate = new Uint8Array(payload.buffer, payload.byteOffset, payload.byteLength)
+          const incomingUpdate = new Uint8Array(
+            payload.buffer,
+            payload.byteOffset,
+            payload.byteLength,
+          )
           const tempDoc = new Y.Doc()
           Y.applyUpdate(tempDoc, incomingUpdate)
           const normalizedUpdate = Y.encodeStateAsUpdate(tempDoc)
@@ -595,7 +594,8 @@ export function createSyncServer(config?: SyncServerConfig) {
     try {
       const url = new URL(req.url!, 'http://localhost')
       const roomName = url.pathname.slice(1) || 'default'
-      const hasAuthHeader = typeof req.headers.authorization === 'string' && req.headers.authorization.length > 0
+      const hasAuthHeader =
+        typeof req.headers.authorization === 'string' && req.headers.authorization.length > 0
       const source: 'browser' | 'daemon' = hasAuthHeader ? 'daemon' : 'browser'
       let userId: string | null = null
       let canEdit = true
@@ -604,7 +604,9 @@ export function createSyncServer(config?: SyncServerConfig) {
         let payload: TokenPayload | null = null
         if (source === 'daemon') {
           const authHeader = req.headers.authorization
-          const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null
+          const token = authHeader?.startsWith('Bearer ')
+            ? authHeader.slice('Bearer '.length)
+            : null
           if (!token) {
             socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
             socket.destroy()
@@ -635,7 +637,12 @@ export function createSyncServer(config?: SyncServerConfig) {
           return
         }
 
-        const canView = await config.auth.checkPermission(payload.id, 'can_view', 'document', roomName)
+        const canView = await config.auth.checkPermission(
+          payload.id,
+          'can_view',
+          'document',
+          roomName,
+        )
         if (!canView) {
           wss.handleUpgrade(req, socket, head, (ws) => {
             ws.close(4403, 'Forbidden')

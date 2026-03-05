@@ -5,14 +5,17 @@ import * as Y from 'yjs'
 
 const mockAuthorizeAgentForDocument = vi.fn()
 vi.mock('@/lib/agent-doc-access', () => ({
-  authorizeAgentForDocument: (...args: unknown[]) => mockAuthorizeAgentForDocument.apply(undefined, args as never),
+  authorizeAgentForDocument: (...args: unknown[]) =>
+    mockAuthorizeAgentForDocument.apply(undefined, args as never),
 }))
 
 const mockFetchDocFromSyncServer = vi.fn()
 const mockReplaceDocOnSyncServer = vi.fn()
 vi.mock('@/lib/sync-doc-state', () => ({
-  fetchDocFromSyncServer: (...args: unknown[]) => mockFetchDocFromSyncServer.apply(undefined, args as never),
-  replaceDocOnSyncServer: (...args: unknown[]) => mockReplaceDocOnSyncServer.apply(undefined, args as never),
+  fetchDocFromSyncServer: (...args: unknown[]) =>
+    mockFetchDocFromSyncServer.apply(undefined, args as never),
+  replaceDocOnSyncServer: (...args: unknown[]) =>
+    mockReplaceDocOnSyncServer.apply(undefined, args as never),
 }))
 
 vi.mock('@/lib/http', () => ({

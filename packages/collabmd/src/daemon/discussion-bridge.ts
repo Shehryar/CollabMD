@@ -52,7 +52,9 @@ export class DiscussionBridge {
   private fileWatcher: FileWatcher
   private writeDebounceMs: number
   private writeTimer: NodeJS.Timeout | null = null
-  private observer: ((events: Y.YEvent<Y.AbstractType<unknown>>[], transaction: Y.Transaction) => void) | null = null
+  private observer:
+    | ((events: Y.YEvent<Y.AbstractType<unknown>>[], transaction: Y.Transaction) => void)
+    | null = null
   private lastSidecarHash = ''
   private processedMentions = new Set<string>()
   private responseHashes = new Map<string, string>()
@@ -124,13 +126,15 @@ export class DiscussionBridge {
       resolved?: unknown
     }
 
-    const discussionId = this.asString(payload.discussionId).trim()
-      || basename(responseRelativePath, '.response.json').replace(/^discussion-/, '')
+    const discussionId =
+      this.asString(payload.discussionId).trim() ||
+      basename(responseRelativePath, '.response.json').replace(/^discussion-/, '')
     const text = this.asString(payload.replyText).trim() || this.asString(payload.text).trim()
     if (!discussionId || !text) return
-    const author = this.asString(payload.author).trim()
-      || this.asString(payload.mentionedAgent).trim()
-      || 'Agent'
+    const author =
+      this.asString(payload.author).trim() ||
+      this.asString(payload.mentionedAgent).trim() ||
+      'Agent'
     const shouldResolve = payload.resolved === true
     const createdAt = new Date().toISOString()
 
@@ -139,9 +143,10 @@ export class DiscussionBridge {
 
     this.ydoc.transact(() => {
       const threadValue = discussion.get('thread')
-      const thread = threadValue instanceof Y.Array
-        ? threadValue as Y.Array<Y.Map<unknown>>
-        : new Y.Array<Y.Map<unknown>>()
+      const thread =
+        threadValue instanceof Y.Array
+          ? (threadValue as Y.Array<Y.Map<unknown>>)
+          : new Y.Array<Y.Map<unknown>>()
       if (!(threadValue instanceof Y.Array)) discussion.set('thread', thread)
 
       const reply = new Y.Map<unknown>()
@@ -222,12 +227,16 @@ export class DiscussionBridge {
       return
     }
     if (!parsed || typeof parsed !== 'object') {
-      console.warn(`[DiscussionBridge] Invalid sidecar payload in ${this.sidecarRelativePath}; skipping.`)
+      console.warn(
+        `[DiscussionBridge] Invalid sidecar payload in ${this.sidecarRelativePath}; skipping.`,
+      )
       return
     }
     const payload = parsed as { discussions?: unknown }
     if (!Array.isArray(payload.discussions)) {
-      console.warn(`[DiscussionBridge] Missing discussions array in ${this.sidecarRelativePath}; skipping.`)
+      console.warn(
+        `[DiscussionBridge] Missing discussions array in ${this.sidecarRelativePath}; skipping.`,
+      )
       return
     }
 
@@ -303,19 +312,22 @@ export class DiscussionBridge {
 
   private syncThread(discussion: Y.Map<unknown>, incoming: SidecarReply[]): void {
     const current = discussion.get('thread')
-    const thread = current instanceof Y.Array
-      ? current as Y.Array<Y.Map<unknown>>
-      : new Y.Array<Y.Map<unknown>>()
+    const thread =
+      current instanceof Y.Array
+        ? (current as Y.Array<Y.Map<unknown>>)
+        : new Y.Array<Y.Map<unknown>>()
     if (!(current instanceof Y.Array)) discussion.set('thread', thread)
 
     const signatures = new Set<string>()
     for (const value of thread.toArray()) {
       if (!(value instanceof Y.Map)) continue
-      signatures.add(this.replySignature({
-        author: this.readAuthor(value.get('author')),
-        text: this.asString(value.get('text')),
-        createdAt: this.asString(value.get('createdAt')),
-      }))
+      signatures.add(
+        this.replySignature({
+          author: this.readAuthor(value.get('author')),
+          text: this.asString(value.get('text')),
+          createdAt: this.asString(value.get('createdAt')),
+        }),
+      )
     }
 
     for (const reply of incoming) {

@@ -8,18 +8,22 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 const mockHardDeleteDocument = vi.fn()
 vi.mock('@/lib/hard-delete', () => ({
-  hardDeleteDocument: (...args: unknown[]) => mockHardDeleteDocument.apply(undefined, args as never),
+  hardDeleteDocument: (...args: unknown[]) =>
+    mockHardDeleteDocument.apply(undefined, args as never),
 }))
 
 const mockEnforceUserMutationRateLimit = vi.fn((..._args: unknown[]): NextResponse | null => null)
 const mockGetClientIp = vi.fn(() => '127.0.0.1')
 vi.mock('@/lib/rate-limit', () => ({
-  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit.apply(undefined, args as never),
+  enforceUserMutationRateLimit: (...args: unknown[]) =>
+    mockEnforceUserMutationRateLimit.apply(undefined, args as never),
   getClientIp: (...args: unknown[]) => mockGetClientIp.apply(undefined, args as never),
 }))
 

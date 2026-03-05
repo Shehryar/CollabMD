@@ -85,7 +85,12 @@ export class SyncClient extends EventEmitter {
         case messageSync: {
           const encoder = encoding.createEncoder()
           encoding.writeVarUint(encoder, messageSync)
-          const syncMessageType = syncProtocol.readSyncMessage(decoder, encoder, this.ydoc, 'remote')
+          const syncMessageType = syncProtocol.readSyncMessage(
+            decoder,
+            encoder,
+            this.ydoc,
+            'remote',
+          )
           if (encoding.length(encoder) > 1) {
             this.send(encoder)
           }

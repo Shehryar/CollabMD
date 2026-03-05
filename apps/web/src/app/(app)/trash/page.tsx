@@ -115,7 +115,10 @@ export default function TrashPage() {
         ) : (
           <ul>
             {docs.map((doc) => (
-              <li key={doc.id} className="group flex items-center gap-3 rounded border border-transparent px-3 py-[10px] hover:border-border hover:bg-bg-subtle">
+              <li
+                key={doc.id}
+                className="group flex items-center gap-3 rounded border border-transparent px-3 py-[10px] hover:border-border hover:bg-bg-subtle"
+              >
                 {/* Doc icon */}
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border bg-bg-subtle font-mono text-sm text-fg-muted group-hover:border-border-strong group-hover:bg-bg">
                   #

@@ -61,7 +61,8 @@ function readChecklistState(orgId: string, hasDaemonEdits: boolean): ChecklistSt
   const expired = Number.isFinite(firstSeen) ? now - firstSeen > ONE_WEEK_MS : false
   const cliInstalled = hasDaemonEdits || localStorage.getItem(getCliInstalledKey(orgId)) === '1'
   const folderLinked = hasDaemonEdits || localStorage.getItem(getFolderLinkedKey(orgId)) === '1'
-  const onboardingPath = localStorage.getItem(getOnboardingPathKey(orgId)) === 'local' ? 'local' : 'web'
+  const onboardingPath =
+    localStorage.getItem(getOnboardingPathKey(orgId)) === 'local' ? 'local' : 'web'
 
   return { dismissed, expired, cliInstalled, folderLinked, onboardingPath }
 }
@@ -109,80 +110,81 @@ export function GettingStarted({
   }, [orgName])
 
   const visible = !state.dismissed && !state.expired
-  const checklistItems = state.onboardingPath === 'local'
-    ? [
-      {
-        id: 'cli',
-        label: 'Install the CLI',
-        checked: state.cliInstalled,
-        action: () => router.push('/connect'),
-        href: '/connect',
-      },
-      {
-        id: 'auth',
-        label: 'Authenticate',
-        checked: state.cliInstalled,
-        action: () => router.push('/connect'),
-        href: '/connect',
-      },
-      {
-        id: 'folder',
-        label: 'Link a local folder',
-        checked: state.folderLinked,
-        action: () => router.push('/connect'),
-        href: '/connect',
-      },
-      {
-        id: 'workspace',
-        label: 'Name your workspace',
-        checked: workspaceNamed,
-        action: () => {
-          if (orgSlug) {
-            router.push(`/org/${orgSlug}/settings`)
-          }
-        },
-        href: orgSlug ? `/org/${orgSlug}/settings` : null,
-      },
-    ]
-    : [
-      {
-        id: 'workspace',
-        label: 'Name your workspace',
-        checked: workspaceNamed,
-        action: () => {
-          if (orgSlug) {
-            router.push(`/org/${orgSlug}/settings`)
-          }
-        },
-        href: orgSlug ? `/org/${orgSlug}/settings` : null,
-      },
-      {
-        id: 'doc',
-        label: 'Create your first document',
-        checked: docCount > 0,
-        action: async () => {
-          if (creating) return
-          setCreating(true)
-          try {
-            await onCreateDocument()
-          } finally {
-            setCreating(false)
-          }
-        },
-        href: null,
-      },
-      {
-        id: 'invite',
-        label: 'Invite a teammate',
-        checked: memberCount > 1,
-        action: () => {
-          if (orgSlug) {
-            router.push(`/org/${orgSlug}/settings`)
-          }
-        },
-        href: orgSlug ? `/org/${orgSlug}/settings` : null,
-      },
-    ]
+  const checklistItems =
+    state.onboardingPath === 'local'
+      ? [
+          {
+            id: 'cli',
+            label: 'Install the CLI',
+            checked: state.cliInstalled,
+            action: () => router.push('/connect'),
+            href: '/connect',
+          },
+          {
+            id: 'auth',
+            label: 'Authenticate',
+            checked: state.cliInstalled,
+            action: () => router.push('/connect'),
+            href: '/connect',
+          },
+          {
+            id: 'folder',
+            label: 'Link a local folder',
+            checked: state.folderLinked,
+            action: () => router.push('/connect'),
+            href: '/connect',
+          },
+          {
+            id: 'workspace',
+            label: 'Name your workspace',
+            checked: workspaceNamed,
+            action: () => {
+              if (orgSlug) {
+                router.push(`/org/${orgSlug}/settings`)
+              }
+            },
+            href: orgSlug ? `/org/${orgSlug}/settings` : null,
+          },
+        ]
+      : [
+          {
+            id: 'workspace',
+            label: 'Name your workspace',
+            checked: workspaceNamed,
+            action: () => {
+              if (orgSlug) {
+                router.push(`/org/${orgSlug}/settings`)
+              }
+            },
+            href: orgSlug ? `/org/${orgSlug}/settings` : null,
+          },
+          {
+            id: 'doc',
+            label: 'Create your first document',
+            checked: docCount > 0,
+            action: async () => {
+              if (creating) return
+              setCreating(true)
+              try {
+                await onCreateDocument()
+              } finally {
+                setCreating(false)
+              }
+            },
+            href: null,
+          },
+          {
+            id: 'invite',
+            label: 'Invite a teammate',
+            checked: memberCount > 1,
+            action: () => {
+              if (orgSlug) {
+                router.push(`/org/${orgSlug}/settings`)
+              }
+            },
+            href: orgSlug ? `/org/${orgSlug}/settings` : null,
+          },
+        ]
 
   const totalCount = checklistItems.length
   const completedCount = checklistItems.filter((item) => item.checked).length
@@ -217,7 +219,9 @@ export function GettingStarted({
         </button>
       </div>
 
-      <p className="font-mono text-[11px] text-fg-muted">{completedCount} of {totalCount} complete</p>
+      <p className="font-mono text-[11px] text-fg-muted">
+        {completedCount} of {totalCount} complete
+      </p>
       <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-bg-subtle">
         <div
           className="h-full bg-accent transition-all"
@@ -230,11 +234,17 @@ export function GettingStarted({
           <li key={item.id} className="flex items-center gap-2">
             <span
               className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border ${
-                item.checked ? 'border-accent bg-accent text-bg' : 'border-border bg-bg-subtle text-transparent'
+                item.checked
+                  ? 'border-accent bg-accent text-bg'
+                  : 'border-border bg-bg-subtle text-transparent'
               }`}
             >
               <svg className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M16.704 5.29a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0L3.296 9.21a1 1 0 111.414-1.414l4.037 4.036 6.543-6.542a1 1 0 011.414 0z" clipRule="evenodd" />
+                <path
+                  fillRule="evenodd"
+                  d="M16.704 5.29a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0L3.296 9.21a1 1 0 111.414-1.414l4.037 4.036 6.543-6.542a1 1 0 011.414 0z"
+                  clipRule="evenodd"
+                />
               </svg>
             </span>
             {item.checked ? (

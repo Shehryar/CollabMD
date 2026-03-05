@@ -95,7 +95,9 @@ export class CollabMDClient {
   }
 
   async readDocument(id: string): Promise<{ documentId: string; content: string }> {
-    return this.requestJson<{ documentId: string; content: string }>(`/api/v1/documents/${encodeURIComponent(id)}/content`)
+    return this.requestJson<{ documentId: string; content: string }>(
+      `/api/v1/documents/${encodeURIComponent(id)}/content`,
+    )
   }
 
   async writeDocument(id: string, content: string): Promise<void> {
@@ -132,7 +134,12 @@ export class CollabMDClient {
     })
   }
 
-  async suggestEdit(id: string, anchorText: string, proposedText: string, note?: string): Promise<void> {
+  async suggestEdit(
+    id: string,
+    anchorText: string,
+    proposedText: string,
+    note?: string,
+  ): Promise<void> {
     await this.requestJson(`/api/v1/documents/${encodeURIComponent(id)}/suggestions`, {
       method: 'POST',
       body: JSON.stringify({ anchorText, proposedText, note }),
@@ -193,7 +200,7 @@ export class CollabMDClient {
     if (!response.ok) {
       let details = ''
       try {
-        const parsed = await response.json() as { error?: unknown }
+        const parsed = (await response.json()) as { error?: unknown }
         if (typeof parsed.error === 'string') details = parsed.error
       } catch {
         // ignore parse errors and fall back to status text
@@ -205,6 +212,6 @@ export class CollabMDClient {
     const emptyResponse = response.status === 204 || response.headers.get('content-length') === '0'
     if (emptyResponse) return undefined as T
 
-    return await response.json() as T
+    return (await response.json()) as T
   }
 }

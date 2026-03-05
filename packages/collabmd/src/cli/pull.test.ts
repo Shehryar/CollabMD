@@ -5,37 +5,31 @@ vi.mock('fs', () => ({
   writeFileSync: vi.fn(),
 }))
 
-const {
-  mockGetRemotes,
-  mockStatus,
-  mockBranch,
-  mockFetch,
-  mockMerge,
-  simpleGitFactory,
-} = vi.hoisted(() => {
-  const getRemotes = vi.fn()
-  const status = vi.fn()
-  const branch = vi.fn()
-  const fetch = vi.fn()
-  const merge = vi.fn()
+const { mockGetRemotes, mockStatus, mockBranch, mockFetch, mockMerge, simpleGitFactory } =
+  vi.hoisted(() => {
+    const getRemotes = vi.fn()
+    const status = vi.fn()
+    const branch = vi.fn()
+    const fetch = vi.fn()
+    const merge = vi.fn()
 
-  const git = {
-    getRemotes,
-    status,
-    branch,
-    fetch,
-    merge,
-  }
+    const git = {
+      getRemotes,
+      status,
+      branch,
+      fetch,
+      merge,
+    }
 
-  return {
-    mockGetRemotes: getRemotes,
-    mockStatus: status,
-    mockBranch: branch,
-    mockFetch: fetch,
-    mockMerge: merge,
-    simpleGitFactory: vi.fn(() => git),
-  }
-})
+    return {
+      mockGetRemotes: getRemotes,
+      mockStatus: status,
+      mockBranch: branch,
+      mockFetch: fetch,
+      mockMerge: merge,
+      simpleGitFactory: vi.fn(() => git),
+    }
+  })
 
 vi.mock('simple-git', () => ({
   default: simpleGitFactory,

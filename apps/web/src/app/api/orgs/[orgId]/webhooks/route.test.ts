@@ -8,12 +8,15 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 const mockEnforceUserMutationRateLimit = vi.fn(() => null)
 vi.mock('@/lib/rate-limit', () => ({
-  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit.apply(undefined, args as never),
+  enforceUserMutationRateLimit: (...args: unknown[]) =>
+    mockEnforceUserMutationRateLimit.apply(undefined, args as never),
   getClientIp: vi.fn(() => '127.0.0.1'),
 }))
 

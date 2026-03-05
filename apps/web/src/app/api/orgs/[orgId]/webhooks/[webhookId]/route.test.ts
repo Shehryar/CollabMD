@@ -8,12 +8,15 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 const mockEnforceUserMutationRateLimit = vi.fn(() => null)
 vi.mock('@/lib/rate-limit', () => ({
-  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit.apply(undefined, args as never),
+  enforceUserMutationRateLimit: (...args: unknown[]) =>
+    mockEnforceUserMutationRateLimit.apply(undefined, args as never),
   getClientIp: vi.fn(() => '127.0.0.1'),
 }))
 
@@ -59,11 +62,11 @@ describe('DELETE /api/orgs/[orgId]/webhooks/[webhookId]', () => {
 
   it('returns 404 if webhook does not exist', async () => {
     mockGetSession.mockResolvedValueOnce(session)
-    mockGet
-      .mockReturnValueOnce({ role: 'owner' })
-      .mockReturnValueOnce(undefined)
+    mockGet.mockReturnValueOnce({ role: 'owner' }).mockReturnValueOnce(undefined)
 
-    const req = new NextRequest('http://localhost:3000/api/orgs/org-1/webhooks/wh-1', { method: 'DELETE' })
+    const req = new NextRequest('http://localhost:3000/api/orgs/org-1/webhooks/wh-1', {
+      method: 'DELETE',
+    })
     const res = await DELETE(req, params())
     expect(res.status).toBe(404)
   })
@@ -74,7 +77,9 @@ describe('DELETE /api/orgs/[orgId]/webhooks/[webhookId]', () => {
       .mockReturnValueOnce({ role: 'admin' })
       .mockReturnValueOnce({ id: 'wh-1', orgId: 'org-1' })
 
-    const req = new NextRequest('http://localhost:3000/api/orgs/org-1/webhooks/wh-1', { method: 'DELETE' })
+    const req = new NextRequest('http://localhost:3000/api/orgs/org-1/webhooks/wh-1', {
+      method: 'DELETE',
+    })
     const res = await DELETE(req, params())
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true })

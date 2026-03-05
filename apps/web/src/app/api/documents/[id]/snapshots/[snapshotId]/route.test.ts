@@ -9,7 +9,9 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 const mockCheckPermission = vi.fn()
@@ -52,7 +54,10 @@ const fakeSession = {
   session: { id: 'session-1', activeOrganizationId: 'org-1' },
 }
 
-function makeParams(id: string, snapshotId: string): { params: Promise<{ id: string; snapshotId: string }> } {
+function makeParams(
+  id: string,
+  snapshotId: string,
+): { params: Promise<{ id: string; snapshotId: string }> } {
   return { params: Promise.resolve({ id, snapshotId }) }
 }
 

@@ -53,4 +53,3 @@ describe('link/unlink commands', () => {
     expect(mockWriteFileSync).not.toHaveBeenCalled()
   })
 })
-

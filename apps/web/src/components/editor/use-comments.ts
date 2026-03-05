@@ -287,9 +287,7 @@ export function createCommentInYArray(input: CreateCommentInput): string | null 
   const startAnchor = Y.encodeRelativePosition(
     Y.createRelativePositionFromTypeIndex(input.ytext, from),
   )
-  const endAnchor = Y.encodeRelativePosition(
-    Y.createRelativePositionFromTypeIndex(input.ytext, to),
-  )
+  const endAnchor = Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(input.ytext, to))
 
   const id = createId()
   const createdAt = input.createdAt ?? new Date().toISOString()
@@ -532,112 +530,139 @@ export function useComments(options: UseCommentsOptions) {
     return map
   }, [comments])
 
-  const createComment = useCallback((input: CreateCommentOptions): string | null => {
-    if (!canComment) return null
+  const createComment = useCallback(
+    (input: CreateCommentOptions): string | null => {
+      if (!canComment) return null
 
-    const authorId = currentUser?.id ?? input.authorId
-    if (!authorId) return null
+      const authorId = currentUser?.id ?? input.authorId
+      if (!authorId) return null
 
-    const authorName = currentUser?.name?.trim() || input.authorName?.trim() || 'Unknown user'
+      const authorName = currentUser?.name?.trim() || input.authorName?.trim() || 'Unknown user'
 
-    return createCommentInYArray({
-      ydoc,
-      ytext,
-      ycomments,
-      from: input.from,
-      to: input.to,
-      text: input.text,
-      authorId,
-      authorName,
-      source: input.source ?? 'browser',
-    })
-  }, [canComment, currentUser?.id, currentUser?.name, ycomments, ydoc, ytext])
+      return createCommentInYArray({
+        ydoc,
+        ytext,
+        ycomments,
+        from: input.from,
+        to: input.to,
+        text: input.text,
+        authorId,
+        authorName,
+        source: input.source ?? 'browser',
+      })
+    },
+    [canComment, currentUser?.id, currentUser?.name, ycomments, ydoc, ytext],
+  )
 
-  const createSuggestion = useCallback((input: CreateSuggestionOptions): string | null => {
-    if (!canComment) return null
+  const createSuggestion = useCallback(
+    (input: CreateSuggestionOptions): string | null => {
+      if (!canComment) return null
 
-    const authorId = currentUser?.id ?? input.authorId
-    if (!authorId) return null
+      const authorId = currentUser?.id ?? input.authorId
+      if (!authorId) return null
 
-    const authorName = currentUser?.name?.trim() || input.authorName?.trim() || 'Unknown user'
+      const authorName = currentUser?.name?.trim() || input.authorName?.trim() || 'Unknown user'
 
-    return createSuggestionInYArray({
-      ydoc,
-      ytext,
-      ycomments,
-      from: input.from,
-      to: input.to,
-      text: input.text,
-      originalText: input.originalText,
-      proposedText: input.proposedText,
-      authorId,
-      authorName,
-      source: input.source ?? 'browser',
-    })
-  }, [canComment, currentUser?.id, currentUser?.name, ycomments, ydoc, ytext])
+      return createSuggestionInYArray({
+        ydoc,
+        ytext,
+        ycomments,
+        from: input.from,
+        to: input.to,
+        text: input.text,
+        originalText: input.originalText,
+        proposedText: input.proposedText,
+        authorId,
+        authorName,
+        source: input.source ?? 'browser',
+      })
+    },
+    [canComment, currentUser?.id, currentUser?.name, ycomments, ydoc, ytext],
+  )
 
-  const replyToComment = useCallback((commentId: string, text: string): boolean => {
-    if (!canComment) return false
+  const replyToComment = useCallback(
+    (commentId: string, text: string): boolean => {
+      if (!canComment) return false
 
-    const authorId = currentUser?.id
-    if (!authorId) return false
+      const authorId = currentUser?.id
+      if (!authorId) return false
 
-    return replyToCommentInYArray({
-      ydoc,
-      ycomments,
-      commentId,
-      text,
-      authorId,
-      authorName: currentUser.name?.trim() || 'Unknown user',
-    })
-  }, [canComment, currentUser?.id, currentUser?.name, ycomments, ydoc])
+      return replyToCommentInYArray({
+        ydoc,
+        ycomments,
+        commentId,
+        text,
+        authorId,
+        authorName: currentUser.name?.trim() || 'Unknown user',
+      })
+    },
+    [canComment, currentUser?.id, currentUser?.name, ycomments, ydoc],
+  )
 
-  const setResolved = useCallback((commentId: string, resolved: boolean): boolean => {
-    if (!canResolve) return false
+  const setResolved = useCallback(
+    (commentId: string, resolved: boolean): boolean => {
+      if (!canResolve) return false
 
-    return setCommentResolvedInYArray({
-      ydoc,
-      ycomments,
-      commentId,
-      resolved,
-    })
-  }, [canResolve, ycomments, ydoc])
+      return setCommentResolvedInYArray({
+        ydoc,
+        ycomments,
+        commentId,
+        resolved,
+      })
+    },
+    [canResolve, ycomments, ydoc],
+  )
 
-  const acceptSuggestion = useCallback((commentId: string): boolean => {
-    if (!canEdit) return false
+  const acceptSuggestion = useCallback(
+    (commentId: string): boolean => {
+      if (!canEdit) return false
 
-    return acceptSuggestionInYArray({
-      ydoc,
-      ytext,
-      ycomments,
-      commentId,
-    })
-  }, [canEdit, ycomments, ydoc, ytext])
+      return acceptSuggestionInYArray({
+        ydoc,
+        ytext,
+        ycomments,
+        commentId,
+      })
+    },
+    [canEdit, ycomments, ydoc, ytext],
+  )
 
-  const dismissSuggestion = useCallback((commentId: string): boolean => {
-    if (!canEdit) return false
+  const dismissSuggestion = useCallback(
+    (commentId: string): boolean => {
+      if (!canEdit) return false
 
-    return dismissSuggestionInYArray({
-      ydoc,
-      ycomments,
-      commentId,
-    })
-  }, [canEdit, ycomments, ydoc])
+      return dismissSuggestionInYArray({
+        ydoc,
+        ycomments,
+        commentId,
+      })
+    },
+    [canEdit, ycomments, ydoc],
+  )
 
-  const getAbsoluteRange = useCallback((commentId: string): CommentRange | null => {
-    const comment = commentsById.get(commentId)
-    if (!comment) return null
+  const getAbsoluteRange = useCallback(
+    (commentId: string): CommentRange | null => {
+      const comment = commentsById.get(commentId)
+      if (!comment) return null
 
-    return toAbsoluteCommentRange(ydoc, ytext, comment.anchorStart, comment.anchorEnd)
-  }, [commentsById, ydoc, ytext])
+      return toAbsoluteCommentRange(ydoc, ytext, comment.anchorStart, comment.anchorEnd)
+    },
+    [commentsById, ydoc, ytext],
+  )
 
-  const resolveComment = useCallback(({ commentId, resolved = true }: { commentId: string; resolved?: boolean }) => {
-    return setResolved(commentId, resolved)
-  }, [setResolved])
+  const resolveComment = useCallback(
+    ({ commentId, resolved = true }: { commentId: string; resolved?: boolean }) => {
+      return setResolved(commentId, resolved)
+    },
+    [setResolved],
+  )
 
-  const getCommentRange = useCallback(({ commentId }: { commentId: string }) => {
-    return getAbsoluteRange(commentId)
-  }, [getAbsoluteRange])
+  const getCommentRange = useCallback(
+    ({ commentId }: { commentId: string }) => {
+      return getAbsoluteRange(commentId)
+    },
+    [getAbsoluteRange],
+  )
 
   return {
     comments,

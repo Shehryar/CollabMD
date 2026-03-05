@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetRemotes,
-  mockBranch,
-  mockPush,
-  simpleGitFactory,
-} = vi.hoisted(() => {
+const { mockGetRemotes, mockBranch, mockPush, simpleGitFactory } = vi.hoisted(() => {
   const getRemotes = vi.fn()
   const branch = vi.fn()
   const push = vi.fn()

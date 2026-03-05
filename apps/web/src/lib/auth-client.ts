@@ -4,18 +4,8 @@ import { magicLinkClient } from 'better-auth/client/plugins'
 import { jwtClient } from 'better-auth/client/plugins'
 
 export const authClient = createAuthClient({
-  plugins: [
-    organizationClient(),
-    magicLinkClient(),
-    jwtClient(),
-  ],
+  plugins: [organizationClient(), magicLinkClient(), jwtClient()],
 })
 
-export const {
-  signIn,
-  signUp,
-  signOut,
-  useSession,
-  useActiveOrganization,
-  useListOrganizations,
-} = authClient
+export const { signIn, signUp, signOut, useSession, useActiveOrganization, useListOrganizations } =
+  authClient

@@ -117,7 +117,9 @@ export function useYjs(docId: string, options?: UseYjsOptions): YjsContext {
   }, [docId])
 
   const [synced, setSynced] = useState(false)
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('disconnected')
+  const [connectionStatus, setConnectionStatus] = useState<
+    'connected' | 'connecting' | 'disconnected'
+  >('disconnected')
   const providerRef = useRef<WebsocketProvider | null>(null)
   const contextRef = useRef<YjsContext | null>(null)
   const syncUrl = useMemo(() => resolveSyncUrl(), [])

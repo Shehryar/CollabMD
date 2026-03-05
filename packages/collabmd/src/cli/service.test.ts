@@ -57,7 +57,9 @@ describe('service commands', () => {
     serviceInstallCommand()
 
     expect(mockMkdirSync).toHaveBeenCalledWith('/mock-home/.collabmd', { recursive: true })
-    expect(mockMkdirSync).toHaveBeenCalledWith('/mock-home/Library/LaunchAgents', { recursive: true })
+    expect(mockMkdirSync).toHaveBeenCalledWith('/mock-home/Library/LaunchAgents', {
+      recursive: true,
+    })
     expect(mockWriteFileSync).toHaveBeenCalledWith(
       '/mock-home/Library/LaunchAgents/dev.collabmd.daemon.plist',
       expect.stringContaining('<string>dev.collabmd.daemon</string>'),
@@ -78,7 +80,9 @@ describe('service commands', () => {
 
     serviceInstallCommand()
 
-    expect(mockMkdirSync).toHaveBeenCalledWith('/mock-home/.config/systemd/user', { recursive: true })
+    expect(mockMkdirSync).toHaveBeenCalledWith('/mock-home/.config/systemd/user', {
+      recursive: true,
+    })
     expect(mockWriteFileSync).toHaveBeenCalledWith(
       '/mock-home/.config/systemd/user/collabmd.service',
       expect.stringContaining('ExecStart='),
@@ -95,8 +99,12 @@ describe('service commands', () => {
 
     serviceUninstallCommand()
 
-    expect(mockRmSync).toHaveBeenCalledWith('/mock-home/Library/LaunchAgents/dev.collabmd.daemon.plist')
-    expect(mockSpawnSync).toHaveBeenCalledWith('launchctl', ['remove', 'dev.collabmd.daemon'], { stdio: 'ignore' })
+    expect(mockRmSync).toHaveBeenCalledWith(
+      '/mock-home/Library/LaunchAgents/dev.collabmd.daemon.plist',
+    )
+    expect(mockSpawnSync).toHaveBeenCalledWith('launchctl', ['remove', 'dev.collabmd.daemon'], {
+      stdio: 'ignore',
+    })
   })
 
   it('uninstall on Linux disables service and reloads daemon', () => {
@@ -111,7 +119,9 @@ describe('service commands', () => {
       { stdio: 'ignore' },
     )
     expect(mockRmSync).toHaveBeenCalledWith('/mock-home/.config/systemd/user/collabmd.service')
-    expect(mockSpawnSync).toHaveBeenCalledWith('systemctl', ['--user', 'daemon-reload'], { stdio: 'ignore' })
+    expect(mockSpawnSync).toHaveBeenCalledWith('systemctl', ['--user', 'daemon-reload'], {
+      stdio: 'ignore',
+    })
   })
 
   it('status reports running/stopped on macOS and linux', () => {
@@ -163,10 +173,18 @@ describe('service commands', () => {
     serviceUninstallCommand()
     serviceControlCommand('start')
 
-    expect(logSpy).toHaveBeenCalledWith('Service status is currently supported on macOS and Linux only.')
+    expect(logSpy).toHaveBeenCalledWith(
+      'Service status is currently supported on macOS and Linux only.',
+    )
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('line'))
-    expect(logSpy).toHaveBeenCalledWith('Service install is currently supported on macOS and Linux only.')
-    expect(logSpy).toHaveBeenCalledWith('Service uninstall is currently supported on macOS and Linux only.')
-    expect(logSpy).toHaveBeenCalledWith('Service start is currently supported on macOS and Linux only.')
+    expect(logSpy).toHaveBeenCalledWith(
+      'Service install is currently supported on macOS and Linux only.',
+    )
+    expect(logSpy).toHaveBeenCalledWith(
+      'Service uninstall is currently supported on macOS and Linux only.',
+    )
+    expect(logSpy).toHaveBeenCalledWith(
+      'Service start is currently supported on macOS and Linux only.',
+    )
   })
 })

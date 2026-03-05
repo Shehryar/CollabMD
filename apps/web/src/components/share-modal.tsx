@@ -147,9 +147,10 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
         await fetchCollaborators()
       } else {
         const data = await res.json().catch(() => ({}))
-        const msg = data.error === 'user not found'
-          ? 'User not found - they need an account first'
-          : data.error ?? 'Failed to share'
+        const msg =
+          data.error === 'user not found'
+            ? 'User not found - they need an account first'
+            : (data.error ?? 'Failed to share')
         setShareMsg({ type: 'err', text: msg })
       }
     } catch {
@@ -189,9 +190,7 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
     if (oldRole === newRole || updatingRoleUserId) return
     setUpdatingRoleUserId(userId)
     setShareMsg(null)
-    setCollaborators((prev) =>
-      prev.map((c) => (c.userId === userId ? { ...c, role: newRole } : c)),
-    )
+    setCollaborators((prev) => prev.map((c) => (c.userId === userId ? { ...c, role: newRole } : c)))
 
     try {
       const res = await fetch(`/api/documents/${docId}/share`, {
@@ -283,7 +282,10 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/15 backdrop-blur-[2px]" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/15 backdrop-blur-[2px]"
+      onClick={onClose}
+    >
       <div
         ref={modalRef}
         role="dialog"
@@ -294,8 +296,19 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="py-4 px-5 border-b border-border flex items-center justify-between">
-          <h2 id="share-dialog-title" className="font-mono text-sm font-semibold tracking-[-0.02em] text-fg">Share document</h2>
-          <button onClick={onClose} className="w-6 h-6 rounded-sm text-fg-muted hover:bg-bg-subtle hover:text-fg text-lg flex items-center justify-center" aria-label="Close dialog">&times;</button>
+          <h2
+            id="share-dialog-title"
+            className="font-mono text-sm font-semibold tracking-[-0.02em] text-fg"
+          >
+            Share document
+          </h2>
+          <button
+            onClick={onClose}
+            className="w-6 h-6 rounded-sm text-fg-muted hover:bg-bg-subtle hover:text-fg text-lg flex items-center justify-center"
+            aria-label="Close dialog"
+          >
+            &times;
+          </button>
         </div>
 
         <div className="p-4 px-5">
@@ -306,7 +319,9 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
               className="flex-1 font-mono text-[13px] py-[7px] px-[10px] border border-border rounded bg-bg text-fg focus:border-fg focus:outline-none"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void handleShare() }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleShare()
+              }}
               disabled={sharing}
             />
             <select
@@ -337,7 +352,9 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
         <hr className="border-border" />
 
         <div className="p-4 px-5">
-          <h3 className="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.02em] text-fg-secondary">Collaborators</h3>
+          <h3 className="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.02em] text-fg-secondary">
+            Collaborators
+          </h3>
           {loadingCollaborators ? (
             <p className="text-xs text-fg-muted">Loading collaborators...</p>
           ) : collaborators.length === 0 ? (
@@ -345,13 +362,20 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
           ) : (
             <ul>
               {collaborators.map((c) => (
-                <li key={c.userId} className="border-b border-border py-2 flex items-center gap-[10px]">
+                <li
+                  key={c.userId}
+                  className="border-b border-border py-2 flex items-center gap-[10px]"
+                >
                   <span className="w-6 h-6 rounded-full bg-accent-subtle border border-border font-mono text-[9px] font-semibold text-accent flex items-center justify-center shrink-0">
                     {(c.name || c.email).charAt(0).toUpperCase()}
                   </span>
                   <div className="flex flex-col flex-1 min-w-0">
-                    <span className="font-sans text-[12.5px] font-medium text-fg">{c.name || c.email}</span>
-                    {c.name && <span className="font-mono text-[11px] text-fg-muted">{c.email}</span>}
+                    <span className="font-sans text-[12.5px] font-medium text-fg">
+                      {c.name || c.email}
+                    </span>
+                    {c.name && (
+                      <span className="font-mono text-[11px] text-fg-muted">{c.email}</span>
+                    )}
                   </div>
                   {c.role === 'owner' ? (
                     <span className="font-mono text-[11px] text-fg-secondary">owner</span>
@@ -393,16 +417,23 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
         <hr className="border-border" />
 
         <div className="p-4 px-5">
-          <h3 className="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.02em] text-fg-secondary">Share links</h3>
+          <h3 className="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.02em] text-fg-secondary">
+            Share links
+          </h3>
           {loadingLinks ? (
             <p className="mb-3 text-xs text-fg-muted">Loading share links...</p>
           ) : links.length > 0 ? (
             <ul className="mb-3">
               {links.map((link) => (
-                <li key={link.id} className="border-b border-border py-2 flex items-center justify-between text-xs">
+                <li
+                  key={link.id}
+                  className="border-b border-border py-2 flex items-center justify-between text-xs"
+                >
                   <div className="flex items-center gap-2">
                     {roleBadge(link.permission)}
-                    {link.hasPassword && <span className="font-mono text-[11px] text-fg-muted">password</span>}
+                    {link.hasPassword && (
+                      <span className="font-mono text-[11px] text-fg-muted">password</span>
+                    )}
                     {link.expiresAt && (
                       <span className="font-mono text-[11px] text-fg-muted">
                         expires {new Date(link.expiresAt).toLocaleDateString()}

@@ -109,11 +109,11 @@ export class FolderDaemon {
     const credential = options.credential ?? (this.serverUrl ? getCredential(this.serverUrl) : null)
     this.sessionToken = options.sessionToken ?? credential?.sessionToken ?? null
     this.userName = options.userName ?? credential?.name ?? credential?.email ?? null
-    this.tokenManager = options.tokenManager ?? (
-      this.serverUrl && this.sessionToken
+    this.tokenManager =
+      options.tokenManager ??
+      (this.serverUrl && this.sessionToken
         ? new TokenManager(this.serverUrl, this.sessionToken)
-        : null
-    )
+        : null)
   }
 
   async start(): Promise<void> {
@@ -124,12 +124,14 @@ export class FolderDaemon {
     this.gitSync = new GitSync({
       workDir: this.workDir,
       enabled: this.projectConfig.git?.autoCommit === true,
-      idleTimeoutMs: typeof this.projectConfig.git?.idleTimeout === 'number'
-        ? this.projectConfig.git.idleTimeout * 1000
-        : undefined,
-      commitTemplate: typeof this.projectConfig.git?.commitMessage === 'string'
-        ? this.projectConfig.git.commitMessage
-        : undefined,
+      idleTimeoutMs:
+        typeof this.projectConfig.git?.idleTimeout === 'number'
+          ? this.projectConfig.git.idleTimeout * 1000
+          : undefined,
+      commitTemplate:
+        typeof this.projectConfig.git?.commitMessage === 'string'
+          ? this.projectConfig.git.commitMessage
+          : undefined,
     })
     await this.gitSync.ready()
 
@@ -155,7 +157,8 @@ export class FolderDaemon {
       onDelete: (relativePath) => this.handleFileDelete(relativePath),
       onCommentFileChange: (relativePath) => this.handleCommentFileChange(relativePath),
       onDiscussionFileChange: (relativePath) => this.handleDiscussionFileChange(relativePath),
-      onAgentTriggerResponseFileChange: (relativePath) => this.handleAgentTriggerResponseFileChange(relativePath),
+      onAgentTriggerResponseFileChange: (relativePath) =>
+        this.handleAgentTriggerResponseFileChange(relativePath),
     })
     await this.fileWatcher.start()
 
@@ -231,7 +234,11 @@ export class FolderDaemon {
       })
       if (res.ok) {
         const data = (await res.json()) as { agentPolicy?: string }
-        if (data.agentPolicy === 'disabled' || data.agentPolicy === 'restricted' || data.agentPolicy === 'suggest-only') {
+        if (
+          data.agentPolicy === 'disabled' ||
+          data.agentPolicy === 'restricted' ||
+          data.agentPolicy === 'suggest-only'
+        ) {
           this.agentPolicy = data.agentPolicy
         }
       }
@@ -259,10 +266,9 @@ export class FolderDaemon {
     const inFlight = this.inFlightSetups.get(relativePath)
     if (inFlight) return inFlight
 
-    const task = this.setupDocInternal(relativePath, docId)
-      .finally(() => {
-        this.inFlightSetups.delete(relativePath)
-      })
+    const task = this.setupDocInternal(relativePath, docId).finally(() => {
+      this.inFlightSetups.delete(relativePath)
+    })
     this.inFlightSetups.set(relativePath, task)
     return task
   }
@@ -344,7 +350,14 @@ export class FolderDaemon {
         token: '',
       })
       initializeBridge()
-      this.docs.set(relativePath, { ydoc, awareness, bridge, commentBridge, discussionBridge, syncClient })
+      this.docs.set(relativePath, {
+        ydoc,
+        awareness,
+        bridge,
+        commentBridge,
+        discussionBridge,
+        syncClient,
+      })
       return
     }
 
@@ -360,7 +373,14 @@ export class FolderDaemon {
           token: '',
         })
         initializeBridge()
-        this.docs.set(relativePath, { ydoc, awareness, bridge, commentBridge, discussionBridge, syncClient })
+        this.docs.set(relativePath, {
+          ydoc,
+          awareness,
+          bridge,
+          commentBridge,
+          discussionBridge,
+          syncClient,
+        })
         return
       }
     }
@@ -413,7 +433,14 @@ export class FolderDaemon {
       return
     }
 
-    this.docs.set(relativePath, { ydoc, awareness, bridge, commentBridge, discussionBridge, syncClient })
+    this.docs.set(relativePath, {
+      ydoc,
+      awareness,
+      bridge,
+      commentBridge,
+      discussionBridge,
+      syncClient,
+    })
   }
 
   private async handleFileAdd(relativePath: string): Promise<void> {
@@ -441,7 +468,9 @@ export class FolderDaemon {
           })
 
           if (!res.ok) {
-            console.error(`[${this.workDir}] Failed to create server doc for ${relativePath}: ${res.status}`)
+            console.error(
+              `[${this.workDir}] Failed to create server doc for ${relativePath}: ${res.status}`,
+            )
             return
           }
 
@@ -550,7 +579,11 @@ export class FolderDaemon {
   }
 
   private async flushAllBufferedPersistenceUpdates(): Promise<void> {
-    await Promise.all(Array.from(this.persistenceBuffers.keys()).map((docId) => this.flushBufferedPersistenceUpdates(docId)))
+    await Promise.all(
+      Array.from(this.persistenceBuffers.keys()).map((docId) =>
+        this.flushBufferedPersistenceUpdates(docId),
+      ),
+    )
   }
 
   private clearPersistenceBuffer(docId: string): void {

@@ -50,10 +50,9 @@ describe('TokenManager', () => {
     const tm = new TokenManager(serverUrl, sessionToken)
     await tm.getToken()
 
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      `${serverUrl}/api/auth/token`,
-      { headers: { Authorization: `Bearer ${sessionToken}` } },
-    )
+    expect(globalThis.fetch).toHaveBeenCalledWith(`${serverUrl}/api/auth/token`, {
+      headers: { Authorization: `Bearer ${sessionToken}` },
+    })
   })
 
   it('caches the JWT and does not re-fetch when still valid', async () => {

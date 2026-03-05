@@ -4,8 +4,8 @@ const ENCRYPTED_SECRET_PREFIX = 'enc:v1:'
 const DEV_FALLBACK_KEY = 'collabmd-dev-webhook-secret-key'
 
 function getWebhookSecretKeyMaterial(): string {
-  const configured = process.env.COLLABMD_WEBHOOK_SECRET_KEY?.trim()
-    || process.env.BETTER_AUTH_SECRET?.trim()
+  const configured =
+    process.env.COLLABMD_WEBHOOK_SECRET_KEY?.trim() || process.env.BETTER_AUTH_SECRET?.trim()
   if (configured) return configured
 
   if (process.env.NODE_ENV === 'production') {

@@ -19,15 +19,16 @@ export async function GET(request: NextRequest) {
   const authResult = await authenticateAgentKey(request)
   if ('error' in authResult) return authResult.error
 
-  const rate = rateLimit(`agent-key:${authResult.context.keyId}:v1`, AGENT_KEY_RATE_LIMIT, AGENT_KEY_RATE_WINDOW_MS)
+  const rate = rateLimit(
+    `agent-key:${authResult.context.keyId}:v1`,
+    AGENT_KEY_RATE_LIMIT,
+    AGENT_KEY_RATE_WINDOW_MS,
+  )
   if (!rate.success) {
     return rateLimitResponse(rate, AGENT_KEY_RATE_LIMIT)
   }
 
-  const conditions = [
-    eq(documents.orgId, authResult.context.orgId),
-    isNull(documents.deletedAt),
-  ]
+  const conditions = [eq(documents.orgId, authResult.context.orgId), isNull(documents.deletedAt)]
 
   const scopedDocuments = authResult.context.scopes.documents
   if (Array.isArray(scopedDocuments)) {
@@ -41,7 +42,10 @@ export async function GET(request: NextRequest) {
     conditions.push(inArray(documents.folderId, scopedFolders))
   }
 
-  const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, parsePositiveInt(request.nextUrl.searchParams.get('limit'), DEFAULT_PAGE_SIZE)))
+  const limit = Math.min(
+    MAX_PAGE_SIZE,
+    Math.max(1, parsePositiveInt(request.nextUrl.searchParams.get('limit'), DEFAULT_PAGE_SIZE)),
+  )
   const offset = parsePositiveInt(request.nextUrl.searchParams.get('offset'), 0)
 
   const rows = db

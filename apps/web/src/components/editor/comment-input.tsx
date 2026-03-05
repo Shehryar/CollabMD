@@ -1,6 +1,8 @@
 'use client'
 
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { FormEvent, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { computePopoverPosition } from './comment-popover-position'
+import type { PopoverPosition } from './comment-popover-position'
 
 interface CommentInputProps {
   open: boolean
@@ -42,6 +44,7 @@ export default function CommentInput({
   const [agents, setAgents] = useState<AgentEntry[]>([])
   const [mention, setMention] = useState<MentionState | null>(null)
   const [mentionIndex, setMentionIndex] = useState(0)
+  const [popover, setPopover] = useState<PopoverPosition | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -89,9 +92,11 @@ export default function CommentInput({
       try {
         const res = await fetch(`/api/orgs/${orgId}/settings`, { cache: 'no-store' })
         if (!res.ok) return
-        const data = await res.json() as { agents?: AgentEntry[] }
+        const data = (await res.json()) as { agents?: AgentEntry[] }
         if (cancelled) return
-        setAgents(Array.isArray(data.agents) ? data.agents.filter((agent) => agent.enabled !== false) : [])
+        setAgents(
+          Array.isArray(data.agents) ? data.agents.filter((agent) => agent.enabled !== false) : [],
+        )
       } catch {
         if (!cancelled) setAgents([])
       }
@@ -102,7 +107,30 @@ export default function CommentInput({
     }
   }, [orgId])
 
-  if (!open || !position) return null
+  // Compute clamped position whenever anchor or open state changes
+  useLayoutEffect(() => {
+    if (!open || !position) {
+      setPopover(null)
+      return
+    }
+    const viewport = { width: window.innerWidth, height: window.innerHeight }
+    const measured = rootRef.current?.getBoundingClientRect()
+    setPopover(computePopoverPosition(position, viewport, measured?.height))
+  }, [open, position])
+
+  // Re-measure after the DOM has rendered content (textarea, buttons, etc.)
+  useEffect(() => {
+    if (!open || !position || !rootRef.current) return
+    const frame = requestAnimationFrame(() => {
+      const measured = rootRef.current?.getBoundingClientRect()
+      if (!measured) return
+      const viewport = { width: window.innerWidth, height: window.innerHeight }
+      setPopover(computePopoverPosition(position, viewport, measured.height))
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [open, position, text])
+
+  if (!open || !position || !popover) return null
 
   const mentionCandidates = mention
     ? agents.filter((agent) => agent.name.toLowerCase().includes(mention.query.toLowerCase()))
@@ -135,14 +163,57 @@ export default function CommentInput({
   return (
     <div
       ref={rootRef}
-      className="fixed z-40 w-72 rounded-lg border border-border bg-bg p-3 shadow-default"
+      className="comment-popover fixed z-[60] w-96 rounded border border-border bg-bg p-3 shadow-lg"
       style={{
-        left: `${position.left}px`,
-        top: `${position.top}px`,
+        left: `${popover.left}px`,
+        top: `${popover.top}px`,
       }}
       role="dialog"
       aria-label="Add inline comment"
     >
+      {/* Arrow / caret pointing toward the selected text */}
+      <div
+        className="absolute h-0 w-0"
+        style={{
+          left: `${popover.arrowLeft}px`,
+          ...(popover.flipped
+            ? {
+                bottom: '-8px',
+                borderLeft: '8px solid transparent',
+                borderRight: '8px solid transparent',
+                borderTop: '8px solid var(--border)',
+              }
+            : {
+                top: '-8px',
+                borderLeft: '8px solid transparent',
+                borderRight: '8px solid transparent',
+                borderBottom: '8px solid var(--border)',
+              }),
+          transform: 'translateX(-8px)',
+        }}
+      />
+      {/* Inner arrow (fills the border arrow) */}
+      <div
+        className="absolute h-0 w-0"
+        style={{
+          left: `${popover.arrowLeft}px`,
+          ...(popover.flipped
+            ? {
+                bottom: '-7px',
+                borderLeft: '8px solid transparent',
+                borderRight: '8px solid transparent',
+                borderTop: '8px solid var(--bg)',
+              }
+            : {
+                top: '-7px',
+                borderLeft: '8px solid transparent',
+                borderRight: '8px solid transparent',
+                borderBottom: '8px solid var(--bg)',
+              }),
+          transform: 'translateX(-8px)',
+        }}
+      />
+
       <form onSubmit={submit} className="space-y-2">
         <textarea
           ref={textareaRef}
@@ -165,7 +236,9 @@ export default function CommentInput({
             }
             if (event.key === 'ArrowUp') {
               event.preventDefault()
-              setMentionIndex((value) => (value - 1 + mentionCandidates.length) % mentionCandidates.length)
+              setMentionIndex(
+                (value) => (value - 1 + mentionCandidates.length) % mentionCandidates.length,
+              )
               return
             }
             if (event.key === 'Enter') {
@@ -175,7 +248,7 @@ export default function CommentInput({
             }
           }}
           placeholder="Add a comment"
-          className="w-full resize-none rounded border border-border bg-bg px-2.5 py-2 font-sans text-[13px] text-fg outline-none focus:border-accent"
+          className="w-full resize-none rounded border border-border bg-bg px-2.5 py-2 font-sans text-[13px] text-fg outline-none focus:border-accent/60"
         />
         {mention && mentionCandidates.length > 0 && (
           <div className="max-h-36 overflow-y-auto rounded border border-border bg-bg">
@@ -199,19 +272,35 @@ export default function CommentInput({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded border border-border px-2.5 py-1 font-mono text-[11px] text-fg-secondary hover:bg-bg-subtle"
+            className="rounded border border-border-strong px-2.5 py-1 font-mono text-[11px] text-fg-secondary hover:bg-bg-subtle"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={text.trim().length === 0}
-            className="rounded border border-accent bg-accent px-2.5 py-1 font-mono text-[11px] text-accent-text disabled:cursor-not-allowed disabled:opacity-55"
+            className="rounded bg-accent px-2.5 py-1 font-mono text-[11px] text-white disabled:cursor-not-allowed disabled:opacity-55"
           >
             Add comment
           </button>
         </div>
       </form>
+
+      <style>{`
+        .comment-popover {
+          animation: commentPopoverIn 150ms ease-out;
+        }
+        @keyframes commentPopoverIn {
+          from {
+            opacity: 0;
+            transform: translateY(${popover.flipped ? '4px' : '-4px'});
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   )
 }

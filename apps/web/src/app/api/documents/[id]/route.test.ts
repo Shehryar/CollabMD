@@ -10,7 +10,9 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 const mockCheckPermission = vi.fn()
@@ -149,6 +151,28 @@ describe('GET /api/documents/[id]', () => {
     expect(body.id).toBe('doc-1')
     expect(body.title).toBe('My Document')
   })
+
+  it('returns source field in response', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+
+    const fakeDoc = {
+      id: 'doc-1',
+      title: 'CLI Doc',
+      orgId: 'org-1',
+      ownerId: 'user-1',
+      source: 'daemon',
+      deletedAt: null,
+    }
+    mockDbResult.get.mockReturnValueOnce(fakeDoc)
+    mockDbResult.get.mockReturnValueOnce({ metadata: null })
+
+    const req = new NextRequest('http://localhost:3000/api/documents/doc-1')
+    const res = await GET(req, makeParams('doc-1'))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.source).toBe('daemon')
+  })
 })
 
 describe('PATCH /api/documents/[id]', () => {
@@ -176,12 +200,7 @@ describe('PATCH /api/documents/[id]', () => {
     const body = await res.json()
     expect(body.error).toBe('forbidden')
 
-    expect(mockCheckPermission).toHaveBeenCalledWith(
-      'user-1',
-      'can_edit',
-      'document',
-      'doc-1',
-    )
+    expect(mockCheckPermission).toHaveBeenCalledWith('user-1', 'can_edit', 'document', 'doc-1')
   })
 
   it('returns 404 when update affects no rows', async () => {
@@ -239,17 +258,13 @@ describe('PATCH /api/documents/[id]', () => {
     const res = await PATCH(req, makeParams('doc-1'))
 
     expect(res.status).toBe(200)
-    expect(mockSet).toHaveBeenCalledWith(
-      expect.objectContaining({ folderId: 'folder-1' }),
-    )
+    expect(mockSet).toHaveBeenCalledWith(expect.objectContaining({ folderId: 'folder-1' }))
   })
 
   it('removes old parent tuples and writes new one when moving to a folder', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
     mockCheckPermission.mockResolvedValueOnce(true)
-    mockReadTuples.mockResolvedValueOnce([
-      { user: 'folder:folder-1', relation: 'parent' },
-    ])
+    mockReadTuples.mockResolvedValueOnce([{ user: 'folder:folder-1', relation: 'parent' }])
     mockDeleteTuple.mockResolvedValueOnce(undefined)
     mockWriteTuple.mockResolvedValueOnce(undefined)
 
@@ -269,24 +284,14 @@ describe('PATCH /api/documents/[id]', () => {
 
     expect(res.status).toBe(200)
     expect(mockReadTuples).toHaveBeenCalledWith('document:doc-1')
-    expect(mockDeleteTuple).toHaveBeenCalledWith(
-      'folder:folder-1',
-      'parent',
-      'document:doc-1',
-    )
-    expect(mockWriteTuple).toHaveBeenCalledWith(
-      'folder:folder-2',
-      'parent',
-      'document:doc-1',
-    )
+    expect(mockDeleteTuple).toHaveBeenCalledWith('folder:folder-1', 'parent', 'document:doc-1')
+    expect(mockWriteTuple).toHaveBeenCalledWith('folder:folder-2', 'parent', 'document:doc-1')
   })
 
   it('removes parent tuples without adding new one when moving to root (folderId: null)', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
     mockCheckPermission.mockResolvedValueOnce(true)
-    mockReadTuples.mockResolvedValueOnce([
-      { user: 'folder:folder-1', relation: 'parent' },
-    ])
+    mockReadTuples.mockResolvedValueOnce([{ user: 'folder:folder-1', relation: 'parent' }])
     mockDeleteTuple.mockResolvedValueOnce(undefined)
 
     const updatedDoc = {
@@ -305,11 +310,7 @@ describe('PATCH /api/documents/[id]', () => {
 
     expect(res.status).toBe(200)
     expect(mockReadTuples).toHaveBeenCalledWith('document:doc-1')
-    expect(mockDeleteTuple).toHaveBeenCalledWith(
-      'folder:folder-1',
-      'parent',
-      'document:doc-1',
-    )
+    expect(mockDeleteTuple).toHaveBeenCalledWith('folder:folder-1', 'parent', 'document:doc-1')
     expect(mockWriteTuple).not.toHaveBeenCalled()
   })
 
@@ -392,12 +393,7 @@ describe('DELETE /api/documents/[id]', () => {
     const body = await res.json()
     expect(body.error).toBe('forbidden')
 
-    expect(mockCheckPermission).toHaveBeenCalledWith(
-      'user-1',
-      'owner',
-      'document',
-      'doc-1',
-    )
+    expect(mockCheckPermission).toHaveBeenCalledWith('user-1', 'owner', 'document', 'doc-1')
   })
 
   it('soft deletes document when user is owner', async () => {

@@ -12,7 +12,11 @@ type AgentPolicy = 'enabled' | 'restricted' | 'disabled'
 function parseOrgAgentPolicy(metadata: string | null): AgentPolicy {
   try {
     const parsed = metadata ? JSON.parse(metadata) : {}
-    if (parsed.agentPolicy === 'enabled' || parsed.agentPolicy === 'restricted' || parsed.agentPolicy === 'disabled') {
+    if (
+      parsed.agentPolicy === 'enabled' ||
+      parsed.agentPolicy === 'restricted' ||
+      parsed.agentPolicy === 'disabled'
+    ) {
       return parsed.agentPolicy
     }
   } catch {
@@ -43,10 +47,7 @@ async function validateFolderForDocument(
   return { ok: true }
 }
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -101,10 +102,7 @@ export async function GET(
   })
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -133,17 +131,21 @@ export async function PATCH(
   }
 
   const body = await request.json()
-  const { title, folderId, agentEditable } = body as {
+  const { title, folderId, agentEditable, position } = body as {
     title?: string
     folderId?: string | null
     agentEditable?: boolean
+    position?: number
   }
 
   // agentEditable can only be changed by the document owner
   if (agentEditable !== undefined) {
     const isOwner = await checkPermission(session.user.id, 'owner', 'document', id)
     if (!isOwner) {
-      return NextResponse.json({ error: 'only the document owner can change agent editability' }, { status: 403 })
+      return NextResponse.json(
+        { error: 'only the document owner can change agent editability' },
+        { status: 403 },
+      )
     }
   }
 
@@ -158,13 +160,9 @@ export async function PATCH(
   if (title !== undefined) updates.title = title
   if (folderId !== undefined) updates.folderId = folderId
   if (agentEditable !== undefined) updates.agentEditable = agentEditable
+  if (position !== undefined) updates.position = position
 
-  const updated = db
-    .update(documents)
-    .set(updates)
-    .where(eq(documents.id, id))
-    .returning()
-    .get()
+  const updated = db.update(documents).set(updates).where(eq(documents.id, id)).returning().get()
 
   if (!updated) {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
@@ -212,10 +210,7 @@ export async function DELETE(
   }
 
   // Soft-delete and revoke FGA tuples to block further sync/read access while in trash.
-  db.update(documents)
-    .set({ deletedAt: new Date() })
-    .where(eq(documents.id, id))
-    .run()
+  db.update(documents).set({ deletedAt: new Date() }).where(eq(documents.id, id)).run()
 
   const tuples = await readTuples(`document:${id}`)
   for (const t of tuples) {

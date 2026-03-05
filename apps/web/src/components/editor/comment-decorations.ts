@@ -1,4 +1,11 @@
-import { Extension, Range, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state'
+import {
+  Extension,
+  Range,
+  RangeSet,
+  RangeSetBuilder,
+  StateEffect,
+  StateField,
+} from '@codemirror/state'
 import {
   Decoration,
   DecorationSet,
@@ -50,12 +57,10 @@ function decodeRelativePosition(value: unknown): Y.RelativePosition | null {
 function parseSuggestion(value: unknown): SuggestionData | undefined {
   if (!(value instanceof Y.Map)) return undefined
 
-  const originalText = typeof value.get('originalText') === 'string'
-    ? value.get('originalText') as string
-    : ''
-  const proposedText = typeof value.get('proposedText') === 'string'
-    ? value.get('proposedText') as string
-    : ''
+  const originalText =
+    typeof value.get('originalText') === 'string' ? (value.get('originalText') as string) : ''
+  const proposedText =
+    typeof value.get('proposedText') === 'string' ? (value.get('proposedText') as string) : ''
   const rawStatus = value.get('status')
   const status = rawStatus === 'accepted' || rawStatus === 'dismissed' ? rawStatus : 'pending'
 
@@ -111,15 +116,20 @@ export function listAnchoredCommentRanges(
     const from = Math.min(absoluteStart.index, absoluteEnd.index)
     const to = Math.max(absoluteStart.index, absoluteEnd.index)
     const suggestion = parseSuggestion(value.get('suggestion'))
-    const resolved = value.get('resolved') === true || suggestion?.status === 'accepted' || suggestion?.status === 'dismissed'
+    const resolved =
+      value.get('resolved') === true ||
+      suggestion?.status === 'accepted' ||
+      suggestion?.status === 'dismissed'
 
-    return [{
-      id,
-      from,
-      to,
-      resolved,
-      suggestion,
-    }]
+    return [
+      {
+        id,
+        from,
+        to,
+        resolved,
+        suggestion,
+      },
+    ]
   })
 }
 
@@ -190,7 +200,11 @@ function buildCommentDecorations(
 
   const markerBuilder = new RangeSetBuilder<GutterMarker>()
   for (const [lineFrom, flags] of lineMap) {
-    markerBuilder.add(lineFrom, lineFrom, new CommentGutterMarker(flags.active, !flags.hasUnresolved))
+    markerBuilder.add(
+      lineFrom,
+      lineFrom,
+      new CommentGutterMarker(flags.active, !flags.hasUnresolved),
+    )
   }
 
   return {
@@ -384,43 +398,45 @@ export function createCommentDecorations(options: CommentDecorationsOptions): Ex
     },
   })
 
-  const yCommentObserverPlugin = ViewPlugin.fromClass(class {
-    private recalcTimer: ReturnType<typeof setTimeout> | null = null
+  const yCommentObserverPlugin = ViewPlugin.fromClass(
+    class {
+      private recalcTimer: ReturnType<typeof setTimeout> | null = null
 
-    constructor(private readonly view: EditorView) {
-      options.ycomments.observeDeep(this.handleCommentChange)
-    }
+      constructor(private readonly view: EditorView) {
+        options.ycomments.observeDeep(this.handleCommentChange)
+      }
 
-    update(update: ViewUpdate) {
-      if (update.docChanged) {
+      update(update: ViewUpdate) {
+        if (update.docChanged) {
+          this.scheduleRecalc()
+        }
+        if (hasRecalcEffect(update) && this.recalcTimer) {
+          clearTimeout(this.recalcTimer)
+          this.recalcTimer = null
+        }
+      }
+
+      destroy() {
+        options.ycomments.unobserveDeep(this.handleCommentChange)
+        if (this.recalcTimer) {
+          clearTimeout(this.recalcTimer)
+          this.recalcTimer = null
+        }
+      }
+
+      private readonly handleCommentChange = () => {
         this.scheduleRecalc()
       }
-      if (hasRecalcEffect(update) && this.recalcTimer) {
-        clearTimeout(this.recalcTimer)
-        this.recalcTimer = null
+
+      private scheduleRecalc() {
+        if (this.recalcTimer) return
+        this.recalcTimer = setTimeout(() => {
+          this.recalcTimer = null
+          this.view.dispatch({ effects: recalcCommentDecorationsEffect.of(Date.now()) })
+        }, COMMENT_RECALC_DEBOUNCE_MS)
       }
-    }
-
-    destroy() {
-      options.ycomments.unobserveDeep(this.handleCommentChange)
-      if (this.recalcTimer) {
-        clearTimeout(this.recalcTimer)
-        this.recalcTimer = null
-      }
-    }
-
-    private readonly handleCommentChange = () => {
-      this.scheduleRecalc()
-    }
-
-    private scheduleRecalc() {
-      if (this.recalcTimer) return
-      this.recalcTimer = setTimeout(() => {
-        this.recalcTimer = null
-        this.view.dispatch({ effects: recalcCommentDecorationsEffect.of(Date.now()) })
-      }, COMMENT_RECALC_DEBOUNCE_MS)
-    }
-  })
+    },
+  )
 
   return [
     commentDecorationField,

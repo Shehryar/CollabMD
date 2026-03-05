@@ -57,48 +57,144 @@ async function smokeTest() {
 
     // --- Test 1: Owner permissions ---
     console.log('\n--- Owner permissions ---')
-    await assert('owner can_edit', () => checkPermission('alice', 'can_edit', 'document', 'readme'), true)
-    await assert('owner can_comment', () => checkPermission('alice', 'can_comment', 'document', 'readme'), true)
-    await assert('owner can_view', () => checkPermission('alice', 'can_view', 'document', 'readme'), true)
+    await assert(
+      'owner can_edit',
+      () => checkPermission('alice', 'can_edit', 'document', 'readme'),
+      true,
+    )
+    await assert(
+      'owner can_comment',
+      () => checkPermission('alice', 'can_comment', 'document', 'readme'),
+      true,
+    )
+    await assert(
+      'owner can_view',
+      () => checkPermission('alice', 'can_view', 'document', 'readme'),
+      true,
+    )
 
     // --- Test 2: Org admin -> folder editor -> document editor (inheritance) ---
     console.log('\n--- Org admin inherits editor via folder ---')
-    await assert('admin can_edit folder', () => checkPermission('bob', 'can_edit', 'folder', 'project-x'), true)
-    await assert('admin can_view folder', () => checkPermission('bob', 'can_view', 'folder', 'project-x'), true)
-    await assert('admin can_edit doc (via folder)', () => checkPermission('bob', 'can_edit', 'document', 'readme'), true)
-    await assert('admin can_comment doc (via folder)', () => checkPermission('bob', 'can_comment', 'document', 'readme'), true)
-    await assert('admin can_view doc (via folder)', () => checkPermission('bob', 'can_view', 'document', 'readme'), true)
+    await assert(
+      'admin can_edit folder',
+      () => checkPermission('bob', 'can_edit', 'folder', 'project-x'),
+      true,
+    )
+    await assert(
+      'admin can_view folder',
+      () => checkPermission('bob', 'can_view', 'folder', 'project-x'),
+      true,
+    )
+    await assert(
+      'admin can_edit doc (via folder)',
+      () => checkPermission('bob', 'can_edit', 'document', 'readme'),
+      true,
+    )
+    await assert(
+      'admin can_comment doc (via folder)',
+      () => checkPermission('bob', 'can_comment', 'document', 'readme'),
+      true,
+    )
+    await assert(
+      'admin can_view doc (via folder)',
+      () => checkPermission('bob', 'can_view', 'document', 'readme'),
+      true,
+    )
 
     // --- Test 3: Org member -> folder viewer -> document commenter (inheritance) ---
     console.log('\n--- Org member inherits viewer on folder, commenter on doc ---')
-    await assert('member can_view folder', () => checkPermission('charlie', 'can_view', 'folder', 'project-x'), true)
-    await assert('member cannot can_edit folder', () => checkPermission('charlie', 'can_edit', 'folder', 'project-x'), false)
-    await assert('member can_comment doc (via folder viewer)', () => checkPermission('charlie', 'can_comment', 'document', 'readme'), true)
-    await assert('member can_view doc (via folder viewer)', () => checkPermission('charlie', 'can_view', 'document', 'readme'), true)
-    await assert('member cannot can_edit doc', () => checkPermission('charlie', 'can_edit', 'document', 'readme'), false)
+    await assert(
+      'member can_view folder',
+      () => checkPermission('charlie', 'can_view', 'folder', 'project-x'),
+      true,
+    )
+    await assert(
+      'member cannot can_edit folder',
+      () => checkPermission('charlie', 'can_edit', 'folder', 'project-x'),
+      false,
+    )
+    await assert(
+      'member can_comment doc (via folder viewer)',
+      () => checkPermission('charlie', 'can_comment', 'document', 'readme'),
+      true,
+    )
+    await assert(
+      'member can_view doc (via folder viewer)',
+      () => checkPermission('charlie', 'can_view', 'document', 'readme'),
+      true,
+    )
+    await assert(
+      'member cannot can_edit doc',
+      () => checkPermission('charlie', 'can_edit', 'document', 'readme'),
+      false,
+    )
 
     // --- Test 4: Direct editor on document ---
     console.log('\n--- Direct editor grants ---')
-    await assert('editor can_edit', () => checkPermission('dave', 'can_edit', 'document', 'notes'), true)
-    await assert('editor can_comment', () => checkPermission('dave', 'can_comment', 'document', 'notes'), true)
-    await assert('editor can_view', () => checkPermission('dave', 'can_view', 'document', 'notes'), true)
+    await assert(
+      'editor can_edit',
+      () => checkPermission('dave', 'can_edit', 'document', 'notes'),
+      true,
+    )
+    await assert(
+      'editor can_comment',
+      () => checkPermission('dave', 'can_comment', 'document', 'notes'),
+      true,
+    )
+    await assert(
+      'editor can_view',
+      () => checkPermission('dave', 'can_view', 'document', 'notes'),
+      true,
+    )
 
     // --- Test 5: Direct commenter on document ---
     console.log('\n--- Direct commenter grants ---')
-    await assert('commenter cannot can_edit', () => checkPermission('eve', 'can_edit', 'document', 'notes'), false)
-    await assert('commenter can_comment', () => checkPermission('eve', 'can_comment', 'document', 'notes'), true)
-    await assert('commenter can_view', () => checkPermission('eve', 'can_view', 'document', 'notes'), true)
+    await assert(
+      'commenter cannot can_edit',
+      () => checkPermission('eve', 'can_edit', 'document', 'notes'),
+      false,
+    )
+    await assert(
+      'commenter can_comment',
+      () => checkPermission('eve', 'can_comment', 'document', 'notes'),
+      true,
+    )
+    await assert(
+      'commenter can_view',
+      () => checkPermission('eve', 'can_view', 'document', 'notes'),
+      true,
+    )
 
     // --- Test 6: Direct viewer on document ---
     console.log('\n--- Direct viewer grants ---')
-    await assert('viewer cannot can_edit', () => checkPermission('frank', 'can_edit', 'document', 'notes'), false)
-    await assert('viewer cannot can_comment', () => checkPermission('frank', 'can_comment', 'document', 'notes'), false)
-    await assert('viewer can_view', () => checkPermission('frank', 'can_view', 'document', 'notes'), true)
+    await assert(
+      'viewer cannot can_edit',
+      () => checkPermission('frank', 'can_edit', 'document', 'notes'),
+      false,
+    )
+    await assert(
+      'viewer cannot can_comment',
+      () => checkPermission('frank', 'can_comment', 'document', 'notes'),
+      false,
+    )
+    await assert(
+      'viewer can_view',
+      () => checkPermission('frank', 'can_view', 'document', 'notes'),
+      true,
+    )
 
     // --- Test 7: No access ---
     console.log('\n--- No access ---')
-    await assert('stranger cannot can_view', () => checkPermission('stranger', 'can_view', 'document', 'readme'), false)
-    await assert('stranger cannot can_edit', () => checkPermission('stranger', 'can_edit', 'document', 'notes'), false)
+    await assert(
+      'stranger cannot can_view',
+      () => checkPermission('stranger', 'can_view', 'document', 'readme'),
+      false,
+    )
+    await assert(
+      'stranger cannot can_edit',
+      () => checkPermission('stranger', 'can_edit', 'document', 'notes'),
+      false,
+    )
 
     // --- Results ---
     console.log(`\n${passed} passed, ${failed} failed`)

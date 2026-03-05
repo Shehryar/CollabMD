@@ -77,7 +77,9 @@ WantedBy=default.target
 `
     writeFileSync(target, service)
     console.log(`Installed systemd user service at ${target}`)
-    console.log('Start with: systemctl --user daemon-reload && systemctl --user enable --now collabmd.service')
+    console.log(
+      'Start with: systemctl --user daemon-reload && systemctl --user enable --now collabmd.service',
+    )
     console.log('Check with: systemctl --user status collabmd.service')
     return
   }
@@ -119,7 +121,9 @@ export function serviceStatusCommand(): void {
   }
 
   if (platform() === 'linux') {
-    const result = spawnSync('systemctl', ['--user', 'status', 'collabmd.service', '--no-pager'], { encoding: 'utf-8' })
+    const result = spawnSync('systemctl', ['--user', 'status', 'collabmd.service', '--no-pager'], {
+      encoding: 'utf-8',
+    })
     if (result.status === 0) {
       console.log('running (systemd)')
       console.log(result.stdout.trim())
@@ -159,4 +163,3 @@ export function serviceControlCommand(action: 'start' | 'stop' | 'restart'): voi
 
   console.log(`Service ${action} is currently supported on macOS and Linux only.`)
 }
-

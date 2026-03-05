@@ -84,10 +84,7 @@ function createMsgQueue(ws: WebSocket): MsgQueue {
   }
 }
 
-function connectWs(
-  port: number,
-  room: string,
-): Promise<{ ws: WebSocket; msgs: MsgQueue }> {
+function connectWs(port: number, room: string): Promise<{ ws: WebSocket; msgs: MsgQueue }> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://localhost:${port}/${room}`)
     ws.binaryType = 'arraybuffer'
@@ -495,7 +492,11 @@ describe('WebSocket agent policy', () => {
         verifyResult: validPayload,
         permissions: { can_view: true, can_edit: true },
       }),
-      checkAgentPolicy: async () => ({ allowed: false, code: 4450, reason: 'Agent editing disabled' }),
+      checkAgentPolicy: async () => ({
+        allowed: false,
+        code: 4450,
+        reason: 'Agent editing disabled',
+      }),
     })
 
     const ws = new WebSocket(`ws://localhost:${port}/my-doc`, {
@@ -515,7 +516,11 @@ describe('WebSocket agent policy', () => {
         verifyResult: validPayload,
         permissions: { can_view: true, can_edit: true },
       }),
-      checkAgentPolicy: async () => ({ allowed: false, code: 4451, reason: 'Document not agent-editable' }),
+      checkAgentPolicy: async () => ({
+        allowed: false,
+        code: 4451,
+        reason: 'Document not agent-editable',
+      }),
     })
 
     const ws = new WebSocket(`ws://localhost:${port}/my-doc`, {
@@ -732,7 +737,9 @@ describe('sync server coverage gaps', () => {
         const update = decoding.readVarUint8Array(dec)
         const applied = new awarenessProtocol.Awareness(new Y.Doc())
         awarenessProtocol.applyAwarenessUpdate(applied, update, null)
-        const states = Array.from(applied.getStates().values()) as Array<{ user?: { name?: string } }>
+        const states = Array.from(applied.getStates().values()) as Array<{
+          user?: { name?: string }
+        }>
         if (states.some((s) => s.user?.name === 'Test')) {
           receivedTestAwareness = true
           break
@@ -793,8 +800,8 @@ describe('sync server coverage gaps', () => {
     let unexpectedUncaughtError: Error | null = null
     const onUncaughtException = (error: Error) => {
       if (
-        error.message.includes('Max payload size exceeded')
-        || (error as { code?: string }).code === 'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH'
+        error.message.includes('Max payload size exceeded') ||
+        (error as { code?: string }).code === 'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH'
       ) {
         return
       }
@@ -1137,7 +1144,8 @@ describe('sync server coverage gaps', () => {
       auth: {
         verifyToken: async () => validPayload,
         verifySessionCookie: async () => validPayload,
-        checkPermission: async (_userId, relation) => relation === 'can_view' || relation === 'can_edit',
+        checkPermission: async (_userId, relation) =>
+          relation === 'can_view' || relation === 'can_edit',
       },
       checkAgentPolicy: async (roomName, source) => {
         calls.push({ room: roomName, source })

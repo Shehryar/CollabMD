@@ -14,7 +14,6 @@ import {
   toAbsoluteCommentRange,
   useComments,
 } from './use-comments'
-
 ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let root: Root | null = null
@@ -87,7 +86,7 @@ describe('comment CRDT operations', () => {
     expect(resolved).toBe(true)
 
     const stored = ycomments.get(0)
-    const thread = stored.get('thread') as Y.Array<Y.Map<any>>
+    const thread = stored.get('thread') as Y.Array<Y.Map<unknown>>
 
     expect(stored.get('authorName')).toBe('Alice')
     expect(stored.get('resolved')).toBe(true)
@@ -180,7 +179,7 @@ describe('comment CRDT operations', () => {
     expect(accepted).toBe(true)
     expect(ytext.toString()).toBe('hello team')
 
-    const suggestion = (ycomments.get(0).get('suggestion') as Y.Map<unknown>)
+    const suggestion = ycomments.get(0).get('suggestion') as Y.Map<unknown>
     expect(suggestion.get('status')).toBe('accepted')
     expect(ycomments.get(0).get('resolved')).toBe(true)
   })
@@ -211,7 +210,7 @@ describe('comment CRDT operations', () => {
 
     expect(dismissed).toBe(true)
     expect(ytext.toString()).toBe('hello world')
-    const suggestion = (ycomments.get(0).get('suggestion') as Y.Map<unknown>)
+    const suggestion = ycomments.get(0).get('suggestion') as Y.Map<unknown>
     expect(suggestion.get('status')).toBe('dismissed')
     expect(ycomments.get(0).get('resolved')).toBe(true)
   })

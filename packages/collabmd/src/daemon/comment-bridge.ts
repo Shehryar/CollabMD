@@ -71,7 +71,9 @@ export class CommentBridge {
   private fileWatcher: FileWatcher
   private writeDebounceMs: number
   private writeTimer: NodeJS.Timeout | null = null
-  private observer: ((events: Y.YEvent<Y.AbstractType<unknown>>[], transaction: Y.Transaction) => void) | null = null
+  private observer:
+    | ((events: Y.YEvent<Y.AbstractType<unknown>>[], transaction: Y.Transaction) => void)
+    | null = null
   private lastSidecarHash = ''
   private processedMentions = new Set<string>()
   private responseHashes = new Map<string, string>()
@@ -143,12 +145,14 @@ export class CommentBridge {
       resolved?: unknown
     }
 
-    const commentId = this.asString(payload.commentId).trim() || basename(responseRelativePath, '.response.json')
+    const commentId =
+      this.asString(payload.commentId).trim() || basename(responseRelativePath, '.response.json')
     const text = this.asString(payload.replyText).trim() || this.asString(payload.text).trim()
     if (!commentId || !text) return
-    const author = this.asString(payload.author).trim()
-      || this.asString(payload.mentionedAgent).trim()
-      || 'Agent'
+    const author =
+      this.asString(payload.author).trim() ||
+      this.asString(payload.mentionedAgent).trim() ||
+      'Agent'
     const createdAt = new Date().toISOString()
     const shouldResolve = payload.resolved === true
 
@@ -157,9 +161,10 @@ export class CommentBridge {
 
     this.ydoc.transact(() => {
       const threadValue = comment.get('thread')
-      const thread = threadValue instanceof Y.Array
-        ? threadValue as Y.Array<Y.Map<unknown>>
-        : new Y.Array<Y.Map<unknown>>()
+      const thread =
+        threadValue instanceof Y.Array
+          ? (threadValue as Y.Array<Y.Map<unknown>>)
+          : new Y.Array<Y.Map<unknown>>()
       if (!(threadValue instanceof Y.Array)) comment.set('thread', thread)
 
       const reply = new Y.Map<unknown>()
@@ -244,13 +249,17 @@ export class CommentBridge {
     }
 
     if (!parsed || typeof parsed !== 'object') {
-      console.warn(`[CommentBridge] Invalid sidecar payload in ${this.sidecarRelativePath}; skipping.`)
+      console.warn(
+        `[CommentBridge] Invalid sidecar payload in ${this.sidecarRelativePath}; skipping.`,
+      )
       return
     }
 
     const payload = parsed as { comments?: unknown }
     if (!Array.isArray(payload.comments)) {
-      console.warn(`[CommentBridge] Missing comments array in ${this.sidecarRelativePath}; skipping.`)
+      console.warn(
+        `[CommentBridge] Missing comments array in ${this.sidecarRelativePath}; skipping.`,
+      )
       return
     }
 
@@ -273,7 +282,10 @@ export class CommentBridge {
         if (!current) {
           const created = this.createYComment(comment)
           this.ycomments.push([created])
-          if (comment.suggestion?.status === 'accepted' || comment.suggestion?.status === 'dismissed') {
+          if (
+            comment.suggestion?.status === 'accepted' ||
+            comment.suggestion?.status === 'dismissed'
+          ) {
             const createdSuggestion = created.get('suggestion')
             if (createdSuggestion instanceof Y.Map) {
               createdSuggestion.set('status', 'pending')
@@ -330,8 +342,14 @@ export class CommentBridge {
     const endIndex = this.indexAtLineStart(comment.endLine)
 
     ycomment.set('id', comment.id)
-    ycomment.set('anchorStart', Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(this.ytext, startIndex)))
-    ycomment.set('anchorEnd', Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(this.ytext, endIndex)))
+    ycomment.set(
+      'anchorStart',
+      Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(this.ytext, startIndex)),
+    )
+    ycomment.set(
+      'anchorEnd',
+      Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(this.ytext, endIndex)),
+    )
     ycomment.set('authorId', comment.author)
     ycomment.set('authorName', comment.author)
     ycomment.set('source', comment.source)
@@ -364,7 +382,10 @@ export class CommentBridge {
     return ysuggestion
   }
 
-  private syncSuggestion(comment: Y.Map<unknown>, incomingSuggestion: SidecarSuggestion | undefined): void {
+  private syncSuggestion(
+    comment: Y.Map<unknown>,
+    incomingSuggestion: SidecarSuggestion | undefined,
+  ): void {
     if (!incomingSuggestion) return
 
     const suggestion = this.ensureSuggestionMap(comment, incomingSuggestion)
@@ -382,18 +403,23 @@ export class CommentBridge {
     if (!incomingSuggestion) return
 
     const previous = comment.get('suggestion')
-    const previousStatus = previous instanceof Y.Map
-      ? this.asSuggestionStatus(previous.get('status'))
-      : null
+    const previousStatus =
+      previous instanceof Y.Map ? this.asSuggestionStatus(previous.get('status')) : null
     const suggestion = this.ensureSuggestionMap(comment, incomingSuggestion)
     if (!suggestion) return
 
     const currentStatus = previousStatus ?? this.asSuggestionStatus(suggestion.get('status'))
-    if (incomingSuggestion.status === 'accepted' && (currentStatus === null || currentStatus === 'pending')) {
+    if (
+      incomingSuggestion.status === 'accepted' &&
+      (currentStatus === null || currentStatus === 'pending')
+    ) {
       actions.push({ commentId: this.asString(comment.get('id')), status: 'accepted' })
       return
     }
-    if (incomingSuggestion.status === 'dismissed' && (currentStatus === null || currentStatus === 'pending')) {
+    if (
+      incomingSuggestion.status === 'dismissed' &&
+      (currentStatus === null || currentStatus === 'pending')
+    ) {
       actions.push({ commentId: this.asString(comment.get('id')), status: 'dismissed' })
       return
     }
@@ -490,9 +516,10 @@ export class CommentBridge {
 
   private syncThreadReplies(comment: Y.Map<unknown>, incomingThread: SidecarThreadEntry[]): void {
     const currentThread = comment.get('thread')
-    const thread = currentThread instanceof Y.Array
-      ? currentThread as Y.Array<Y.Map<unknown>>
-      : new Y.Array<Y.Map<unknown>>()
+    const thread =
+      currentThread instanceof Y.Array
+        ? (currentThread as Y.Array<Y.Map<unknown>>)
+        : new Y.Array<Y.Map<unknown>>()
     if (!(currentThread instanceof Y.Array)) comment.set('thread', thread)
 
     const existingSignatures = new Set<string>()
@@ -580,13 +607,9 @@ export class CommentBridge {
     const range = this.getCommentRange(comment)
     const content = this.ytext.toString()
 
-    const anchorText = range
-      ? content.slice(Math.max(0, range.from), Math.max(0, range.to))
-      : ''
+    const anchorText = range ? content.slice(Math.max(0, range.from), Math.max(0, range.to)) : ''
 
-    const surroundingContext = range
-      ? this.getSurroundingContext(range.from, range.to)
-      : content
+    const surroundingContext = range ? this.getSurroundingContext(range.from, range.to) : content
 
     return {
       commentId,
@@ -631,7 +654,12 @@ export class CommentBridge {
     const anchorEnd = value.get('anchorEnd')
     const text = this.asString(value.get('text')).trim()
 
-    if (!id || !(anchorStart instanceof Uint8Array) || !(anchorEnd instanceof Uint8Array) || !text) {
+    if (
+      !id ||
+      !(anchorStart instanceof Uint8Array) ||
+      !(anchorEnd instanceof Uint8Array) ||
+      !text
+    ) {
       return null
     }
 

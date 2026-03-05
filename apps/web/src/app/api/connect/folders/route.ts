@@ -13,7 +13,7 @@ interface SyncConnection {
 interface ConnectedFolder {
   folderId: string | null
   folderName: string
-  status: 'synced' | 'disconnected'
+  status: 'synced' | 'syncing' | 'disconnected'
   fileCount: number
   lastSync: string
 }
@@ -66,38 +66,42 @@ export async function GET() {
       updatedAt: documents.updatedAt,
     })
     .from(documents)
-    .where(and(
-      eq(documents.orgId, orgId),
-      eq(documents.ownerId, session.user.id),
-      eq(documents.source, 'daemon'),
-      isNull(documents.deletedAt),
-    ))
+    .where(
+      and(
+        eq(documents.orgId, orgId),
+        eq(documents.ownerId, session.user.id),
+        eq(documents.source, 'daemon'),
+        isNull(documents.deletedAt),
+      ),
+    )
     .all()
 
   if (daemonDocs.length === 0) {
     return NextResponse.json([])
   }
 
-  const folderIds = Array.from(new Set(
-    daemonDocs
-      .map((doc) => doc.folderId)
-      .filter((id): id is string => id !== null),
-  ))
-  const folderRows = folderIds.length > 0
-    ? db
-      .select({ id: folders.id, name: folders.name })
-      .from(folders)
-      .where(inArray(folders.id, folderIds))
-      .all()
-    : []
+  const folderIds = Array.from(
+    new Set(daemonDocs.map((doc) => doc.folderId).filter((id): id is string => id !== null)),
+  )
+  const folderRows =
+    folderIds.length > 0
+      ? db
+          .select({ id: folders.id, name: folders.name })
+          .from(folders)
+          .where(inArray(folders.id, folderIds))
+          .all()
+      : []
   const folderNameById = new Map(folderRows.map((folder) => [folder.id, folder.name]))
 
-  const aggregate = new Map<string, {
-    folderId: string | null
-    fileCount: number
-    lastSyncMs: number
-    hasActiveConnection: boolean
-  }>()
+  const aggregate = new Map<
+    string,
+    {
+      folderId: string | null
+      fileCount: number
+      lastSyncMs: number
+      hasActiveConnection: boolean
+    }
+  >()
 
   for (const doc of daemonDocs) {
     const key = doc.folderId ?? '__root__'
@@ -116,13 +120,24 @@ export async function GET() {
     aggregate.set(key, current)
   }
 
-  const connectedFolders: ConnectedFolder[] = Array.from(aggregate.values()).map((entry) => ({
-    folderId: entry.folderId,
-    folderName: entry.folderId === null ? 'Root' : (folderNameById.get(entry.folderId) ?? 'Unknown folder'),
-    status: entry.hasActiveConnection ? 'synced' : 'disconnected',
-    fileCount: entry.fileCount,
-    lastSync: new Date(entry.lastSyncMs || Date.now()).toISOString(),
-  }))
+  const now = Date.now()
+  const SYNCING_THRESHOLD_MS = 10_000
+
+  const connectedFolders: ConnectedFolder[] = Array.from(aggregate.values()).map((entry) => {
+    let status: ConnectedFolder['status'] = 'disconnected'
+    if (entry.hasActiveConnection) {
+      const recency = now - entry.lastSyncMs
+      status = recency < SYNCING_THRESHOLD_MS ? 'syncing' : 'synced'
+    }
+    return {
+      folderId: entry.folderId,
+      folderName:
+        entry.folderId === null ? 'Root' : (folderNameById.get(entry.folderId) ?? 'Unknown folder'),
+      status,
+      fileCount: entry.fileCount,
+      lastSync: new Date(entry.lastSyncMs || Date.now()).toISOString(),
+    }
+  })
 
   connectedFolders.sort((a, b) => a.folderName.localeCompare(b.folderName))
   return NextResponse.json(connectedFolders)

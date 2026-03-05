@@ -22,13 +22,7 @@ function folderLinkedKey(orgId: string): string {
   return `collabmd:connect:folder-linked:${orgId}`
 }
 
-function CommandBlock({
-  command,
-  onCopied,
-}: {
-  command: string
-  onCopied: () => void
-}) {
+function CommandBlock({ command, onCopied }: { command: string; onCopied: () => void }) {
   return (
     <div className="mt-2 flex items-center gap-2 rounded border border-border bg-bg-subtle px-3 py-2">
       <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-[12px] text-fg">
@@ -64,7 +58,9 @@ export default function ConnectPage() {
   const [cliAuthenticated, setCliAuthenticated] = useState(false)
   const [folderLinked, setFolderLinked] = useState(false)
   const [daemonConnected, setDaemonConnected] = useState(false)
-  const [folders, setFolders] = useState<Array<{ id?: string; path?: string; fileCount?: number }>>([])
+  const [folders, setFolders] = useState<Array<{ id?: string; path?: string; fileCount?: number }>>(
+    [],
+  )
 
   useEffect(() => {
     const detected = detectPlatform(navigator.userAgent)
@@ -94,7 +90,7 @@ export default function ConnectPage() {
       try {
         const res = await fetch(`/api/connect/status${qs}`, { cache: 'no-store' })
         if (!res.ok) return
-        const status = await res.json() as { cliAuthenticated: boolean; daemonConnected: boolean }
+        const status = (await res.json()) as { cliAuthenticated: boolean; daemonConnected: boolean }
         if (cancelled) return
 
         setCliAuthenticated(status.cliAuthenticated)
@@ -132,7 +128,7 @@ export default function ConnectPage() {
       try {
         const res = await fetch('/api/connect/folders')
         if (!res.ok) return
-        const data = await res.json() as Array<{ id?: string; path?: string; fileCount?: number }>
+        const data = (await res.json()) as Array<{ id?: string; path?: string; fileCount?: number }>
         if (!cancelled) setFolders(data)
       } catch {
         // Ignore while sync-server integration is pending.
@@ -168,24 +164,31 @@ export default function ConnectPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
-      <h1 className="font-mono text-[18px] font-semibold tracking-[-0.03em] text-fg">Connect local folder</h1>
+      <h1 className="font-mono text-[18px] font-semibold tracking-[-0.03em] text-fg">
+        Connect local folder
+      </h1>
       <p className="mt-1 font-sans text-sm text-fg-secondary">
         Install the CLI, authenticate, and link a folder to sync markdown files into CollabMD.
       </p>
 
       <div className="mt-4">
-        <p className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">One-command shortcut</p>
-        <CommandBlock command={oneCommand} onCopied={() => setCopiedMessage('Copied shortcut command')} />
+        <p className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+          One-command shortcut
+        </p>
+        <CommandBlock
+          command={oneCommand}
+          onCopied={() => setCopiedMessage('Copied shortcut command')}
+        />
       </div>
 
-      {copiedMessage && (
-        <p className="mt-2 font-mono text-[11px] text-green">{copiedMessage}</p>
-      )}
+      {copiedMessage && <p className="mt-2 font-mono text-[11px] text-green">{copiedMessage}</p>}
 
       <div className="mt-6 space-y-4">
         <section className="rounded border border-border bg-bg p-4">
           <div className="flex items-start gap-3">
-            <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] ${stepCircleClass(1)}`}>
+            <span
+              className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] ${stepCircleClass(1)}`}
+            >
               1
             </span>
             <div className="min-w-0 flex-1">
@@ -203,7 +206,10 @@ export default function ConnectPage() {
                   </button>
                 ))}
               </div>
-              <CommandBlock command={installCommand} onCopied={() => setCopiedMessage('Copied install command')} />
+              <CommandBlock
+                command={installCommand}
+                onCopied={() => setCopiedMessage('Copied install command')}
+              />
               <button
                 onClick={() => {
                   if (!orgId) return
@@ -220,7 +226,9 @@ export default function ConnectPage() {
 
         <section className="rounded border border-border bg-bg p-4">
           <div className="flex items-start gap-3">
-            <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] ${stepCircleClass(2)}`}>
+            <span
+              className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] ${stepCircleClass(2)}`}
+            >
               2
             </span>
             <div className="min-w-0 flex-1">
@@ -228,9 +236,16 @@ export default function ConnectPage() {
               <p className="mt-1 font-sans text-xs text-fg-muted">
                 Run this command and complete the browser callback.
               </p>
-              <CommandBlock command={loginCommand} onCopied={() => setCopiedMessage('Copied login command')} />
-              <p className={`mt-2 font-mono text-[11px] ${cliAuthenticated ? 'text-green' : 'text-fg-muted'}`}>
-                {cliAuthenticated ? 'Authenticated via CLI callback.' : 'Waiting for CLI authentication...'}
+              <CommandBlock
+                command={loginCommand}
+                onCopied={() => setCopiedMessage('Copied login command')}
+              />
+              <p
+                className={`mt-2 font-mono text-[11px] ${cliAuthenticated ? 'text-green' : 'text-fg-muted'}`}
+              >
+                {cliAuthenticated
+                  ? 'Authenticated via CLI callback.'
+                  : 'Waiting for CLI authentication...'}
               </p>
             </div>
           </div>
@@ -238,15 +253,27 @@ export default function ConnectPage() {
 
         <section className="rounded border border-border bg-bg p-4">
           <div className="flex items-start gap-3">
-            <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] ${stepCircleClass(3)}`}>
+            <span
+              className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] ${stepCircleClass(3)}`}
+            >
               3
             </span>
             <div className="min-w-0 flex-1">
               <h2 className="font-mono text-[13px] text-fg">Link a folder</h2>
-              <CommandBlock command={linkCommand} onCopied={() => setCopiedMessage('Copied link command')} />
-              <CommandBlock command={devCommand} onCopied={() => setCopiedMessage('Copied dev command')} />
-              <p className={`mt-2 font-mono text-[11px] ${isStep3Done ? 'text-green' : 'text-fg-muted'}`}>
-                {isStep3Done ? 'Daemon connection detected.' : 'Waiting for daemon sync connection...'}
+              <CommandBlock
+                command={linkCommand}
+                onCopied={() => setCopiedMessage('Copied link command')}
+              />
+              <CommandBlock
+                command={devCommand}
+                onCopied={() => setCopiedMessage('Copied dev command')}
+              />
+              <p
+                className={`mt-2 font-mono text-[11px] ${isStep3Done ? 'text-green' : 'text-fg-muted'}`}
+              >
+                {isStep3Done
+                  ? 'Daemon connection detected.'
+                  : 'Waiting for daemon sync connection...'}
               </p>
               {!isStep3Done && orgId && (
                 <button
@@ -266,7 +293,9 @@ export default function ConnectPage() {
 
         <section className="rounded border border-border bg-bg p-4">
           <div className="flex items-start gap-3">
-            <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] ${stepCircleClass(4)}`}>
+            <span
+              className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] ${stepCircleClass(4)}`}
+            >
               4
             </span>
             <div className="min-w-0 flex-1">
@@ -274,17 +303,23 @@ export default function ConnectPage() {
               <p className="mt-1 font-sans text-xs text-fg-muted">
                 Keep the daemon running, or install it as a background service.
               </p>
-              <CommandBlock command={serviceCommand} onCopied={() => setCopiedMessage('Copied service command')} />
+              <CommandBlock
+                command={serviceCommand}
+                onCopied={() => setCopiedMessage('Copied service command')}
+              />
               {folders.length > 0 ? (
                 <ul className="mt-2 space-y-1 font-mono text-[11px] text-fg-secondary">
                   {folders.map((folder, idx) => (
                     <li key={folder.id ?? String(idx)}>
-                      {folder.path ?? 'Connected folder'} {folder.fileCount !== undefined ? `(${folder.fileCount} files)` : ''}
+                      {folder.path ?? 'Connected folder'}{' '}
+                      {folder.fileCount !== undefined ? `(${folder.fileCount} files)` : ''}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="mt-2 font-mono text-[11px] text-fg-muted">Folder metadata will appear once sync-server integration is enabled.</p>
+                <p className="mt-2 font-mono text-[11px] text-fg-muted">
+                  Folder metadata will appear once sync-server integration is enabled.
+                </p>
               )}
               <button
                 onClick={() => router.push('/')}
@@ -305,4 +340,3 @@ export default function ConnectPage() {
     </div>
   )
 }
-

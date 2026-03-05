@@ -58,30 +58,30 @@ collabmd/
 
 ## Stack
 
-| Layer | Technology |
-|-------|------------|
-| Language | TypeScript (strict) |
-| Web framework | Next.js 15 (App Router) |
-| Editor | CodeMirror 6 |
-| CRDT | Yjs |
-| Auth | Better Auth |
-| Permissions | OpenFGA |
-| ORM | Drizzle |
-| Database | SQLite (dev) / Postgres (prod) |
-| Styling | Tailwind CSS v4 |
+| Layer         | Technology                     |
+| ------------- | ------------------------------ |
+| Language      | TypeScript (strict)            |
+| Web framework | Next.js 15 (App Router)        |
+| Editor        | CodeMirror 6                   |
+| CRDT          | Yjs                            |
+| Auth          | Better Auth                    |
+| Permissions   | OpenFGA                        |
+| ORM           | Drizzle                        |
+| Database      | SQLite (dev) / Postgres (prod) |
+| Styling       | Tailwind CSS v4                |
 
 ## Environment Variables
 
 Key variables (see [.env.example](./.env.example) for the full list):
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `BETTER_AUTH_SECRET` | Random 32-char secret for session signing | Yes |
-| `BETTER_AUTH_URL` | Public URL of the web app | Yes |
-| `NEXT_PUBLIC_SYNC_URL` | WebSocket URL for the sync server | Yes |
-| `DATABASE_URL` | Postgres connection string (prod) | No |
-| `OPENFGA_URL` | OpenFGA server URL | No |
-| `RESEND_API_KEY` | Resend API key for transactional email | No |
+| Variable               | Description                               | Required |
+| ---------------------- | ----------------------------------------- | -------- |
+| `BETTER_AUTH_SECRET`   | Random 32-char secret for session signing | Yes      |
+| `BETTER_AUTH_URL`      | Public URL of the web app                 | Yes      |
+| `NEXT_PUBLIC_SYNC_URL` | WebSocket URL for the sync server         | Yes      |
+| `DATABASE_URL`         | Postgres connection string (prod)         | No       |
+| `OPENFGA_URL`          | OpenFGA server URL                        | No       |
+| `RESEND_API_KEY`       | Resend API key for transactional email    | No       |
 
 ## Contributing
 

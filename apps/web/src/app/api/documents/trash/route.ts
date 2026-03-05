@@ -12,12 +12,7 @@ export async function GET() {
   const trashed = db
     .select()
     .from(documents)
-    .where(
-      and(
-        eq(documents.ownerId, session.user.id),
-        isNotNull(documents.deletedAt),
-      ),
-    )
+    .where(and(eq(documents.ownerId, session.user.id), isNotNull(documents.deletedAt)))
     .orderBy(desc(documents.deletedAt))
     .all()
 

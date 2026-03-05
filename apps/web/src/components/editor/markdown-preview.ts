@@ -28,7 +28,7 @@ export const previewEnabled = StateField.define<boolean>({
 class LinkWidget extends WidgetType {
   constructor(
     readonly text: string,
-    readonly url: string
+    readonly url: string,
   ) {
     super()
   }
@@ -60,7 +60,11 @@ function isSafeLink(url: string): boolean {
   const trimmed = url.trim()
   if (!trimmed) return false
   const lower = trimmed.toLowerCase()
-  return !(lower.startsWith('javascript:') || lower.startsWith('data:') || lower.startsWith('vbscript:'))
+  return !(
+    lower.startsWith('javascript:') ||
+    lower.startsWith('data:') ||
+    lower.startsWith('vbscript:')
+  )
 }
 
 // --- Bullet widget ---
@@ -84,7 +88,7 @@ class CheckboxWidget extends WidgetType {
   constructor(
     readonly checked: boolean,
     readonly checkboxFrom: number,
-    readonly checkboxTo: number
+    readonly checkboxTo: number,
   ) {
     super()
   }
@@ -161,8 +165,7 @@ function buildDecorations(state: EditorState): DecorationSet {
       const cursorLine = state.doc.lineAt(cursorHead)
 
       const cursorOnNode =
-        cursorLine.number >= lineFrom.number &&
-        cursorLine.number <= lineTo.number
+        cursorLine.number >= lineFrom.number && cursorLine.number <= lineTo.number
 
       switch (node.name) {
         // --- Headings ---
@@ -188,21 +191,15 @@ function buildDecorations(state: EditorState): DecorationSet {
             if (markNode.from < markerTo) {
               if (cursorOnNode) {
                 decorations.push(
-                  Decoration.mark({ class: 'cm-md-marker' }).range(markNode.from, markerTo)
+                  Decoration.mark({ class: 'cm-md-marker' }).range(markNode.from, markerTo),
                 )
               } else {
-                decorations.push(
-                  Decoration.replace({}).range(markNode.from, markerTo)
-                )
+                decorations.push(Decoration.replace({}).range(markNode.from, markerTo))
               }
             }
           }
           // Apply heading style to the rest
-          decorations.push(
-            Decoration.line({ class: headingClasses[level] }).range(
-              lineFrom.from
-            )
-          )
+          decorations.push(Decoration.line({ class: headingClasses[level] }).range(lineFrom.from))
           break
         }
 
@@ -213,28 +210,15 @@ function buildDecorations(state: EditorState): DecorationSet {
           const marker = text.startsWith('**') ? '**' : '__'
           const mLen = marker.length
           if (cursorOnNode) {
-            decorations.push(
-              Decoration.mark({ class: 'cm-md-marker' }).range(from, from + mLen)
-            )
-            decorations.push(
-              Decoration.mark({ class: 'cm-md-marker' }).range(to - mLen, to)
-            )
+            decorations.push(Decoration.mark({ class: 'cm-md-marker' }).range(from, from + mLen))
+            decorations.push(Decoration.mark({ class: 'cm-md-marker' }).range(to - mLen, to))
           } else {
-            decorations.push(
-              Decoration.replace({}).range(from, from + mLen)
-            )
-            decorations.push(
-              Decoration.replace({}).range(to - mLen, to)
-            )
+            decorations.push(Decoration.replace({}).range(from, from + mLen))
+            decorations.push(Decoration.replace({}).range(to - mLen, to))
           }
           // Style the inner text
           if (from + mLen < to - mLen) {
-            decorations.push(
-              Decoration.mark({ class: 'cm-md-bold' }).range(
-                from + mLen,
-                to - mLen
-              )
-            )
+            decorations.push(Decoration.mark({ class: 'cm-md-bold' }).range(from + mLen, to - mLen))
           }
           break
         }
@@ -245,26 +229,22 @@ function buildDecorations(state: EditorState): DecorationSet {
           const marker = text.startsWith('*') ? '*' : '_'
           if (cursorOnNode) {
             decorations.push(
-              Decoration.mark({ class: 'cm-md-marker' }).range(from, from + marker.length)
+              Decoration.mark({ class: 'cm-md-marker' }).range(from, from + marker.length),
             )
             decorations.push(
-              Decoration.mark({ class: 'cm-md-marker' }).range(to - marker.length, to)
+              Decoration.mark({ class: 'cm-md-marker' }).range(to - marker.length, to),
             )
           } else {
-            decorations.push(
-              Decoration.replace({}).range(from, from + marker.length)
-            )
-            decorations.push(
-              Decoration.replace({}).range(to - marker.length, to)
-            )
+            decorations.push(Decoration.replace({}).range(from, from + marker.length))
+            decorations.push(Decoration.replace({}).range(to - marker.length, to))
           }
           // Style the inner text
           if (from + marker.length < to - marker.length) {
             decorations.push(
               Decoration.mark({ class: 'cm-md-italic' }).range(
                 from + marker.length,
-                to - marker.length
-              )
+                to - marker.length,
+              ),
             )
           }
           break
@@ -273,26 +253,15 @@ function buildDecorations(state: EditorState): DecorationSet {
         // --- Strikethrough ---
         case 'Strikethrough': {
           if (cursorOnNode) {
-            decorations.push(
-              Decoration.mark({ class: 'cm-md-marker' }).range(from, from + 2)
-            )
-            decorations.push(
-              Decoration.mark({ class: 'cm-md-marker' }).range(to - 2, to)
-            )
+            decorations.push(Decoration.mark({ class: 'cm-md-marker' }).range(from, from + 2))
+            decorations.push(Decoration.mark({ class: 'cm-md-marker' }).range(to - 2, to))
           } else {
-            decorations.push(
-              Decoration.replace({}).range(from, from + 2)
-            )
-            decorations.push(
-              Decoration.replace({}).range(to - 2, to)
-            )
+            decorations.push(Decoration.replace({}).range(from, from + 2))
+            decorations.push(Decoration.replace({}).range(to - 2, to))
           }
           if (from + 2 < to - 2) {
             decorations.push(
-              Decoration.mark({ class: 'cm-md-strikethrough' }).range(
-                from + 2,
-                to - 2
-              )
+              Decoration.mark({ class: 'cm-md-strikethrough' }).range(from + 2, to - 2),
             )
           }
           break
@@ -301,24 +270,14 @@ function buildDecorations(state: EditorState): DecorationSet {
         // --- Inline code ---
         case 'InlineCode': {
           if (cursorOnNode) {
-            decorations.push(
-              Decoration.mark({ class: 'cm-md-marker' }).range(from, from + 1)
-            )
-            decorations.push(
-              Decoration.mark({ class: 'cm-md-marker' }).range(to - 1, to)
-            )
+            decorations.push(Decoration.mark({ class: 'cm-md-marker' }).range(from, from + 1))
+            decorations.push(Decoration.mark({ class: 'cm-md-marker' }).range(to - 1, to))
           } else {
-            decorations.push(
-              Decoration.replace({}).range(from, from + 1)
-            )
-            decorations.push(
-              Decoration.replace({}).range(to - 1, to)
-            )
+            decorations.push(Decoration.replace({}).range(from, from + 1))
+            decorations.push(Decoration.replace({}).range(to - 1, to))
           }
           if (from + 1 < to - 1) {
-            decorations.push(
-              Decoration.mark({ class: 'cm-md-code' }).range(from + 1, to - 1)
-            )
+            decorations.push(Decoration.mark({ class: 'cm-md-code' }).range(from + 1, to - 1))
           }
           break
         }
@@ -326,9 +285,7 @@ function buildDecorations(state: EditorState): DecorationSet {
         // --- Code blocks ---
         case 'FencedCode': {
           if (cursorOnNode) break
-          decorations.push(
-            Decoration.mark({ class: 'cm-md-codeblock' }).range(from, to)
-          )
+          decorations.push(Decoration.mark({ class: 'cm-md-codeblock' }).range(from, to))
           break
         }
 
@@ -347,7 +304,7 @@ function buildDecorations(state: EditorState): DecorationSet {
             decorations.push(
               Decoration.replace({
                 widget: new LinkWidget(linkText, url),
-              }).range(from, to)
+              }).range(from, to),
             )
           }
           break
@@ -366,7 +323,7 @@ function buildDecorations(state: EditorState): DecorationSet {
               decorations.push(
                 Decoration.replace({
                   widget: new CheckboxWidget(true, checkboxFrom, checkboxTo),
-                }).range(from, to + 4)
+                }).range(from, to + 4),
               )
             } else if (afterMark.startsWith(' [ ]')) {
               const checkboxFrom = to + 1
@@ -374,13 +331,13 @@ function buildDecorations(state: EditorState): DecorationSet {
               decorations.push(
                 Decoration.replace({
                   widget: new CheckboxWidget(false, checkboxFrom, checkboxTo),
-                }).range(from, to + 4)
+                }).range(from, to + 4),
               )
             } else {
               decorations.push(
                 Decoration.replace({
                   widget: new BulletWidget(),
-                }).range(from, to)
+                }).range(from, to),
               )
             }
           }
@@ -393,7 +350,7 @@ function buildDecorations(state: EditorState): DecorationSet {
           decorations.push(
             Decoration.replace({
               widget: new HorizontalRuleWidget(),
-            }).range(from, to)
+            }).range(from, to),
           )
           break
         }
@@ -403,9 +360,7 @@ function buildDecorations(state: EditorState): DecorationSet {
           // Apply line decoration for each line in the blockquote
           for (let i = lineFrom.number; i <= lineTo.number; i++) {
             const line = state.doc.line(i)
-            decorations.push(
-              Decoration.line({ class: 'cm-md-blockquote' }).range(line.from)
-            )
+            decorations.push(Decoration.line({ class: 'cm-md-blockquote' }).range(line.from))
           }
           break
         }
@@ -431,9 +386,7 @@ export const markdownPreviewPlugin = ViewPlugin.fromClass(
         update.docChanged ||
         update.selectionSet ||
         update.viewportChanged ||
-        update.transactions.some((t) =>
-          t.effects.some((e) => e.is(togglePreviewEffect))
-        )
+        update.transactions.some((t) => t.effects.some((e) => e.is(togglePreviewEffect)))
       ) {
         this.decorations = buildDecorations(update.state)
       }
@@ -441,7 +394,7 @@ export const markdownPreviewPlugin = ViewPlugin.fromClass(
   },
   {
     decorations: (v) => v.decorations,
-  }
+  },
 )
 
 // --- Theme for preview decorations ---

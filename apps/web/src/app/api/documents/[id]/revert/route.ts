@@ -3,12 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { checkPermission } from '@collabmd/shared'
-import {
-  and,
-  db,
-  documentSnapshots,
-  eq,
-} from '@collabmd/db'
+import { and, db, documentSnapshots, eq } from '@collabmd/db'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireJsonContentType } from '@/lib/http'
 import { getSyncHttpUrl } from '@/lib/sync-url'
@@ -33,7 +28,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const body = await request.json() as { snapshotId?: string }
+  const body = (await request.json()) as { snapshotId?: string }
   if (!body.snapshotId) {
     return NextResponse.json({ error: 'snapshotId is required' }, { status: 400 })
   }
@@ -45,10 +40,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       createdAt: documentSnapshots.createdAt,
     })
     .from(documentSnapshots)
-    .where(and(
-      eq(documentSnapshots.id, body.snapshotId),
-      eq(documentSnapshots.documentId, docId),
-    ))
+    .where(and(eq(documentSnapshots.id, body.snapshotId), eq(documentSnapshots.documentId, docId)))
     .get()
 
   if (!targetSnapshot) {
@@ -75,15 +67,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const revertedLabel = `Reverted to ${targetTimestamp}`
   const now = new Date()
 
-  db.insert(documentSnapshots).values({
-    id: crypto.randomUUID(),
-    documentId: docId,
-    snapshot: currentStateBuffer,
-    createdAt: now,
-    createdBy: session.user.id,
-    isAgentEdit: false,
-    label: beforeRevertLabel,
-  }).run()
+  db.insert(documentSnapshots)
+    .values({
+      id: crypto.randomUUID(),
+      documentId: docId,
+      snapshot: currentStateBuffer,
+      createdAt: now,
+      createdBy: session.user.id,
+      isAgentEdit: false,
+      label: beforeRevertLabel,
+    })
+    .run()
 
   const replaceRes = await fetch(`${syncHttpUrl}/replace/${encodeURIComponent(docId)}`, {
     method: 'POST',
@@ -97,15 +91,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'failed to replace document state' }, { status: 502 })
   }
 
-  db.insert(documentSnapshots).values({
-    id: crypto.randomUUID(),
-    documentId: docId,
-    snapshot: targetSnapshot.snapshot,
-    createdAt: new Date(),
-    createdBy: session.user.id,
-    isAgentEdit: false,
-    label: revertedLabel,
-  }).run()
+  db.insert(documentSnapshots)
+    .values({
+      id: crypto.randomUUID(),
+      documentId: docId,
+      snapshot: targetSnapshot.snapshot,
+      createdAt: new Date(),
+      createdBy: session.user.id,
+      isAgentEdit: false,
+      label: revertedLabel,
+    })
+    .run()
 
   return NextResponse.json({ ok: true })
 }

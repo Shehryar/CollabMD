@@ -8,7 +8,9 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -103,7 +105,9 @@ describe('GET /api/orgs/[orgId]/settings', () => {
     const body = await res.json()
     expect(body.agentPolicy).toBe('restricted')
     expect(body.defaultDocPermission).toBe('viewer')
-    expect(body.agents).toEqual([{ name: 'reviewer', description: 'Code review assistant', enabled: true }])
+    expect(body.agents).toEqual([
+      { name: 'reviewer', description: 'Code review assistant', enabled: true },
+    ])
   })
 })
 

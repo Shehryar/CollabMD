@@ -45,7 +45,9 @@ describe('create-collabmd onboarding', () => {
     expect(existsSync(join(projectDir, '.collabmd'))).toBe(true)
     expect(existsSync(join(projectDir, '.gitignore'))).toBe(true)
 
-    const config = JSON.parse(readFileSync(join(projectDir, 'collabmd.json'), 'utf-8')) as { name: string }
+    const config = JSON.parse(readFileSync(join(projectDir, 'collabmd.json'), 'utf-8')) as {
+      name: string
+    }
     expect(config.name).toBe('my-docs')
     expect(readFileSync(join(projectDir, '.gitignore'), 'utf-8')).toContain('.collabmd/')
   })
@@ -65,11 +67,10 @@ describe('create-collabmd onboarding', () => {
       .mockResolvedValueOnce('2') // server: collabmd.dev
       .mockResolvedValueOnce('1') // choose existing workspace
 
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [{ id: 'org-1', name: 'Workspace A' }],
-      })
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => [{ id: 'org-1', name: 'Workspace A' }],
+    })
     vi.stubGlobal('fetch', fetchMock)
 
     await runCreateCollabmd(['my-docs', '--skip=invite,background'])

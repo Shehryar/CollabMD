@@ -47,14 +47,14 @@ collabmd/
 
 Run from the repository root:
 
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start all dev servers |
-| `pnpm build` | Build all packages and apps |
-| `pnpm test` | Run tests across the monorepo |
-| `pnpm lint` | Lint all packages |
-| `pnpm typecheck` | Type-check all packages |
-| `pnpm format` | Format code with Prettier |
+| Command          | Description                   |
+| ---------------- | ----------------------------- |
+| `pnpm dev`       | Start all dev servers         |
+| `pnpm build`     | Build all packages and apps   |
+| `pnpm test`      | Run tests across the monorepo |
+| `pnpm lint`      | Lint all packages             |
+| `pnpm typecheck` | Type-check all packages       |
+| `pnpm format`    | Format code with Prettier     |
 
 ## Pull Request Guidelines
 

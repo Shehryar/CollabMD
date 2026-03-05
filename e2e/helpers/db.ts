@@ -58,10 +58,7 @@ export function createTestOrg(
   return { id, name, slug }
 }
 
-export function createTestSession(
-  userId: string,
-  orgId: string,
-): { id: string; token: string } {
+export function createTestSession(userId: string, orgId: string): { id: string; token: string } {
   const db = getTestDb()
   const id = crypto.randomUUID()
   const token = crypto.randomUUID()
@@ -95,11 +92,7 @@ export function createTestDocument(opts: {
   return { id, title }
 }
 
-export function addOrgMember(
-  orgId: string,
-  userId: string,
-  role = 'member',
-): void {
+export function addOrgMember(orgId: string, userId: string, role = 'member'): void {
   const db = getTestDb()
   const id = crypto.randomUUID()
   const now = Math.floor(Date.now() / 1000)

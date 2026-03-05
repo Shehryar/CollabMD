@@ -3,13 +3,7 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { checkPermission } from '@collabmd/shared'
 import * as Y from 'yjs'
-import {
-  and,
-  db,
-  documentSnapshots,
-  eq,
-  users,
-} from '@collabmd/db'
+import { and, db, documentSnapshots, eq, users } from '@collabmd/db'
 
 type RouteParams = { params: Promise<{ id: string; snapshotId: string }> }
 
@@ -37,10 +31,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     })
     .from(documentSnapshots)
     .leftJoin(users, eq(documentSnapshots.createdBy, users.id))
-    .where(and(
-      eq(documentSnapshots.id, snapshotId),
-      eq(documentSnapshots.documentId, docId),
-    ))
+    .where(and(eq(documentSnapshots.id, snapshotId), eq(documentSnapshots.documentId, docId)))
     .get()
 
   if (!snapshot) {

@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockReadTuplesForEntity = vi.fn()
 const mockDeleteTuple = vi.fn()
 vi.mock('@collabmd/shared', () => ({
-  readTuplesForEntity: (...args: unknown[]) => mockReadTuplesForEntity.apply(undefined, args as never),
+  readTuplesForEntity: (...args: unknown[]) =>
+    mockReadTuplesForEntity.apply(undefined, args as never),
   deleteTuple: (...args: unknown[]) => mockDeleteTuple.apply(undefined, args as never),
 }))
 
@@ -50,12 +51,7 @@ describe('hardDeleteDocument', () => {
 
     expect(mockReadTuplesForEntity).toHaveBeenCalledWith('document:doc-1')
     expect(mockDeleteTuple).toHaveBeenCalledTimes(2)
-    expect(mockDeleteTuple).toHaveBeenNthCalledWith(
-      1,
-      'user:user-1',
-      'viewer',
-      'document:doc-1',
-    )
+    expect(mockDeleteTuple).toHaveBeenNthCalledWith(1, 'user:user-1', 'viewer', 'document:doc-1')
     expect(mockDeleteTuple).toHaveBeenNthCalledWith(
       2,
       'folder:folder-1',

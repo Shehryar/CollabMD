@@ -24,7 +24,11 @@ test.describe('Document Lifecycle', () => {
   })
 
   test('edit document title', async ({ authenticatedPage: page, testUser, testOrg }) => {
-    const doc = createTestDocument({ orgId: testOrg.id, ownerId: testUser.id, title: 'Original Title' })
+    const doc = createTestDocument({
+      orgId: testOrg.id,
+      ownerId: testUser.id,
+      title: 'Original Title',
+    })
     await grantDocAccess(testUser.id, 'owner', doc.id)
     await setDocOrg(testOrg.id, doc.id)
 
@@ -69,7 +73,11 @@ test.describe('Document Lifecycle', () => {
   })
 
   test('trash and restore a document', async ({ authenticatedPage: page, testUser, testOrg }) => {
-    const doc = createTestDocument({ orgId: testOrg.id, ownerId: testUser.id, title: 'Doc To Trash' })
+    const doc = createTestDocument({
+      orgId: testOrg.id,
+      ownerId: testUser.id,
+      title: 'Doc To Trash',
+    })
     await grantDocAccess(testUser.id, 'owner', doc.id)
     await setDocOrg(testOrg.id, doc.id)
 
@@ -118,8 +126,16 @@ test.describe('Document Lifecycle', () => {
     await expect(main.getByText('Doc To Trash')).toBeVisible({ timeout: 10_000 })
   })
 
-  test('trash and permanently delete a document', async ({ authenticatedPage: page, testUser, testOrg }) => {
-    const doc = createTestDocument({ orgId: testOrg.id, ownerId: testUser.id, title: 'Doc To Destroy' })
+  test('trash and permanently delete a document', async ({
+    authenticatedPage: page,
+    testUser,
+    testOrg,
+  }) => {
+    const doc = createTestDocument({
+      orgId: testOrg.id,
+      ownerId: testUser.id,
+      title: 'Doc To Destroy',
+    })
     await grantDocAccess(testUser.id, 'owner', doc.id)
     await setDocOrg(testOrg.id, doc.id)
 

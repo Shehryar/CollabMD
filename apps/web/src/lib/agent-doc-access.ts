@@ -33,22 +33,29 @@ export async function authorizeAgentForDocument(
   request: NextRequest,
   docId: string,
   relation: RequiredRelation,
-): Promise<{
-  context: AgentKeyContext
-  document: {
-    id: string
-    orgId: string
-    folderId: string | null
-    agentEditable: boolean
-  }
-  agentPolicy: string
-} | {
-  error: NextResponse
-}> {
+): Promise<
+  | {
+      context: AgentKeyContext
+      document: {
+        id: string
+        orgId: string
+        folderId: string | null
+        agentEditable: boolean
+      }
+      agentPolicy: string
+    }
+  | {
+      error: NextResponse
+    }
+> {
   const authResult = await authenticateAgentKey(request)
   if ('error' in authResult) return authResult
 
-  const rate = rateLimit(`agent-key:${authResult.context.keyId}:v1`, AGENT_KEY_RATE_LIMIT, AGENT_KEY_RATE_WINDOW_MS)
+  const rate = rateLimit(
+    `agent-key:${authResult.context.keyId}:v1`,
+    AGENT_KEY_RATE_LIMIT,
+    AGENT_KEY_RATE_WINDOW_MS,
+  )
   if (!rate.success) {
     return {
       error: rateLimitResponse(rate, AGENT_KEY_RATE_LIMIT),
@@ -92,10 +99,17 @@ export async function authorizeAgentForDocument(
   }
 
   if (relation !== 'can_view' && document.agentEditable !== true) {
-    return { error: NextResponse.json({ error: 'document is not agent-editable' }, { status: 403 }) }
+    return {
+      error: NextResponse.json({ error: 'document is not agent-editable' }, { status: 403 }),
+    }
   }
 
-  const allowed = await checkPermission(authResult.context.permissionUserId, relation, 'document', docId)
+  const allowed = await checkPermission(
+    authResult.context.permissionUserId,
+    relation,
+    'document',
+    docId,
+  )
   if (!allowed) {
     return { error: NextResponse.json({ error: 'forbidden' }, { status: 403 }) }
   }

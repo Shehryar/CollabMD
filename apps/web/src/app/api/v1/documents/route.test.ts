@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const mockAuthenticateAgentKey = vi.fn()
 vi.mock('@/lib/agent-key-auth', () => ({
-  authenticateAgentKey: (...args: unknown[]) => mockAuthenticateAgentKey.apply(undefined, args as never),
+  authenticateAgentKey: (...args: unknown[]) =>
+    mockAuthenticateAgentKey.apply(undefined, args as never),
 }))
 
 const mockRateLimit = vi.fn(() => ({
@@ -13,7 +14,9 @@ const mockRateLimit = vi.fn(() => ({
   remaining: 99,
   reset: Date.now() + 60_000,
 }))
-const mockRateLimitResponse = vi.fn(() => NextResponse.json({ error: 'rate limit exceeded' }, { status: 429 }))
+const mockRateLimitResponse = vi.fn(() =>
+  NextResponse.json({ error: 'rate limit exceeded' }, { status: 429 }),
+)
 vi.mock('@/lib/rate-limit', () => ({
   rateLimit: (...args: unknown[]) => mockRateLimit.apply(undefined, args as never),
   rateLimitResponse: (...args: unknown[]) => mockRateLimitResponse.apply(undefined, args as never),

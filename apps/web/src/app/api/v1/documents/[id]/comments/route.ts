@@ -32,12 +32,14 @@ function serializeComments(ycomments: Y.Array<Y.Map<unknown>>) {
     if (thread instanceof Y.Array) {
       row.thread = thread.toArray().flatMap((entry) => {
         if (!(entry instanceof Y.Map)) return []
-        return [{
-          authorId: asString(entry.get('authorId')),
-          authorName: asString(entry.get('authorName')),
-          text: asString(entry.get('text')),
-          createdAt: asString(entry.get('createdAt')),
-        }]
+        return [
+          {
+            authorId: asString(entry.get('authorId')),
+            authorName: asString(entry.get('authorName')),
+            text: asString(entry.get('text')),
+            createdAt: asString(entry.get('createdAt')),
+          },
+        ]
       })
     }
 
@@ -63,10 +65,7 @@ function findCommentById(ycomments: Y.Array<Y.Map<unknown>>, id: string): Y.Map<
   return null
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: RouteParams,
-) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const authz = await authorizeAgentForDocument(request, id, 'can_view')
   if ('error' in authz) return authz.error
@@ -79,10 +78,7 @@ export async function GET(
   return NextResponse.json(comments)
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: RouteParams,
-) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const authz = await authorizeAgentForDocument(request, id, 'can_comment')
   if ('error' in authz) return authz.error
@@ -90,7 +86,7 @@ export async function POST(
   const contentTypeError = requireJsonContentType(request)
   if (contentTypeError) return contentTypeError
 
-  const body = await request.json() as {
+  const body = (await request.json()) as {
     text?: string
     from?: number
     to?: number
@@ -116,7 +112,10 @@ export async function POST(
     const text = typeof body.text === 'string' ? body.text.trim() : ''
     if (!target || !text) {
       ydoc.destroy()
-      return NextResponse.json({ error: 'commentId and non-empty text are required for replies' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'commentId and non-empty text are required for replies' },
+        { status: 400 },
+      )
     }
 
     ydoc.transact(() => {
@@ -136,7 +135,8 @@ export async function POST(
     }, `agent-key:${authz.context.keyId}`)
   } else {
     const text = typeof body.text === 'string' ? body.text.trim() : ''
-    const from = typeof body.from === 'number' && Number.isFinite(body.from) ? Math.trunc(body.from) : NaN
+    const from =
+      typeof body.from === 'number' && Number.isFinite(body.from) ? Math.trunc(body.from) : NaN
     const to = typeof body.to === 'number' && Number.isFinite(body.to) ? Math.trunc(body.to) : NaN
     if (!text || Number.isNaN(from) || Number.isNaN(to) || from < 0 || to < 0 || from === to) {
       ydoc.destroy()
@@ -150,8 +150,14 @@ export async function POST(
     ydoc.transact(() => {
       const comment = new Y.Map<unknown>()
       comment.set('id', createdCommentId)
-      comment.set('anchorStart', Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, start)))
-      comment.set('anchorEnd', Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, end)))
+      comment.set(
+        'anchorStart',
+        Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, start)),
+      )
+      comment.set(
+        'anchorEnd',
+        Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, end)),
+      )
       comment.set('authorId', authz.context.actorId)
       comment.set('authorName', authz.context.name)
       comment.set('source', 'agent')

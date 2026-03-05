@@ -6,14 +6,7 @@ import { createInterface } from 'readline/promises'
 import open from 'open'
 import { getCredential, saveCredential, startLoginServer, type Credential } from '../auth/index.js'
 
-type StepName =
-  | 'project'
-  | 'server'
-  | 'auth'
-  | 'workspace'
-  | 'invite'
-  | 'scan'
-  | 'background'
+type StepName = 'project' | 'server' | 'auth' | 'workspace' | 'invite' | 'scan' | 'background'
 
 export interface OnboardingOptions {
   argv?: string[]
@@ -60,13 +53,13 @@ function parseArgs(argv: string[]): ParsedArgs {
     if (value === 'step5') value = 'invite'
     if (value === 'step7') value = 'background'
     if (
-      value === 'project'
-      || value === 'server'
-      || value === 'auth'
-      || value === 'workspace'
-      || value === 'invite'
-      || value === 'scan'
-      || value === 'background'
+      value === 'project' ||
+      value === 'server' ||
+      value === 'auth' ||
+      value === 'workspace' ||
+      value === 'invite' ||
+      value === 'scan' ||
+      value === 'background'
     ) {
       skip.add(value)
     }
@@ -149,9 +142,11 @@ export async function runOnboardingFlow(options: OnboardingOptions = {}): Promis
   const argv = options.argv ?? []
   const parsed = parseArgs(argv)
   const fetchImpl = options.fetchImpl ?? fetch
-  const openBrowser = options.openBrowser ?? (async (url: string) => {
-    await open(url)
-  })
+  const openBrowser =
+    options.openBrowser ??
+    (async (url: string) => {
+      await open(url)
+    })
   const rootDir = options.rootDir ?? process.cwd()
   const cwdMode = options.cwdMode ?? false
 
@@ -329,7 +324,10 @@ export async function runOnboardingFlow(options: OnboardingOptions = {}): Promis
                 body: JSON.stringify({ name: nextName }),
               })
               if (!createRes.ok) throw new Error(`create-failed-${createRes.status}`)
-              const created = await createRes.json() as { id?: string; organization?: { id?: string } }
+              const created = (await createRes.json()) as {
+                id?: string
+                organization?: { id?: string }
+              }
               orgId = created.id ?? created.organization?.id ?? ''
             } else {
               const index = Number.parseInt(pick, 10) - 1
@@ -347,7 +345,10 @@ export async function runOnboardingFlow(options: OnboardingOptions = {}): Promis
               body: JSON.stringify({ name: nextName }),
             })
             if (!createRes.ok) throw new Error(`create-failed-${createRes.status}`)
-            const created = await createRes.json() as { id?: string; organization?: { id?: string } }
+            const created = (await createRes.json()) as {
+              id?: string
+              organization?: { id?: string }
+            }
             orgId = created.id ?? created.organization?.id ?? ''
           }
           break
@@ -363,7 +364,10 @@ export async function runOnboardingFlow(options: OnboardingOptions = {}): Promis
 
     // Step 5: invite teammates.
     if (serverUrl && credential && orgId && !parsed.skip.has('invite')) {
-      const inviteInput = await ask('Invite teammates (comma-separated emails, or press Enter to skip):', '')
+      const inviteInput = await ask(
+        'Invite teammates (comma-separated emails, or press Enter to skip):',
+        '',
+      )
       const emails = splitEmails(inviteInput)
       for (const email of emails) {
         let shouldContinue = true
@@ -394,13 +398,17 @@ export async function runOnboardingFlow(options: OnboardingOptions = {}): Promis
     // Step 6: link and scan.
     saveConfig(configPath, config)
     const markdownFiles = parsed.skip.has('scan') ? [] : await scanMarkdownFiles(projectDir)
-    console.log(`Found ${markdownFiles.length} markdown files. These will sync when you run collabmd dev.`)
+    console.log(
+      `Found ${markdownFiles.length} markdown files. These will sync when you run collabmd dev.`,
+    )
     console.log('')
     console.log('Summary:')
     console.log(`  Workspace URL: ${serverUrl ? serverUrl : 'local mode'}`)
     console.log(`  Linked folder: ${projectDir}`)
     console.log(`  Markdown files: ${markdownFiles.length}`)
-    console.log(`  Next: ${cwdMode ? 'collabmd dev' : `cd ${relative(rootDir, projectDir) || '.'} && collabmd dev`}`)
+    console.log(
+      `  Next: ${cwdMode ? 'collabmd dev' : `cd ${relative(rootDir, projectDir) || '.'} && collabmd dev`}`,
+    )
 
     // Step 7: background daemon prompt.
     if (!parsed.skip.has('background')) {

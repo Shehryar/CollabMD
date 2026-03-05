@@ -81,10 +81,7 @@ export async function GET(request: NextRequest) {
   const agentName = authResult.context.name
   const documentIdFilter = request.nextUrl.searchParams.get('documentId')
 
-  const conditions = [
-    eq(documents.orgId, authResult.context.orgId),
-    isNull(documents.deletedAt),
-  ]
+  const conditions = [eq(documents.orgId, authResult.context.orgId), isNull(documents.deletedAt)]
 
   const scopedDocuments = authResult.context.scopes.documents
   if (Array.isArray(scopedDocuments)) {

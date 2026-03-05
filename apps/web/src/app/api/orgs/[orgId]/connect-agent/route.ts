@@ -38,9 +38,12 @@ function parseAgentRegistry(value: unknown): AgentRegistryEntry[] {
   return result
 }
 
-async function requireOrgAdmin(orgId: string): Promise<{
-  session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>
-} | NextResponse> {
+async function requireOrgAdmin(orgId: string): Promise<
+  | {
+      session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>
+    }
+  | NextResponse
+> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -56,7 +59,10 @@ async function requireOrgAdmin(orgId: string): Promise<{
     return NextResponse.json({ error: 'not a member of this organization' }, { status: 403 })
   }
   if (membership.role !== 'admin' && membership.role !== 'owner') {
-    return NextResponse.json({ error: 'only admins and owners can connect agents' }, { status: 403 })
+    return NextResponse.json(
+      { error: 'only admins and owners can connect agents' },
+      { status: 403 },
+    )
   }
 
   return { session }
@@ -70,13 +76,15 @@ export async function POST(
   const authz = await requireOrgAdmin(orgId)
   if (authz instanceof NextResponse) return authz
 
-  const rateLimitError = enforceUserMutationRateLimit(authz.session.user.id, { ip: getClientIp(request) })
+  const rateLimitError = enforceUserMutationRateLimit(authz.session.user.id, {
+    ip: getClientIp(request),
+  })
   if (rateLimitError) return rateLimitError
 
   const contentTypeError = requireJsonContentType(request)
   if (contentTypeError) return contentTypeError
 
-  const body = await request.json() as {
+  const body = (await request.json()) as {
     name?: string
     description?: string
     webhookUrl?: string
@@ -107,18 +115,20 @@ export async function POST(
   const keyId = crypto.randomUUID()
   const createdAt = new Date()
 
-  db.insert(agentKeys).values({
-    id: keyId,
-    keyHash: hashKey(rawKey),
-    keyPrefix: rawKey.slice(0, 11),
-    orgId,
-    name,
-    scopes: JSON.stringify({}),
-    createdBy: authz.session.user.id,
-    createdAt,
-    lastUsedAt: null,
-    revokedAt: null,
-  }).run()
+  db.insert(agentKeys)
+    .values({
+      id: keyId,
+      keyHash: hashKey(rawKey),
+      keyPrefix: rawKey.slice(0, 11),
+      orgId,
+      name,
+      scopes: JSON.stringify({}),
+      createdBy: authz.session.user.id,
+      createdAt,
+      lastUsedAt: null,
+      revokedAt: null,
+    })
+    .run()
 
   // 2. Create webhook if URL provided
   let webhookSecret: string | undefined
@@ -126,16 +136,18 @@ export async function POST(
     const secret = `whsec_${crypto.randomBytes(24).toString('hex')}`
     const encryptedSecret = encryptWebhookSecret(secret)
 
-    db.insert(webhooks).values({
-      id: crypto.randomUUID(),
-      orgId,
-      url: webhookUrl,
-      secret: encryptedSecret,
-      events: JSON.stringify(['comment.mention']),
-      createdBy: authz.session.user.id,
-      createdAt,
-      active: true,
-    }).run()
+    db.insert(webhooks)
+      .values({
+        id: crypto.randomUUID(),
+        orgId,
+        url: webhookUrl,
+        secret: encryptedSecret,
+        events: JSON.stringify(['comment.mention']),
+        createdBy: authz.session.user.id,
+        createdAt,
+        active: true,
+      })
+      .run()
 
     webhookSecret = secret
   }
@@ -159,9 +171,7 @@ export async function POST(
     .run()
 
   // 4. Determine server URL
-  const serverUrl = process.env.BETTER_AUTH_URL
-    || request.nextUrl.origin
-    || 'http://localhost:3000'
+  const serverUrl = process.env.BETTER_AUTH_URL || request.nextUrl.origin || 'http://localhost:3000'
 
   const response: Record<string, unknown> = {
     apiKey: rawKey,

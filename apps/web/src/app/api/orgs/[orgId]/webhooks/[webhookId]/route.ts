@@ -4,9 +4,12 @@ import { auth } from '@/lib/auth'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { db, webhooks, members, and, eq } from '@collabmd/db'
 
-async function requireOrgAdmin(orgId: string): Promise<{
-  session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>
-} | NextResponse> {
+async function requireOrgAdmin(orgId: string): Promise<
+  | {
+      session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>
+    }
+  | NextResponse
+> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -22,7 +25,10 @@ async function requireOrgAdmin(orgId: string): Promise<{
     return NextResponse.json({ error: 'not a member of this organization' }, { status: 403 })
   }
   if (membership.role !== 'admin' && membership.role !== 'owner') {
-    return NextResponse.json({ error: 'only admins and owners can manage webhooks' }, { status: 403 })
+    return NextResponse.json(
+      { error: 'only admins and owners can manage webhooks' },
+      { status: 403 },
+    )
   }
 
   return { session }
@@ -36,7 +42,9 @@ export async function DELETE(
   const authz = await requireOrgAdmin(orgId)
   if (authz instanceof NextResponse) return authz
 
-  const rateLimitError = enforceUserMutationRateLimit(authz.session.user.id, { ip: getClientIp(request) })
+  const rateLimitError = enforceUserMutationRateLimit(authz.session.user.id, {
+    ip: getClientIp(request),
+  })
   if (rateLimitError) return rateLimitError
 
   const existing = db

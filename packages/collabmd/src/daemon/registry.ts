@@ -28,10 +28,10 @@ export function readRegistry(): ProjectConfig[] {
         if (!entry || typeof entry !== 'object') return false
         const project = entry as Partial<ProjectConfig>
         return (
-          typeof project.path === 'string'
-          && typeof project.orgId === 'string'
-          && typeof project.serverUrl === 'string'
-          && typeof project.addedAt === 'string'
+          typeof project.path === 'string' &&
+          typeof project.orgId === 'string' &&
+          typeof project.serverUrl === 'string' &&
+          typeof project.addedAt === 'string'
         )
       })
       .map((entry) => ({
@@ -85,4 +85,3 @@ export function getProject(path: string): ProjectConfig | undefined {
   const normalizedPath = normalizePath(path)
   return readRegistry().find((entry) => normalizePath(entry.path) === normalizedPath)
 }
-

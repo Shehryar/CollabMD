@@ -74,17 +74,18 @@ export function createConcurrencyLimitedFetch(
     next()
   }
 
-  const wrapped = ((...args: Parameters<typeof fetch>) => new Promise<Response>((resolve, reject) => {
-    queue.push(() => {
-      void fetchFn(...args)
-        .then(resolve, reject)
-        .finally(() => {
-          active = Math.max(0, active - 1)
-          runNext()
-        })
-    })
-    runNext()
-  })) as typeof fetch
+  const wrapped = ((...args: Parameters<typeof fetch>) =>
+    new Promise<Response>((resolve, reject) => {
+      queue.push(() => {
+        void fetchFn(...args)
+          .then(resolve, reject)
+          .finally(() => {
+            active = Math.max(0, active - 1)
+            runNext()
+          })
+      })
+      runNext()
+    })) as typeof fetch
 
   return wrapped
 }
@@ -94,7 +95,8 @@ export function dispatchWebhookWithRetry(
   deps: WebhookDispatchDeps,
 ): void {
   const fetchFn = deps.fetchFn ?? fetch
-  const scheduleFn = deps.scheduleFn ?? ((handler: () => void, delayMs: number) => setTimeout(handler, delayMs))
+  const scheduleFn =
+    deps.scheduleFn ?? ((handler: () => void, delayMs: number) => setTimeout(handler, delayMs))
   const attempt = input.attempt ?? 1
   const payload = JSON.stringify(input.payloadObject)
   const signature = buildWebhookSignature(input.webhook.secret, payload)
@@ -130,8 +132,9 @@ export function dispatchWebhookWithRetry(
     })
 
     if (success || attempt >= MAX_DELIVERY_ATTEMPTS) return
-    const delay = DELIVERY_RETRY_DELAYS_MS[attempt - 1]
-      ?? DELIVERY_RETRY_DELAYS_MS[DELIVERY_RETRY_DELAYS_MS.length - 1]
+    const delay =
+      DELIVERY_RETRY_DELAYS_MS[attempt - 1] ??
+      DELIVERY_RETRY_DELAYS_MS[DELIVERY_RETRY_DELAYS_MS.length - 1]
     scheduleFn(() => {
       dispatchWebhookWithRetry(
         {

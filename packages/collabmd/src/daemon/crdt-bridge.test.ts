@@ -455,12 +455,16 @@ describe('CrdtBridge', () => {
       })
 
       // Before the remote update, suppression should not exist
-      expect((fileWatcher as unknown as { suppressedPaths: Set<string> }).suppressedPaths.has('test.md')).toBe(false)
+      expect(
+        (fileWatcher as unknown as { suppressedPaths: Set<string> }).suppressedPaths.has('test.md'),
+      ).toBe(false)
 
       Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(remoteDoc))
 
       // Suppression is added and removed during the same write flow.
-      expect((fileWatcher as unknown as { suppressedPaths: Set<string> }).suppressedPaths.has('test.md')).toBe(false)
+      expect(
+        (fileWatcher as unknown as { suppressedPaths: Set<string> }).suppressedPaths.has('test.md'),
+      ).toBe(false)
 
       remoteDoc.destroy()
     })

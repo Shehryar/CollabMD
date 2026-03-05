@@ -2,7 +2,7 @@ import { test, expect, grantDocAccess, setDocOrg } from '../fixtures/auth'
 import { createTestDocument } from '../helpers/db'
 
 test.describe('Real-Time Collaboration', () => {
-  test('two users see each other\'s edits', async ({
+  test("two users see each other's edits", async ({
     authenticatedPage: alicePage,
     createAuthenticatedContext,
     testUser: alice,
@@ -101,7 +101,9 @@ test.describe('Real-Time Collaboration', () => {
           .map((line) => {
             // Clone the line and remove awareness cursor widgets before extracting text
             const clone = line.cloneNode(true) as HTMLElement
-            clone.querySelectorAll('.cm-ySelectionCaret, .cm-ySelectionCaretDot, .cm-widgetBuffer').forEach((el) => el.remove())
+            clone
+              .querySelectorAll('.cm-ySelectionCaret, .cm-ySelectionCaretDot, .cm-widgetBuffer')
+              .forEach((el) => el.remove())
             return clone.textContent ?? ''
           })
           .join('\n'),

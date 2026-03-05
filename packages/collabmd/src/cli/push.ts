@@ -14,7 +14,9 @@ async function ensureRemoteConfigured(
   const remotes = await git.getRemotes(true)
 
   if (remotes.length === 0) {
-    console.error(`No git remotes are configured for ${workDir}. Add one with \`git remote add origin <url>\`.`)
+    console.error(
+      `No git remotes are configured for ${workDir}. Add one with \`git remote add origin <url>\`.`,
+    )
     return false
   }
 

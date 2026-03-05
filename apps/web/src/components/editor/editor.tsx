@@ -15,7 +15,12 @@ import { EditorState } from '@codemirror/state'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
-import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, indentOnInput } from '@codemirror/language'
+import {
+  syntaxHighlighting,
+  defaultHighlightStyle,
+  bracketMatching,
+  indentOnInput,
+} from '@codemirror/language'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { yCollab } from 'y-codemirror.next'
@@ -44,6 +49,7 @@ import {
   dispatchModeChange,
 } from './editor-mode'
 import { createSuggestionInterceptor } from './suggestion-interceptor'
+import { useCommentPositions } from './use-comment-positions'
 
 const editorTheme = EditorView.theme({
   '&': {
@@ -192,10 +198,13 @@ export default function CollabEditor({
   const commentInputOpenRef = useRef(commentInputOpen)
   const openCommentFromSelectionRef = useRef<(view: EditorView) => boolean>(() => false)
 
-  const author = useMemo(() => ({
-    id: currentUser?.id ?? 'anonymous',
-    name: currentUser?.name?.trim() || 'Anonymous',
-  }), [currentUser?.id, currentUser?.name])
+  const author = useMemo(
+    () => ({
+      id: currentUser?.id ?? 'anonymous',
+      name: currentUser?.name?.trim() || 'Anonymous',
+    }),
+    [currentUser?.id, currentUser?.name],
+  )
 
   const {
     comments,
@@ -228,6 +237,13 @@ export default function CollabEditor({
     canComment: commentable,
     canResolve,
   })
+
+  const { positions: commentPositions, contentHeight: editorContentHeight } = useCommentPositions(
+    view,
+    comments,
+    yjs.ydoc,
+    yjs.ytext,
+  )
 
   const suggestionCount = useMemo(
     () => comments.reduce((count, comment) => count + (comment.suggestion ? 1 : 0), 0),
@@ -266,46 +282,52 @@ export default function CollabEditor({
     setActiveDiscussionId(null)
   }, [activeDiscussionId, discussions])
 
-  const updateSelectionAnchor = useCallback((editorView: EditorView) => {
-    if (!commentable) {
-      setSelectionAnchor(null)
-      return
-    }
-
-    const selected = getSelectedRange(editorView.state.selection.main)
-    if (!selected) {
-      if (!commentInputOpenRef.current) {
-        setSelectionAnchor((previous) => (previous ? null : previous))
+  const updateSelectionAnchor = useCallback(
+    (editorView: EditorView) => {
+      if (!commentable) {
+        setSelectionAnchor(null)
+        return
       }
-      return
-    }
 
-    const next = getSelectionAnchor(editorView, selected.from, selected.to)
-    if (!next) {
-      if (!commentInputOpenRef.current) {
-        setSelectionAnchor((previous) => (previous ? null : previous))
+      const selected = getSelectedRange(editorView.state.selection.main)
+      if (!selected) {
+        if (!commentInputOpenRef.current) {
+          setSelectionAnchor((previous) => (previous ? null : previous))
+        }
+        return
       }
-      return
-    }
 
-    if (commentInputOpenRef.current) return
+      const next = getSelectionAnchor(editorView, selected.from, selected.to)
+      if (!next) {
+        if (!commentInputOpenRef.current) {
+          setSelectionAnchor((previous) => (previous ? null : previous))
+        }
+        return
+      }
 
-    setSelectionAnchor((previous) => (sameAnchor(previous, next) ? previous : next))
-  }, [commentable])
+      if (commentInputOpenRef.current) return
 
-  const openCommentFromSelection = useCallback((editorView: EditorView) => {
-    if (!commentable) return false
+      setSelectionAnchor((previous) => (sameAnchor(previous, next) ? previous : next))
+    },
+    [commentable],
+  )
 
-    const selected = getSelectedRange(editorView.state.selection.main)
-    if (!selected) return false
+  const openCommentFromSelection = useCallback(
+    (editorView: EditorView) => {
+      if (!commentable) return false
 
-    const nextAnchor = getSelectionAnchor(editorView, selected.from, selected.to)
-    if (!nextAnchor) return false
+      const selected = getSelectedRange(editorView.state.selection.main)
+      if (!selected) return false
 
-    setSelectionAnchor(nextAnchor)
-    setCommentInputOpen(true)
-    return true
-  }, [commentable])
+      const nextAnchor = getSelectionAnchor(editorView, selected.from, selected.to)
+      if (!nextAnchor) return false
+
+      setSelectionAnchor(nextAnchor)
+      setCommentInputOpen(true)
+      return true
+    },
+    [commentable],
+  )
 
   openCommentFromSelectionRef.current = openCommentFromSelection
 
@@ -444,54 +466,78 @@ export default function CollabEditor({
     editorView.dispatch({ effects: togglePreviewEffect.of(next) })
   }, [previewMode])
 
-  const handleCreateComment = useCallback((text: string) => {
-    if (!selectionAnchor) return
+  const handleCreateComment = useCallback(
+    (text: string) => {
+      if (!selectionAnchor) return
 
-    const commentId = createComment({
-      from: selectionAnchor.from,
-      to: selectionAnchor.to,
-      text,
-      source: 'browser',
-    })
+      const commentId = createComment({
+        from: selectionAnchor.from,
+        to: selectionAnchor.to,
+        text,
+        source: 'browser',
+      })
 
-    if (!commentId) return
+      if (!commentId) return
 
-    setCommentInputOpen(false)
-    setSelectionAnchor(null)
-    setPanelOpen(true)
-    setActiveCommentId(commentId)
-  }, [createComment, selectionAnchor])
+      setCommentInputOpen(false)
+      setSelectionAnchor(null)
+      setPanelOpen(true)
+      setActiveCommentId(commentId)
+    },
+    [createComment, selectionAnchor],
+  )
 
-  const handleReply = useCallback((commentId: string, text: string) => {
-    replyToComment(commentId, text)
-  }, [replyToComment])
+  const handleReply = useCallback(
+    (commentId: string, text: string) => {
+      replyToComment(commentId, text)
+    },
+    [replyToComment],
+  )
 
-  const handleResolve = useCallback((commentId: string) => {
-    setResolved(commentId, true)
-  }, [setResolved])
+  const handleResolve = useCallback(
+    (commentId: string) => {
+      setResolved(commentId, true)
+    },
+    [setResolved],
+  )
 
-  const handleAcceptSuggestion = useCallback((commentId: string) => {
-    acceptSuggestion(commentId)
-  }, [acceptSuggestion])
+  const handleAcceptSuggestion = useCallback(
+    (commentId: string) => {
+      acceptSuggestion(commentId)
+    },
+    [acceptSuggestion],
+  )
 
-  const handleDismissSuggestion = useCallback((commentId: string) => {
-    dismissSuggestion(commentId)
-  }, [dismissSuggestion])
+  const handleDismissSuggestion = useCallback(
+    (commentId: string) => {
+      dismissSuggestion(commentId)
+    },
+    [dismissSuggestion],
+  )
 
-  const handleCreateDiscussion = useCallback((title: string, text: string) => {
-    const discussionId = createDiscussion({ title, text })
-    if (!discussionId) return
-    setPanelOpen(true)
-    setActiveDiscussionId(discussionId)
-  }, [createDiscussion])
+  const handleCreateDiscussion = useCallback(
+    (title: string, text: string) => {
+      const discussionId = createDiscussion({ title, text })
+      if (!discussionId) return
+      setPanelOpen(true)
+      setActiveDiscussionId(discussionId)
+    },
+    [createDiscussion],
+  )
 
-  const handleReplyDiscussion = useCallback((discussionId: string, text: string) => {
-    replyToDiscussion(discussionId, text)
-  }, [replyToDiscussion])
+  const handleReplyDiscussion = useCallback(
+    (discussionId: string, text: string) => {
+      replyToDiscussion(discussionId, text)
+    },
+    [replyToDiscussion],
+  )
 
-  const handleResolveDiscussion = useCallback((discussionId: string) => {
-    setDiscussionResolved(discussionId, true)
-  }, [setDiscussionResolved])
+  const handleResolveDiscussion = useCallback(
+    (discussionId: string) => {
+      setDiscussionResolved(discussionId, true)
+    },
+    [setDiscussionResolved],
+  )
 
   const showToolbar = editable || commentable
 
@@ -541,12 +587,14 @@ export default function CollabEditor({
           {commentable && (
             <CommentInput
               open={commentInputOpen}
-              position={selectionAnchor
-                ? {
-                    left: selectionAnchor.buttonLeft,
-                    top: selectionAnchor.buttonTop,
-                  }
-                : null}
+              position={
+                selectionAnchor
+                  ? {
+                      left: selectionAnchor.buttonLeft,
+                      top: selectionAnchor.buttonTop,
+                    }
+                  : null
+              }
               orgId={orgId}
               onSubmitComment={handleCreateComment}
               onCancel={() => setCommentInputOpen(false)}
@@ -592,6 +640,9 @@ export default function CollabEditor({
           canEdit={editable}
           open={panelOpen && totalPanelItems > 0}
           onToggleOpen={() => setPanelOpen(false)}
+          anchorPositions={panelOpen ? commentPositions : null}
+          editorScrollDOM={view?.scrollDOM ?? null}
+          editorContentHeight={editorContentHeight}
         />
       </div>
     </div>

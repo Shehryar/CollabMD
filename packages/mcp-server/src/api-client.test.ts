@@ -63,23 +63,29 @@ describe('CollabMDClient', () => {
   })
 
   it('fails when anchorText is ambiguous', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({
-      documentId: 'doc-1',
-      content: 'repeat here\nrepeat there',
-    }))
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        documentId: 'doc-1',
+        content: 'repeat here\nrepeat there',
+      }),
+    )
 
     const client = new CollabMDClient('http://localhost:3000', 'ak_test')
 
-    await expect(client.addComment('doc-1', 'note', 'repeat')).rejects.toThrow('anchor text is ambiguous')
+    await expect(client.addComment('doc-1', 'note', 'repeat')).rejects.toThrow(
+      'anchor text is ambiguous',
+    )
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('adds a comment with resolved anchor offsets when anchorText is unique', async () => {
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({
-        documentId: 'doc-1',
-        content: 'hello world',
-      }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          documentId: 'doc-1',
+          content: 'hello world',
+        }),
+      )
       .mockResolvedValueOnce(jsonResponse({ ok: true }, 201))
 
     const client = new CollabMDClient('http://localhost:3000', 'ak_test')
@@ -89,10 +95,12 @@ describe('CollabMDClient', () => {
     expect(secondCall?.[0]).toBe('http://localhost:3000/api/v1/documents/doc-1/comments')
     const options = secondCall?.[1] as RequestInit
     expect(options.method).toBe('POST')
-    expect(options.body).toBe(JSON.stringify({
-      text: 'note',
-      from: 6,
-      to: 11,
-    }))
+    expect(options.body).toBe(
+      JSON.stringify({
+        text: 'note',
+        from: 6,
+        to: 11,
+      }),
+    )
   })
 })

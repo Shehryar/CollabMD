@@ -99,10 +99,7 @@ function createTestSyncServer() {
       encoding.writeVarUint(awarenessEncoder, messageAwareness)
       encoding.writeVarUint8Array(
         awarenessEncoder,
-        awarenessProtocol.encodeAwarenessUpdate(
-          room.awareness,
-          Array.from(awarenessStates.keys()),
-        ),
+        awarenessProtocol.encodeAwarenessUpdate(room.awareness, Array.from(awarenessStates.keys())),
       )
       ws.send(encoding.toUint8Array(awarenessEncoder))
     }
@@ -137,11 +134,7 @@ function createTestSyncServer() {
       room.doc.off('update', onUpdate)
 
       if (controlledIds) {
-        awarenessProtocol.removeAwarenessStates(
-          room.awareness,
-          Array.from(controlledIds),
-          null,
-        )
+        awarenessProtocol.removeAwarenessStates(room.awareness, Array.from(controlledIds), null)
       }
 
       // Clean up empty rooms

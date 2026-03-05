@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { decryptWebhookSecret, encryptWebhookSecret, isEncryptedWebhookSecret } from './webhook-secret.js'
+import {
+  decryptWebhookSecret,
+  encryptWebhookSecret,
+  isEncryptedWebhookSecret,
+} from './webhook-secret.js'
 
 describe('decryptWebhookSecret', () => {
   afterEach(() => {

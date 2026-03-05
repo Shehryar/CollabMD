@@ -172,7 +172,7 @@ export default function DocHistoryPage({ params }: HistoryPageProps) {
       throw new Error('failed snapshots request')
     }
 
-    const data = await snapshotsRes.json() as SnapshotItem[]
+    const data = (await snapshotsRes.json()) as SnapshotItem[]
     setSnapshots(data)
     setSelectedSnapshotId((current) => current ?? data[0]?.id ?? null)
   }, [id])
@@ -187,11 +187,15 @@ export default function DocHistoryPage({ params }: HistoryPageProps) {
       try {
         const docRes = await fetch(`/api/documents/${id}`, { method: 'GET' })
         if (!docRes.ok) {
-          setError(docRes.status === 403 ? 'You do not have access to this document.' : 'Failed to load document.')
+          setError(
+            docRes.status === 403
+              ? 'You do not have access to this document.'
+              : 'Failed to load document.',
+          )
           return
         }
 
-        const doc = await docRes.json() as { title?: string; permission?: string }
+        const doc = (await docRes.json()) as { title?: string; permission?: string }
         if (cancelled) return
         setTitle(doc.title ?? 'Document')
         setPermission(parsePermission(doc.permission) ?? 'viewer')
@@ -226,13 +230,15 @@ export default function DocHistoryPage({ params }: HistoryPageProps) {
       setLoadingPreview(true)
       setError('')
       try {
-        const res = await fetch(`/api/documents/${id}/snapshots/${selectedSnapshotId}`, { method: 'GET' })
+        const res = await fetch(`/api/documents/${id}/snapshots/${selectedSnapshotId}`, {
+          method: 'GET',
+        })
         if (!res.ok) {
           setError('Failed to load snapshot preview.')
           return
         }
 
-        const payload = await res.json() as SnapshotDetail
+        const payload = (await res.json()) as SnapshotDetail
         if (cancelled) return
         setPreviewText(payload.content)
       } catch {
@@ -313,12 +319,16 @@ export default function DocHistoryPage({ params }: HistoryPageProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex h-12 shrink-0 items-center border-b border-border px-4">
-        <h1 className="font-mono text-xs uppercase tracking-[0.08em] text-fg-muted">Version history</h1>
+        <h1 className="font-mono text-xs uppercase tracking-[0.08em] text-fg-muted">
+          Version history
+        </h1>
         <span className="ml-3 truncate font-sans text-sm text-fg-secondary">{title}</span>
       </header>
 
       {error && (
-        <div className="border-b border-red/20 bg-red-subtle px-4 py-2 text-xs text-red">{error}</div>
+        <div className="border-b border-red/20 bg-red-subtle px-4 py-2 text-xs text-red">
+          {error}
+        </div>
       )}
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -348,35 +358,36 @@ export default function DocHistoryPage({ params }: HistoryPageProps) {
             {!loadingSnapshots && snapshots.length === 0 && (
               <div className="px-3 py-4 text-xs text-fg-muted">No snapshots yet.</div>
             )}
-            {!loadingSnapshots && snapshots.map((snapshot) => {
-              const selected = snapshot.id === selectedSnapshotId
-              return (
-                <button
-                  key={snapshot.id}
-                  onClick={() => setSelectedSnapshotId(snapshot.id)}
-                  className={`w-full border-b border-border px-3 py-3 text-left ${
-                    selected
-                      ? 'bg-accent-subtle text-fg'
-                      : 'bg-bg-subtle text-fg-secondary hover:bg-bg hover:text-fg'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 font-mono text-[11px]">
-                    <span>{formatRelativeTime(snapshot.createdAt)}</span>
-                    {snapshot.isAgentEdit && (
-                      <span className="rounded border border-accent/30 bg-accent-subtle px-1.5 py-0.5 text-[10px] text-accent">
-                        agent
-                      </span>
+            {!loadingSnapshots &&
+              snapshots.map((snapshot) => {
+                const selected = snapshot.id === selectedSnapshotId
+                return (
+                  <button
+                    key={snapshot.id}
+                    onClick={() => setSelectedSnapshotId(snapshot.id)}
+                    className={`w-full border-b border-border px-3 py-3 text-left ${
+                      selected
+                        ? 'bg-accent-subtle text-fg'
+                        : 'bg-bg-subtle text-fg-secondary hover:bg-bg hover:text-fg'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-mono text-[11px]">
+                      <span>{formatRelativeTime(snapshot.createdAt)}</span>
+                      {snapshot.isAgentEdit && (
+                        <span className="rounded border border-accent/30 bg-accent-subtle px-1.5 py-0.5 text-[10px] text-accent">
+                          agent
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 truncate font-sans text-sm text-fg">
+                      {snapshot.createdByName ?? 'Auto-save'}
+                    </div>
+                    {snapshot.label && (
+                      <div className="mt-0.5 truncate text-xs text-accent">{snapshot.label}</div>
                     )}
-                  </div>
-                  <div className="mt-1 truncate font-sans text-sm text-fg">
-                    {snapshot.createdByName ?? 'Auto-save'}
-                  </div>
-                  {snapshot.label && (
-                    <div className="mt-0.5 truncate text-xs text-accent">{snapshot.label}</div>
-                  )}
-                </button>
-              )
-            })}
+                  </button>
+                )
+              })}
           </div>
         </aside>
 
@@ -392,9 +403,7 @@ export default function DocHistoryPage({ params }: HistoryPageProps) {
                 Loading snapshot...
               </div>
             )}
-            {selectedSnapshot && !loadingPreview && (
-              <ReadonlyEditor text={previewText} />
-            )}
+            {selectedSnapshot && !loadingPreview && <ReadonlyEditor text={previewText} />}
           </div>
 
           {canEdit && selectedSnapshot && (

@@ -1,10 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
-import { db, documents, organizations, folders, members, and, eq, isNull, inArray, desc, like, ne } from '@collabmd/db'
+import {
+  db,
+  documents,
+  organizations,
+  folders,
+  members,
+  and,
+  eq,
+  isNull,
+  inArray,
+  desc,
+  like,
+  ne,
+} from '@collabmd/db'
 import { writeTuple, listAccessibleObjects, checkPermission } from '@collabmd/shared'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireJsonContentType } from '@/lib/http'
+import { indexDocument, searchDocuments } from '@/lib/search-index'
 
 function isPermissionsServiceUnavailable(error: unknown): boolean {
   if (!(error instanceof Error)) return false
@@ -57,14 +71,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'folder not found' }, { status: 404 })
     }
     if (folder.orgId !== orgId) {
-      return NextResponse.json({ error: 'folder belongs to a different organization' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'folder belongs to a different organization' },
+        { status: 400 },
+      )
     }
     let canEditFolder = false
     try {
       canEditFolder = await checkPermission(session.user.id, 'can_edit', 'folder', folderId)
     } catch (error) {
       if (isPermissionsServiceUnavailable(error)) {
-        console.warn('[api/documents:POST] permissions unavailable during folder permission check', error)
+        console.warn(
+          '[api/documents:POST] permissions unavailable during folder permission check',
+          error,
+        )
         return permissionsUnavailableResponse()
       }
       throw error
@@ -136,6 +156,13 @@ export async function POST(request: NextRequest) {
     throw error
   }
 
+  // Index in FTS5 search (best-effort; new docs have no content yet)
+  try {
+    indexDocument(id, title, '')
+  } catch {
+    // Non-critical: search index will be populated on first snapshot
+  }
+
   return NextResponse.json(doc, { status: 201 })
 }
 
@@ -166,10 +193,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json([])
   }
 
-  const conditions = [
-    inArray(documents.id, docIds),
-    isNull(documents.deletedAt),
-  ]
+  const conditions = [inArray(documents.id, docIds), isNull(documents.deletedAt)]
 
   if (folderId) {
     conditions.push(eq(documents.folderId, folderId))
@@ -180,7 +204,33 @@ export async function GET(request: NextRequest) {
   }
 
   if (search) {
-    conditions.push(like(documents.title, `%${search}%`))
+    // Use FTS5 full-text search across title + content
+    const ftsResults = searchDocuments(search, docIds)
+    const snippetMap = new Map(ftsResults.map((r) => [r.documentId, r.snippet]))
+    const ftsDocIds = ftsResults.map((r) => r.documentId)
+
+    if (ftsDocIds.length === 0) {
+      // Fall back to title-only LIKE search
+      conditions.push(like(documents.title, `%${search}%`))
+    } else {
+      // Restrict to FTS-matched documents (which are already within accessible set)
+      conditions.push(inArray(documents.id, ftsDocIds))
+    }
+
+    const docs = db
+      .select()
+      .from(documents)
+      .where(and(...conditions))
+      .orderBy(desc(documents.updatedAt))
+      .all()
+
+    // Attach snippets to results when search is active
+    const docsWithSnippets = docs.map((doc) => ({
+      ...doc,
+      snippet: snippetMap.get(doc.id) ?? null,
+    }))
+
+    return NextResponse.json(docsWithSnippets)
   }
 
   const docs = db

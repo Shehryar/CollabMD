@@ -14,18 +14,12 @@
         },
         "admin": {
           "union": {
-            "child": [
-              { "this": {} },
-              { "computedUserset": { "relation": "owner" } }
-            ]
+            "child": [{ "this": {} }, { "computedUserset": { "relation": "owner" } }]
           }
         },
         "member": {
           "union": {
-            "child": [
-              { "this": {} },
-              { "computedUserset": { "relation": "admin" } }
-            ]
+            "child": [{ "this": {} }, { "computedUserset": { "relation": "admin" } }]
           }
         }
       },

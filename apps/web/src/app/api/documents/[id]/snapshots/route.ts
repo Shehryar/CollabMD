@@ -3,13 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { checkPermission } from '@collabmd/shared'
-import {
-  db,
-  documentSnapshots,
-  users,
-  desc,
-  eq,
-} from '@collabmd/db'
+import { db, documentSnapshots, users, desc, eq } from '@collabmd/db'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireJsonContentType } from '@/lib/http'
 import { getSyncHttpUrl } from '@/lib/sync-url'
@@ -86,7 +80,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const body = await request.json() as { label?: string }
+  const body = (await request.json()) as { label?: string }
   const syncHttpUrl = getSyncHttpUrl()
   const syncRes = await fetch(`${syncHttpUrl}/snapshot/${encodeURIComponent(docId)}`, {
     method: 'GET',
@@ -109,22 +103,27 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const createdAt = new Date()
   const id = crypto.randomUUID()
 
-  db.insert(documentSnapshots).values({
-    id,
-    documentId: docId,
-    snapshot: snapshotBuffer,
-    createdAt,
-    createdBy: session.user.id,
-    isAgentEdit: false,
-    label,
-  }).run()
+  db.insert(documentSnapshots)
+    .values({
+      id,
+      documentId: docId,
+      snapshot: snapshotBuffer,
+      createdAt,
+      createdBy: session.user.id,
+      isAgentEdit: false,
+      label,
+    })
+    .run()
 
-  return NextResponse.json({
-    id,
-    createdAt: createdAt.toISOString(),
-    createdBy: session.user.id,
-    createdByName: session.user.name ?? session.user.email,
-    isAgentEdit: false,
-    label,
-  }, { status: 201 })
+  return NextResponse.json(
+    {
+      id,
+      createdAt: createdAt.toISOString(),
+      createdBy: session.user.id,
+      createdByName: session.user.name ?? session.user.email,
+      isAgentEdit: false,
+      label,
+    },
+    { status: 201 },
+  )
 }

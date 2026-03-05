@@ -31,7 +31,7 @@ export async function verifySessionCookie(cookieHeader: string): Promise<TokenPa
     })
     if (!res.ok) return null
 
-    const data = await res.json() as {
+    const data = (await res.json()) as {
       user?: { id?: string; email?: string; name?: string }
       session?: { activeOrganizationId?: string }
     }

@@ -92,14 +92,11 @@ async function createStoreAndWriteModel(): Promise<void> {
   const model = JSON.parse(fs.readFileSync(modelPath, 'utf-8'))
 
   // Write auth model
-  const modelRes = await fetch(
-    `${baseUrl}/stores/${storeId}/authorization-models`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(model),
-    },
-  )
+  const modelRes = await fetch(`${baseUrl}/stores/${storeId}/authorization-models`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(model),
+  })
 
   if (!modelRes.ok) {
     const text = await modelRes.text()

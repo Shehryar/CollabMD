@@ -59,7 +59,9 @@ export default function InviteForm({ onInvited }: InviteFormProps) {
           className="rounded border border-border bg-bg px-3 py-[7px] font-mono text-[12px] text-fg focus:border-fg focus:outline-none"
         >
           {ROLES.map((r) => (
-            <option key={r} value={r}>{r}</option>
+            <option key={r} value={r}>
+              {r}
+            </option>
           ))}
         </select>
         <button

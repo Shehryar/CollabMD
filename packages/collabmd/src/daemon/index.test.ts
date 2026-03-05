@@ -16,7 +16,11 @@ describe('Daemon', () => {
     expect(daemon.getState().status).toBe('running')
 
     const res = await fetch('http://localhost:14200/status')
-    const data = await res.json() as { status: string; startedAt: string | null; watchedFiles: number }
+    const data = (await res.json()) as {
+      status: string
+      startedAt: string | null
+      watchedFiles: number
+    }
 
     expect(data.status).toBe('running')
     expect(data.startedAt).toBeTruthy()
@@ -74,15 +78,16 @@ describe('GlobalDaemon', () => {
 
   const created: FakeFolderDaemon[] = []
   let registryData: Array<{ path: string; orgId: string; serverUrl: string; addedAt: string }> = []
-  const makeGlobal = () => new GlobalDaemon({
-    port: 14210,
-    readRegistryFn: () => registryData,
-    folderDaemonFactory: (project) => {
-      const daemon = new FakeFolderDaemon(project.path, project.serverUrl)
-      created.push(daemon)
-      return daemon as unknown as FolderDaemon
-    },
-  })
+  const makeGlobal = () =>
+    new GlobalDaemon({
+      port: 14210,
+      readRegistryFn: () => registryData,
+      folderDaemonFactory: (project) => {
+        const daemon = new FakeFolderDaemon(project.path, project.serverUrl)
+        created.push(daemon)
+        return daemon as unknown as FolderDaemon
+      },
+    })
 
   beforeEach(() => {
     created.length = 0

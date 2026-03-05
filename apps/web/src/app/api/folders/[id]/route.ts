@@ -6,10 +6,7 @@ import { checkPermission, readTuplesForEntity, deleteTuple } from '@collabmd/sha
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireJsonContentType } from '@/lib/http'
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -28,10 +25,14 @@ export async function PATCH(
   }
 
   const body = await request.json()
-  const { name } = body as { name: string }
+  const { name, parentId, position } = body as {
+    name?: string
+    parentId?: string | null
+    position?: number
+  }
 
-  if (!name) {
-    return NextResponse.json({ error: 'name is required' }, { status: 400 })
+  if (!name && parentId === undefined && position === undefined) {
+    return NextResponse.json({ error: 'name, parentId, or position is required' }, { status: 400 })
   }
 
   const existing = db.select().from(folders).where(eq(folders.id, id)).get()
@@ -39,32 +40,76 @@ export async function PATCH(
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
 
-  // Recalculate path based on parent
-  let newPath: string
-  if (existing.parentId) {
-    const parent = db.select().from(folders).where(eq(folders.id, existing.parentId)).get()
-    newPath = parent ? `${parent.path}/${name}` : `/${name}`
-  } else {
-    newPath = `/${name}`
+  const updates: Record<string, unknown> = {}
+
+  // Handle parentId change (move folder to a new parent)
+  if (parentId !== undefined && parentId !== existing.parentId) {
+    // Circular reference check: target parentId must not be the folder itself or a descendant
+    if (parentId === id) {
+      return NextResponse.json({ error: 'cannot move folder into itself' }, { status: 400 })
+    }
+    if (parentId !== null) {
+      const target = db.select().from(folders).where(eq(folders.id, parentId)).get()
+      if (!target) {
+        return NextResponse.json({ error: 'target parent folder not found' }, { status: 404 })
+      }
+      if (target.orgId !== existing.orgId) {
+        return NextResponse.json(
+          { error: 'target folder belongs to a different organization' },
+          { status: 400 },
+        )
+      }
+      // Walk up from target to root. If we hit `id`, it's circular.
+      let cursor: string | null = parentId
+      while (cursor) {
+        if (cursor === id) {
+          return NextResponse.json(
+            { error: 'circular reference: cannot move folder into its own descendant' },
+            { status: 400 },
+          )
+        }
+        const ancestor = db.select().from(folders).where(eq(folders.id, cursor)).get()
+        cursor = ancestor?.parentId ?? null
+      }
+    }
+    updates.parentId = parentId
   }
 
-  const updated = db
-    .update(folders)
-    .set({ name, path: newPath })
-    .where(eq(folders.id, id))
-    .returning()
-    .get()
+  // Handle position change
+  if (position !== undefined) {
+    updates.position = position
+  }
 
-  // Keep descendant paths in sync when parent path changes.
-  const descendants = db
-    .select()
-    .from(folders)
-    .where(and(eq(folders.orgId, existing.orgId), like(folders.path, `${existing.path}/%`)))
-    .all()
+  // Recalculate path
+  const effectiveName = name ?? existing.name
+  const effectiveParentId = (
+    updates.parentId !== undefined ? updates.parentId : existing.parentId
+  ) as string | null
+  let newPath: string
+  if (effectiveParentId) {
+    const parent = db.select().from(folders).where(eq(folders.id, effectiveParentId)).get()
+    newPath = parent ? `${parent.path}/${effectiveName}` : `/${effectiveName}`
+  } else {
+    newPath = `/${effectiveName}`
+  }
 
-  for (const child of descendants) {
-    const nextPath = child.path.replace(existing.path, newPath)
-    db.update(folders).set({ path: nextPath }).where(eq(folders.id, child.id)).run()
+  if (name) updates.name = name
+  updates.path = newPath
+
+  const updated = db.update(folders).set(updates).where(eq(folders.id, id)).returning().get()
+
+  // Keep descendant paths in sync when path changes.
+  if (newPath !== existing.path) {
+    const descendants = db
+      .select()
+      .from(folders)
+      .where(and(eq(folders.orgId, existing.orgId), like(folders.path, `${existing.path}/%`)))
+      .all()
+
+    for (const child of descendants) {
+      const nextPath = child.path.replace(existing.path, newPath)
+      db.update(folders).set({ path: nextPath }).where(eq(folders.id, child.id)).run()
+    }
   }
 
   return NextResponse.json(updated)

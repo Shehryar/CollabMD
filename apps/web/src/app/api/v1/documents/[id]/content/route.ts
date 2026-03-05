@@ -8,10 +8,7 @@ import { createSuggestionInYArray } from '@/components/editor/use-comments'
 
 type RouteParams = { params: Promise<{ id: string }> }
 
-export async function GET(
-  request: NextRequest,
-  { params }: RouteParams,
-) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const authz = await authorizeAgentForDocument(request, id, 'can_view')
   if ('error' in authz) return authz.error
@@ -29,10 +26,7 @@ export async function GET(
   })
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: RouteParams,
-) {
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const authz = await authorizeAgentForDocument(request, id, 'can_edit')
   if ('error' in authz) return authz.error
@@ -40,7 +34,7 @@ export async function PATCH(
   const contentTypeError = requireJsonContentType(request)
   if (contentTypeError) return contentTypeError
 
-  const body = await request.json() as { content?: string }
+  const body = (await request.json()) as { content?: string }
   if (typeof body.content !== 'string') {
     return NextResponse.json({ error: 'content must be a string' }, { status: 400 })
   }

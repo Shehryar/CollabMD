@@ -89,7 +89,9 @@ describe('runOnboardingFlow', () => {
     await vi.advanceTimersByTimeAsync(60_001)
     await flow
 
-    expect(errorSpy).toHaveBeenCalledWith('Authentication timed out after 60 seconds; skipping auth.')
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Authentication timed out after 60 seconds; skipping auth.',
+    )
     expect(mockSaveCredential).not.toHaveBeenCalled()
   })
 
@@ -114,7 +116,9 @@ describe('runOnboardingFlow', () => {
       fetchImpl: fetchMock as unknown as typeof fetch,
     })
 
-    const config = JSON.parse(readFileSync(join(rootDir, 'project', 'collabmd.json'), 'utf-8')) as { orgId?: string }
+    const config = JSON.parse(readFileSync(join(rootDir, 'project', 'collabmd.json'), 'utf-8')) as {
+      orgId?: string
+    }
     expect(config.orgId).toBe('org-1')
     expect(fetchMock).toHaveBeenCalledWith(
       'https://collabmd.dev/api/auth/organization/list',
@@ -132,11 +136,10 @@ describe('runOnboardingFlow', () => {
       name: 'New User',
       expiresAt: '2099-01-01T00:00:00.000Z',
     })
-    questionMock
-      .mockResolvedValueOnce('new')
-      .mockResolvedValueOnce('Team Docs')
+    questionMock.mockResolvedValueOnce('new').mockResolvedValueOnce('Team Docs')
 
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [{ id: 'org-old', name: 'Old Org' }],
@@ -155,11 +158,15 @@ describe('runOnboardingFlow', () => {
 
     const createCall = fetchMock.mock.calls[1]
     expect(createCall?.[0]).toBe('https://collabmd.dev/api/auth/organization/create')
-    expect(createCall?.[1]).toEqual(expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({ name: 'Team Docs' }),
-    }))
-    const config = JSON.parse(readFileSync(join(rootDir, 'project', 'collabmd.json'), 'utf-8')) as { orgId?: string }
+    expect(createCall?.[1]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ name: 'Team Docs' }),
+      }),
+    )
+    const config = JSON.parse(readFileSync(join(rootDir, 'project', 'collabmd.json'), 'utf-8')) as {
+      orgId?: string
+    }
     expect(config.orgId).toBe('org-new')
   })
 
@@ -187,7 +194,9 @@ describe('runOnboardingFlow', () => {
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(3)
-    const bodies = fetchMock.mock.calls.map((call) => JSON.parse((call[1] as { body?: string }).body ?? '{}') as { email?: string })
+    const bodies = fetchMock.mock.calls.map(
+      (call) => JSON.parse((call[1] as { body?: string }).body ?? '{}') as { email?: string },
+    )
     expect(bodies.map((body) => body.email)).toEqual(['a@x.com', 'b@y.com', 'c@z.com'])
   })
 
@@ -209,9 +218,15 @@ describe('runOnboardingFlow', () => {
       fetchImpl: fetchMock as unknown as typeof fetch,
     })
 
-    const config = JSON.parse(readFileSync(join(rootDir, 'project', 'collabmd.json'), 'utf-8')) as { orgId?: string }
+    const config = JSON.parse(readFileSync(join(rootDir, 'project', 'collabmd.json'), 'utf-8')) as {
+      orgId?: string
+    }
     expect(config.orgId).toBeUndefined()
-    expect(questionMock).toHaveBeenCalledWith(expect.stringContaining('Could not reach server at https://collabmd.dev. Check your connection. Retry or skip? (r/S) [s] '))
+    expect(questionMock).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Could not reach server at https://collabmd.dev. Check your connection. Retry or skip? (r/S) [s] ',
+      ),
+    )
   })
 
   it('supports full skip combinations and avoids interactive prompts', async () => {

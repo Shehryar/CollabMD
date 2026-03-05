@@ -18,6 +18,7 @@ interface Doc {
   source?: string | null
   updatedAt: string
   createdAt: string
+  snippet?: string | null
 }
 
 type SortField = 'updatedAt' | 'title' | 'createdAt'
@@ -142,17 +143,40 @@ function DraggableDocRow({
         aria-grabbed={isDragging}
         aria-dropeffect="move"
       >
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01" />
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"
+          />
         </svg>
       </button>
       {/* Doc icon */}
       <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border bg-bg-subtle font-mono text-sm text-fg-muted group-hover:border-border-strong group-hover:bg-bg">
         #
         {doc.source === 'daemon' && (
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-bg" title="Synced from local">
-            <svg className="h-2.5 w-2.5 text-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+          <span
+            className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-bg"
+            title="Synced from local"
+          >
+            <svg
+              className="h-2.5 w-2.5 text-green"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"
+              />
             </svg>
           </span>
         )}
@@ -170,12 +194,20 @@ function DraggableDocRow({
           }}
         />
       ) : (
-        <Link
-          href={`/doc/${doc.id}`}
-          className="min-w-0 flex-1 truncate font-sans text-[13.5px] font-medium tracking-[-0.01em] text-fg"
-        >
-          {doc.title}
-        </Link>
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/doc/${doc.id}`}
+            className="block truncate font-sans text-[13.5px] font-medium tracking-[-0.01em] text-fg"
+          >
+            {doc.title}
+          </Link>
+          {doc.snippet && (
+            <p
+              className="mt-0.5 truncate text-xs text-fg-muted [&_mark]:rounded-sm [&_mark]:bg-accent/20 [&_mark]:px-0.5"
+              dangerouslySetInnerHTML={{ __html: doc.snippet }}
+            />
+          )}
+        </div>
       )}
       {/* Right side: date (default) / actions (hover) */}
       <span className="ml-auto shrink-0 font-mono text-[11px] tracking-[-0.01em] text-fg-faint group-hover:hidden">
@@ -266,7 +298,13 @@ export default function HomePage() {
   const { data: activeOrg } = useActiveOrganization()
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { folders, connectedFolders, onboardingStatus, onboardingLoading, refreshOnboardingStatus } = useSidebar()
+  const {
+    folders,
+    connectedFolders,
+    onboardingStatus,
+    onboardingLoading,
+    refreshOnboardingStatus,
+  } = useSidebar()
 
   const folderId = searchParams.get('folder')
   const view = searchParams.get('view')
@@ -296,7 +334,8 @@ export default function HomePage() {
 
     const completedKey = `collabmd:onboarding-completed:${onboardingStatus.orgId}`
     const completed = localStorage.getItem(completedKey) === '1'
-    const shouldShow = onboardingStatus.docCount === 0 && onboardingStatus.memberCount <= 1 && !completed
+    const shouldShow =
+      onboardingStatus.docCount === 0 && onboardingStatus.memberCount <= 1 && !completed
     setShowOnboarding(shouldShow)
   }, [onboardingLoading, onboardingStatus])
 
@@ -312,7 +351,7 @@ export default function HomePage() {
       if (!res.ok) {
         let nextError = 'Failed to load documents.'
         try {
-          const body = await res.json() as { error?: unknown }
+          const body = (await res.json()) as { error?: unknown }
           if (typeof body.error === 'string' && body.error.trim()) {
             nextError = body.error
           }
@@ -364,14 +403,16 @@ export default function HomePage() {
   const sortedDocs = useMemo(() => {
     return [...docs].sort((a, b) => {
       if (sort === 'title') return a.title.localeCompare(b.title)
-      if (sort === 'createdAt') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      if (sort === 'createdAt')
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     })
   }, [docs, sort])
 
   const createDoc = async () => {
     if (creatingDoc) return
-    const activeOrgId = activeOrg?.id ?? session?.session?.activeOrganizationId ?? onboardingStatus?.orgId
+    const activeOrgId =
+      activeOrg?.id ?? session?.session?.activeOrganizationId ?? onboardingStatus?.orgId
     if (!activeOrgId) {
       setError('Select a workspace before creating a document.')
       return
@@ -387,7 +428,7 @@ export default function HomePage() {
       if (!res.ok) {
         let nextError = 'Failed to create document.'
         try {
-          const body = await res.json() as { error?: unknown }
+          const body = (await res.json()) as { error?: unknown }
           if (typeof body.error === 'string' && body.error.trim()) {
             nextError = body.error
           }
@@ -399,13 +440,15 @@ export default function HomePage() {
       }
       const doc = await res.json()
       window.dispatchEvent(new Event('collabmd:documents-changed'))
-      window.dispatchEvent(new CustomEvent('collabmd:document-created', {
-        detail: {
-          id: doc.id,
-          title: doc.title ?? 'Untitled',
-          folderId: doc.folderId ?? null,
-        },
-      }))
+      window.dispatchEvent(
+        new CustomEvent('collabmd:document-created', {
+          detail: {
+            id: doc.id,
+            title: doc.title ?? 'Untitled',
+            folderId: doc.folderId ?? null,
+          },
+        }),
+      )
       router.push(`/doc/${doc.id}`)
       void refreshOnboardingStatus()
     } catch {
@@ -491,7 +534,10 @@ export default function HomePage() {
     return new Map(
       connectedFolders
         .map((folder) => [folder.folderId, folder] as const)
-        .filter((entry): entry is readonly [string, (typeof connectedFolders)[number]] => entry[0] !== null),
+        .filter(
+          (entry): entry is readonly [string, (typeof connectedFolders)[number]] =>
+            entry[0] !== null,
+        ),
     )
   }, [connectedFolders])
 
@@ -510,13 +556,14 @@ export default function HomePage() {
     return trail
   }, [folderId, folders])
 
-  const pageTitle = view === 'shared'
-    ? 'Shared with me'
-    : searchQuery
-    ? `Search: ${searchQuery}`
-    : folderId
-    ? breadcrumb?.[breadcrumb.length - 1]?.name ?? 'Folder'
-    : 'All documents'
+  const pageTitle =
+    view === 'shared'
+      ? 'Shared with me'
+      : searchQuery
+        ? `Search: ${searchQuery}`
+        : folderId
+          ? (breadcrumb?.[breadcrumb.length - 1]?.name ?? 'Folder')
+          : 'All documents'
 
   if (isPending) {
     return (
@@ -539,7 +586,9 @@ export default function HomePage() {
       {/* Breadcrumb */}
       {breadcrumb && breadcrumb.length > 0 && (
         <nav className="flex items-center gap-1 px-7 pt-4 font-mono text-[11px] text-fg-muted">
-          <Link href="/" className="hover:text-fg">Documents</Link>
+          <Link href="/" className="hover:text-fg">
+            Documents
+          </Link>
           {breadcrumb.map((f) => (
             <span key={f.id} className="flex items-center gap-1">
               <span>/</span>
@@ -552,29 +601,37 @@ export default function HomePage() {
       )}
 
       {/* Sync status bar */}
-      {folderId && breadcrumb && (() => {
-        const currentFolder = breadcrumb[breadcrumb.length - 1]
-        const syncInfo = currentFolder ? connectedFoldersById.get(currentFolder.id) : undefined
-        if (!syncInfo) return null
-        return (
-          <div className="mx-7 mt-2 flex items-center gap-2 rounded border border-border bg-bg-subtle px-3 py-1.5">
-            <span className={`inline-block h-[6px] w-[6px] rounded-full ${syncInfo.status === 'synced' ? 'bg-green' : 'bg-fg-faint'}`} />
-            <span className="font-mono text-[11px] text-fg-secondary">
-              {syncInfo.status === 'synced' ? 'Synced' : 'Disconnected'}
-            </span>
-            <span className="text-fg-faint">·</span>
-            <span className="font-mono text-[11px] text-fg-faint">{syncInfo.fileCount} files</span>
-            <span className="text-fg-faint">·</span>
-            <span className="font-mono text-[11px] text-fg-faint">
-              Last sync {new Date(syncInfo.lastSync).toLocaleString()}
-            </span>
-          </div>
-        )
-      })()}
+      {folderId &&
+        breadcrumb &&
+        (() => {
+          const currentFolder = breadcrumb[breadcrumb.length - 1]
+          const syncInfo = currentFolder ? connectedFoldersById.get(currentFolder.id) : undefined
+          if (!syncInfo) return null
+          return (
+            <div className="mx-7 mt-2 flex items-center gap-2 rounded border border-border bg-bg-subtle px-3 py-1.5">
+              <span
+                className={`inline-block h-[6px] w-[6px] rounded-full ${syncInfo.status === 'synced' ? 'bg-green' : 'bg-fg-faint'}`}
+              />
+              <span className="font-mono text-[11px] text-fg-secondary">
+                {syncInfo.status === 'synced' ? 'Synced' : 'Disconnected'}
+              </span>
+              <span className="text-fg-faint">·</span>
+              <span className="font-mono text-[11px] text-fg-faint">
+                {syncInfo.fileCount} files
+              </span>
+              <span className="text-fg-faint">·</span>
+              <span className="font-mono text-[11px] text-fg-faint">
+                Last sync {new Date(syncInfo.lastSync).toLocaleString()}
+              </span>
+            </div>
+          )
+        })()}
 
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-7 pb-3 pt-4">
-        <h1 className="font-mono text-[18px] font-semibold tracking-[-0.03em] text-fg">{pageTitle}</h1>
+        <h1 className="font-mono text-[18px] font-semibold tracking-[-0.03em] text-fg">
+          {pageTitle}
+        </h1>
         <div className="flex items-center gap-2">
           <form onSubmit={handleSearch}>
             <input
@@ -594,7 +651,8 @@ export default function HomePage() {
             }}
             className="rounded border border-border bg-bg px-[10px] py-[6px] font-mono text-[11px] text-fg-secondary hover:border-fg hover:text-fg"
           >
-            sort: {sort === 'updatedAt' ? 'updated' : sort === 'createdAt' ? 'created' : 'name'} &#9662;
+            sort: {sort === 'updatedAt' ? 'updated' : sort === 'createdAt' ? 'created' : 'name'}{' '}
+            &#9662;
           </button>
           <button
             onClick={() => {
@@ -606,12 +664,32 @@ export default function HomePage() {
             title={viewMode === 'list' ? 'Switch to grid view' : 'Switch to list view'}
           >
             {viewMode === 'list' ? (
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z"
+                />
               </svg>
             ) : (
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z"
+                />
               </svg>
             )}
           </button>
@@ -645,7 +723,9 @@ export default function HomePage() {
             {childFolders.length > 0 && (
               <div className="mb-4 px-1 pt-1">
                 {sortedDocs.length > 0 && (
-                  <p className="mb-2 font-mono text-[11px] font-medium uppercase tracking-wider text-fg-faint">Folders</p>
+                  <p className="mb-2 font-mono text-[11px] font-medium uppercase tracking-wider text-fg-faint">
+                    Folders
+                  </p>
                 )}
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                   {childFolders.map((cf) => (
@@ -654,13 +734,35 @@ export default function HomePage() {
                       href={`/?folder=${cf.id}`}
                       className="flex items-center gap-2.5 rounded-lg border border-border px-3.5 py-3 transition-colors hover:border-border-strong hover:bg-bg-subtle"
                     >
-                      <svg className="h-5 w-5 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.06-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+                      <svg
+                        className="h-5 w-5 shrink-0 text-fg-muted"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.06-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"
+                        />
                       </svg>
-                      <span className="truncate font-sans text-[13px] font-medium text-fg">{cf.name}</span>
+                      <span className="truncate font-sans text-[13px] font-medium text-fg">
+                        {cf.name}
+                      </span>
                       {connectedFolderIds.has(cf.id) && (
-                        <svg className="ml-auto h-3 w-3 shrink-0 text-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                        <svg
+                          className="ml-auto h-3 w-3 shrink-0 text-green"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"
+                          />
                         </svg>
                       )}
                     </Link>
@@ -672,7 +774,9 @@ export default function HomePage() {
             {sortedDocs.length > 0 && (
               <div className="px-1">
                 {childFolders.length > 0 && (
-                  <p className="mb-2 font-mono text-[11px] font-medium uppercase tracking-wider text-fg-faint">Documents</p>
+                  <p className="mb-2 font-mono text-[11px] font-medium uppercase tracking-wider text-fg-faint">
+                    Documents
+                  </p>
                 )}
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                   {sortedDocs.map((doc) => (
@@ -685,13 +789,31 @@ export default function HomePage() {
                         #
                         {doc.source === 'daemon' && (
                           <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-bg">
-                            <svg className="h-2.5 w-2.5 text-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                            <svg
+                              className="h-2.5 w-2.5 text-green"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2.5}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"
+                              />
                             </svg>
                           </span>
                         )}
                       </div>
-                      <span className="truncate font-sans text-[13px] font-medium text-fg">{doc.title}</span>
+                      <span className="truncate font-sans text-[13px] font-medium text-fg">
+                        {doc.title}
+                      </span>
+                      {doc.snippet && (
+                        <p
+                          className="line-clamp-2 text-[11px] text-fg-muted [&_mark]:rounded-sm [&_mark]:bg-accent/20 [&_mark]:px-0.5"
+                          dangerouslySetInnerHTML={{ __html: doc.snippet }}
+                        />
+                      )}
                       <span className="font-mono text-[10px] text-fg-faint">
                         {new Date(doc.updatedAt).toLocaleDateString()}
                       </span>
@@ -712,14 +834,36 @@ export default function HomePage() {
                       href={`/?folder=${cf.id}`}
                       className="group flex items-center gap-3 rounded border border-transparent px-3 py-[10px] hover:border-border hover:bg-bg-subtle"
                     >
-                      <svg className="h-5 w-5 shrink-0 text-fg-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.06-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+                      <svg
+                        className="h-5 w-5 shrink-0 text-fg-muted"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.06-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"
+                        />
                       </svg>
-                      <span className="min-w-0 flex-1 truncate font-sans text-[13.5px] font-medium text-fg">{cf.name}</span>
+                      <span className="min-w-0 flex-1 truncate font-sans text-[13.5px] font-medium text-fg">
+                        {cf.name}
+                      </span>
                       {connectedFolderIds.has(cf.id) && (
                         <span className="ml-auto flex items-center gap-1 font-mono text-[10px] text-fg-faint group-hover:hidden">
-                          <svg className="h-2.5 w-2.5 text-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                          <svg
+                            className="h-2.5 w-2.5 text-green"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2.5}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"
+                            />
                           </svg>
                           local
                         </span>

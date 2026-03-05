@@ -13,7 +13,14 @@ vi.mock('os', () => ({
 }))
 
 import { existsSync, readFileSync, writeFileSync, renameSync } from 'fs'
-import { addProject, getProject, readRegistry, removeProject, writeRegistry, type ProjectConfig } from './registry.js'
+import {
+  addProject,
+  getProject,
+  readRegistry,
+  removeProject,
+  writeRegistry,
+  type ProjectConfig,
+} from './registry.js'
 
 const mockExistsSync = vi.mocked(existsSync)
 const mockReadFileSync = vi.mocked(readFileSync)
@@ -56,7 +63,10 @@ describe('registry', () => {
 
     addProject(projectA)
 
-    expect(mockWriteFileSync).toHaveBeenCalledWith(TMP_FILE, expect.stringContaining('"orgId": "org-1"'))
+    expect(mockWriteFileSync).toHaveBeenCalledWith(
+      TMP_FILE,
+      expect.stringContaining('"orgId": "org-1"'),
+    )
     expect(mockRenameSync).toHaveBeenCalledWith(TMP_FILE, FILE)
     expect(readRegistry()).toEqual([projectA])
   })
@@ -73,7 +83,10 @@ describe('registry', () => {
 
     addProject(updated)
 
-    expect(mockWriteFileSync).toHaveBeenCalledWith(TMP_FILE, expect.stringContaining('"orgId": "org-updated"'))
+    expect(mockWriteFileSync).toHaveBeenCalledWith(
+      TMP_FILE,
+      expect.stringContaining('"orgId": "org-updated"'),
+    )
     expect(readRegistry()).toEqual([updated])
   })
 
@@ -88,7 +101,10 @@ describe('registry', () => {
 
     removeProject(projectA.path)
 
-    expect(mockWriteFileSync).toHaveBeenCalledWith(TMP_FILE, expect.not.stringContaining(projectA.path))
+    expect(mockWriteFileSync).toHaveBeenCalledWith(
+      TMP_FILE,
+      expect.not.stringContaining(projectA.path),
+    )
     expect(readRegistry()).toEqual([projectB])
   })
 
@@ -112,4 +128,3 @@ describe('registry', () => {
     expect(mockRenameSync).toHaveBeenCalledWith(TMP_FILE, FILE)
   })
 })
-

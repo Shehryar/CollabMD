@@ -21,17 +21,20 @@ export class FileWatcher {
   }
 
   async start(): Promise<void> {
-    this.watcher = watch([
-      '**/*.md',
-      '.collabmd/comments/**/*.comments.json',
-      '.collabmd/discussions/**/*.discussions.json',
-      '.collabmd/agent-triggers/**/*.response.json',
-    ], {
-      cwd: this.workDir,
-      ignored: ['node_modules/**', '.git/**', '.collabmd/yjs-cache/**'],
-      awaitWriteFinish: { stabilityThreshold: 300 },
-      ignoreInitial: false,
-    })
+    this.watcher = watch(
+      [
+        '**/*.md',
+        '.collabmd/comments/**/*.comments.json',
+        '.collabmd/discussions/**/*.discussions.json',
+        '.collabmd/agent-triggers/**/*.response.json',
+      ],
+      {
+        cwd: this.workDir,
+        ignored: ['node_modules/**', '.git/**', '.collabmd/yjs-cache/**'],
+        awaitWriteFinish: { stabilityThreshold: 300 },
+        ignoreInitial: false,
+      },
+    )
 
     this.watcher.on('add', (path) => {
       this.handleEvent('add', path)
@@ -104,11 +107,17 @@ export class FileWatcher {
   }
 
   private isDiscussionSidecar(relativePath: string): boolean {
-    return relativePath.startsWith('.collabmd/discussions/') && relativePath.endsWith('.discussions.json')
+    return (
+      relativePath.startsWith('.collabmd/discussions/') &&
+      relativePath.endsWith('.discussions.json')
+    )
   }
 
   private isAgentTriggerResponseFile(relativePath: string): boolean {
-    return relativePath.startsWith('.collabmd/agent-triggers/') && relativePath.endsWith('.response.json')
+    return (
+      relativePath.startsWith('.collabmd/agent-triggers/') &&
+      relativePath.endsWith('.response.json')
+    )
   }
 
   private normalizePath(relativePath: string): string {

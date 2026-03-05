@@ -77,19 +77,23 @@ export default function SharePage() {
       <div className="w-full max-w-sm rounded-lg border border-border bg-bg p-6 shadow">
         {state === 'error' ? (
           <div className="text-center">
-            <h2 className="font-mono text-[18px] font-semibold tracking-[-0.02em] text-fg">Unable to access document</h2>
+            <h2 className="font-mono text-[18px] font-semibold tracking-[-0.02em] text-fg">
+              Unable to access document
+            </h2>
             <p className="mt-2 font-sans text-sm text-fg-secondary">{error}</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
-            <h2 className="font-mono text-[18px] font-semibold tracking-[-0.02em] text-fg">Password required</h2>
+            <h2 className="font-mono text-[18px] font-semibold tracking-[-0.02em] text-fg">
+              Password required
+            </h2>
             <p className="mt-1 font-sans text-sm text-fg-secondary">
               This document is password-protected.
             </p>
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"
               className="mt-4 w-full rounded border border-border bg-bg px-3 py-[7px] font-mono text-[13px] text-fg placeholder:text-fg-faint focus:border-fg focus:outline-none"
               autoFocus

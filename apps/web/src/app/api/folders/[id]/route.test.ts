@@ -10,7 +10,9 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 const mockCheckPermission = vi.fn()
@@ -121,12 +123,7 @@ describe('PATCH /api/folders/[id]', () => {
     const body = await res.json()
     expect(body.error).toBe('forbidden')
 
-    expect(mockCheckPermission).toHaveBeenCalledWith(
-      'user-1',
-      'can_edit',
-      'folder',
-      'folder-1',
-    )
+    expect(mockCheckPermission).toHaveBeenCalledWith('user-1', 'can_edit', 'folder', 'folder-1')
   })
 
   it('returns 400 when name is missing', async () => {
@@ -264,12 +261,7 @@ describe('DELETE /api/folders/[id]', () => {
     const body = await res.json()
     expect(body.error).toBe('forbidden')
 
-    expect(mockCheckPermission).toHaveBeenCalledWith(
-      'user-1',
-      'owner',
-      'folder',
-      'folder-1',
-    )
+    expect(mockCheckPermission).toHaveBeenCalledWith('user-1', 'owner', 'folder', 'folder-1')
   })
 
   it('returns 409 when folder has child documents', async () => {
@@ -343,15 +335,7 @@ describe('DELETE /api/folders/[id]', () => {
     // Verify FGA cleanup
     expect(mockReadTuples).toHaveBeenCalledWith('folder:folder-1')
     expect(mockDeleteTuple).toHaveBeenCalledTimes(2)
-    expect(mockDeleteTuple).toHaveBeenCalledWith(
-      'user:user-1',
-      'owner',
-      'folder:folder-1',
-    )
-    expect(mockDeleteTuple).toHaveBeenCalledWith(
-      'org:org-1',
-      'org',
-      'folder:folder-1',
-    )
+    expect(mockDeleteTuple).toHaveBeenCalledWith('user:user-1', 'owner', 'folder:folder-1')
+    expect(mockDeleteTuple).toHaveBeenCalledWith('org:org-1', 'org', 'folder:folder-1')
   })
 })

@@ -32,7 +32,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const body = await request.json()
-  const { permission = 'viewer', password, expiresInDays } = body as {
+  const {
+    permission = 'viewer',
+    password,
+    expiresInDays,
+  } = body as {
     permission?: 'viewer' | 'commenter' | 'editor'
     password?: string
     expiresInDays?: number
@@ -57,24 +61,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     ? new Date(now.getTime() + expiresInDays * 24 * 60 * 60 * 1000)
     : null
 
-  db.insert(shareLinks).values({
-    id,
-    documentId: docId,
-    token,
-    permission,
-    passwordHash,
-    expiresAt,
-    createdBy: userId,
-    createdAt: now,
-  }).run()
+  db.insert(shareLinks)
+    .values({
+      id,
+      documentId: docId,
+      token,
+      permission,
+      passwordHash,
+      expiresAt,
+      createdBy: userId,
+      createdAt: now,
+    })
+    .run()
 
-  return NextResponse.json({
-    id,
-    token,
-    permission,
-    expiresAt: expiresAt?.toISOString() ?? null,
-    createdAt: now.toISOString(),
-  }, { status: 201 })
+  return NextResponse.json(
+    {
+      id,
+      token,
+      permission,
+      expiresAt: expiresAt?.toISOString() ?? null,
+      createdAt: now.toISOString(),
+    },
+    { status: 201 },
+  )
 }
 
 export async function GET(_request: NextRequest, { params }: RouteParams) {
@@ -91,13 +100,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const links = db
-    .select()
-    .from(shareLinks)
-    .where(eq(shareLinks.documentId, docId))
-    .all()
+  const links = db.select().from(shareLinks).where(eq(shareLinks.documentId, docId)).all()
 
-  const result = links.map(link => ({
+  const result = links.map((link) => ({
     id: link.id,
     token: link.token,
     permission: link.permission,

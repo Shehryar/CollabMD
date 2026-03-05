@@ -13,6 +13,7 @@ dist
 .collabmd/
 logo-concepts/
 apps/web/.next-e2e/
+apps/web/.next-dev/
 playwright-report/
 test-results/
 e2e/.openfga.pid

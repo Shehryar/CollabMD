@@ -173,15 +173,18 @@ export class GlobalDaemon {
     this.port = options.port ?? 4200
     this.readRegistryFn = options.readRegistryFn ?? readRegistry
     this.registryFilePath = options.registryFilePath ?? defaultRegistryFilePath()
-    this.folderDaemonFactory = options.folderDaemonFactory ?? ((project, shared) => new FolderDaemon({
-      workDir: project.path,
-      serverUrl: project.serverUrl,
-      orgId: project.orgId,
-      tokenManager: shared.tokenManager,
-      sessionToken: shared.credential?.sessionToken ?? null,
-      userName: shared.credential?.name || shared.credential?.email || null,
-      credential: shared.credential,
-    }))
+    this.folderDaemonFactory =
+      options.folderDaemonFactory ??
+      ((project, shared) =>
+        new FolderDaemon({
+          workDir: project.path,
+          serverUrl: project.serverUrl,
+          orgId: project.orgId,
+          tokenManager: shared.tokenManager,
+          sessionToken: shared.credential?.sessionToken ?? null,
+          userName: shared.credential?.name || shared.credential?.email || null,
+          credential: shared.credential,
+        }))
   }
 
   async start(): Promise<void> {
@@ -260,7 +263,9 @@ export class GlobalDaemon {
     for (const project of nextProjects) {
       const existing = this.folders.get(project.path)
       if (existing) {
-        const changed = existing.project.serverUrl !== project.serverUrl || existing.project.orgId !== project.orgId
+        const changed =
+          existing.project.serverUrl !== project.serverUrl ||
+          existing.project.orgId !== project.orgId
         if (!changed) continue
         await existing.daemon.stop()
         this.folders.delete(project.path)
@@ -277,7 +282,10 @@ export class GlobalDaemon {
     }
   }
 
-  private getServerAuth(serverUrl: string): { tokenManager: TokenManager | null; credential: Credential | null } {
+  private getServerAuth(serverUrl: string): {
+    tokenManager: TokenManager | null
+    credential: Credential | null
+  } {
     if (!serverUrl) return { tokenManager: null, credential: null }
 
     if (!this.credentials.has(serverUrl)) {
@@ -336,4 +344,3 @@ export class GlobalDaemon {
     res.end(JSON.stringify({ error: 'not found' }))
   }
 }
-

@@ -30,7 +30,10 @@ describe('CLI agent commands', () => {
 
     it('adds to existing config without losing other fields', () => {
       const configPath = join(tempDir, 'collabmd.json')
-      writeFileSync(configPath, JSON.stringify({ server: 'http://localhost:3000', foo: 'bar' }, null, 2) + '\n')
+      writeFileSync(
+        configPath,
+        JSON.stringify({ server: 'http://localhost:3000', foo: 'bar' }, null, 2) + '\n',
+      )
 
       agentAddCommand('reviewer', { command: 'python review.py' }, tempDir)
 
@@ -53,7 +56,10 @@ describe('CLI agent commands', () => {
 
     it('does not override enabled if already set', () => {
       const configPath = join(tempDir, 'collabmd.json')
-      writeFileSync(configPath, JSON.stringify({ agents: { enabled: false, commands: {} } }, null, 2) + '\n')
+      writeFileSync(
+        configPath,
+        JSON.stringify({ agents: { enabled: false, commands: {} } }, null, 2) + '\n',
+      )
 
       agentAddCommand('helper', { command: 'echo hi' }, tempDir)
 
@@ -65,14 +71,21 @@ describe('CLI agent commands', () => {
   describe('agentListCommand', () => {
     it('shows configured agents', () => {
       const configPath = join(tempDir, 'collabmd.json')
-      writeFileSync(configPath, JSON.stringify({
-        agents: {
-          commands: {
-            writer: { command: 'node writer.js' },
-            reviewer: { command: 'python review.py', timeout: 60 },
+      writeFileSync(
+        configPath,
+        JSON.stringify(
+          {
+            agents: {
+              commands: {
+                writer: { command: 'node writer.js' },
+                reviewer: { command: 'python review.py', timeout: 60 },
+              },
+            },
           },
-        },
-      }, null, 2) + '\n')
+          null,
+          2,
+        ) + '\n',
+      )
 
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
       agentListCommand(tempDir)
@@ -104,15 +117,22 @@ describe('CLI agent commands', () => {
   describe('agentRemoveCommand', () => {
     it('removes agent from config', () => {
       const configPath = join(tempDir, 'collabmd.json')
-      writeFileSync(configPath, JSON.stringify({
-        agents: {
-          enabled: true,
-          commands: {
-            writer: { command: 'node writer.js' },
-            reviewer: { command: 'python review.py' },
+      writeFileSync(
+        configPath,
+        JSON.stringify(
+          {
+            agents: {
+              enabled: true,
+              commands: {
+                writer: { command: 'node writer.js' },
+                reviewer: { command: 'python review.py' },
+              },
+            },
           },
-        },
-      }, null, 2) + '\n')
+          null,
+          2,
+        ) + '\n',
+      )
 
       agentRemoveCommand('writer', tempDir)
 

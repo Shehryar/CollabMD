@@ -14,11 +14,7 @@ export async function getStoreId(): Promise<string> {
   return cachedStoreId
 }
 
-export async function writeTuple(
-  user: string,
-  relation: string,
-  object: string,
-): Promise<void> {
+export async function writeTuple(user: string, relation: string, object: string): Promise<void> {
   const storeId = await getStoreId()
   const res = await fetch(`${FGA_URL}/stores/${storeId}/write`, {
     method: 'POST',

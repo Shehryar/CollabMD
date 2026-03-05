@@ -1,7 +1,12 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { authClient, useSession, useActiveOrganization, useListOrganizations } from '@/lib/auth-client'
+import {
+  authClient,
+  useSession,
+  useActiveOrganization,
+  useListOrganizations,
+} from '@/lib/auth-client'
 
 export interface Folder {
   id: string
@@ -9,6 +14,7 @@ export interface Folder {
   name: string
   path: string
   parentId: string | null
+  position: number
   createdBy: string
   createdAt: string
 }
@@ -24,7 +30,7 @@ export interface OnboardingStatus {
 export interface ConnectedFolder {
   folderId: string | null
   folderName: string
-  status: 'synced' | 'disconnected'
+  status: 'synced' | 'syncing' | 'disconnected'
   fileCount: number
   lastSync: string
 }

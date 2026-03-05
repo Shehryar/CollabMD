@@ -1,118 +1,58 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useDroppable } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useActiveOrganization } from '@/lib/auth-client'
-import { useSidebar, type Folder } from './sidebar-context'
+import { useSidebar, type Folder, type ConnectedFolder } from './sidebar-context'
+import { SortableFolderRow } from './sortable-folder'
+import { SortableDocRow } from './sortable-doc'
+import { sortByPosition } from './folder-tree-utils'
 
-interface SidebarDoc {
+export { sortByPosition, wouldCreateCircle } from './folder-tree-utils'
+
+function formatRelativeTime(iso: string): string {
+  const now = Date.now()
+  const then = new Date(iso).getTime()
+  const diffMs = now - then
+  if (diffMs < 0) return 'just now'
+  const seconds = Math.floor(diffMs / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
+function statusDotClass(status: ConnectedFolder['status']): string {
+  switch (status) {
+    case 'synced':
+      return 'bg-green'
+    case 'syncing':
+      return 'bg-accent animate-pulse'
+    case 'disconnected':
+      return 'bg-fg-faint'
+  }
+}
+
+function statusLabel(status: ConnectedFolder['status']): string {
+  switch (status) {
+    case 'synced':
+      return 'synced'
+    case 'syncing':
+      return 'syncing'
+    case 'disconnected':
+      return 'disconnected'
+  }
+}
+
+export interface SidebarDoc {
   id: string
   title: string
   folderId: string | null
-}
-
-function DroppableFolderRow({
-  folder,
-  depth,
-  isActive,
-  isExpanded,
-  hasChildren,
-  renamingId,
-  renameValue,
-  setRenameValue,
-  onToggleExpand,
-  onNavigate,
-  onRename,
-  onContextMenu,
-  setRenamingId,
-  isConnected,
-}: {
-  folder: Folder
-  depth: number
-  isActive: boolean
-  isExpanded: boolean
-  hasChildren: boolean
-  renamingId: string | null
-  renameValue: string
-  setRenameValue: (v: string) => void
-  onToggleExpand: (id: string) => void
-  onNavigate: (id: string) => void
-  onRename: (id: string) => void
-  onContextMenu: (e: React.MouseEvent, id: string) => void
-  setRenamingId: (id: string | null) => void
-  isConnected: boolean
-}) {
-  const { isOver, setNodeRef } = useDroppable({ id: folder.id })
-  const renameInputRef = useRef<HTMLInputElement>(null)
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={`group flex items-center rounded pr-1 text-[13px] ${
-        isOver
-          ? 'bg-accent-subtle ring-2 ring-accent'
-          : isActive
-          ? 'bg-bg text-fg shadow-sm'
-          : 'text-fg-secondary hover:bg-bg-hover hover:text-fg'
-      }`}
-      style={{ paddingLeft: `${depth * 12 + 8}px` }}
-      onContextMenu={(e) => onContextMenu(e, folder.id)}
-    >
-      <button
-        onClick={() => hasChildren && onToggleExpand(folder.id)}
-        className="flex h-6 w-5 shrink-0 items-center justify-center"
-        aria-label={hasChildren ? (isExpanded ? 'collapse folder' : 'expand folder') : 'folder'}
-        aria-expanded={hasChildren ? isExpanded : undefined}
-      >
-        {hasChildren && (
-          <span className={`text-[9px] text-fg-faint opacity-40 transition-transform ${isExpanded ? 'inline-block rotate-90' : ''}`}>
-            &#9654;
-          </span>
-        )}
-      </button>
-      <span className="relative mr-1.5 shrink-0">
-        <svg className="h-4 w-4 text-fg-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-        </svg>
-        {isConnected && (
-          <span className="absolute -bottom-[1px] -right-[1px] h-[5px] w-[5px] rounded-full bg-green" title="Synced from local" />
-        )}
-      </span>
-      {renamingId === folder.id ? (
-        <input
-          ref={renameInputRef}
-          autoFocus
-          className="min-w-0 flex-1 rounded border border-border-strong px-1 py-0.5 font-mono text-[13px]"
-          value={renameValue}
-          onChange={(e) => setRenameValue(e.target.value)}
-          onBlur={() => void onRename(folder.id)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void onRename(folder.id)
-            if (e.key === 'Escape') setRenamingId(null)
-          }}
-        />
-      ) : (
-        <button
-          onClick={() => onNavigate(folder.id)}
-          className="min-w-0 flex-1 truncate py-[5px] text-left"
-        >
-          {folder.name}
-        </button>
-      )}
-      <button
-        onClick={(e) => onContextMenu(e, folder.id)}
-        className="ml-auto hidden shrink-0 rounded p-0.5 text-fg-faint hover:text-fg-muted group-hover:block"
-        aria-haspopup="menu"
-        aria-label="folder actions"
-      >
-        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
-        </svg>
-      </button>
-    </div>
-  )
+  position?: number
 }
 
 export function FolderTree() {
@@ -133,6 +73,7 @@ export function FolderTree() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [docs, setDocs] = useState<SidebarDoc[]>([])
+  const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null)
   const createInputRef = useRef<HTMLInputElement>(null)
   const contextMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([])
 
@@ -150,22 +91,42 @@ export function FolderTree() {
     setOpen(false)
   }
 
-  const rootFolders = folders.filter((f) => !f.parentId)
-  const rootDocs = useMemo(() => docs.filter((doc) => !doc.folderId), [docs])
+  const sortedRootFolders = useMemo(
+    () =>
+      sortByPosition(
+        folders.filter((f) => !f.parentId),
+        (f) => f.name,
+      ),
+    [folders],
+  )
+  const rootDocs = useMemo(
+    () =>
+      sortByPosition(
+        docs.filter((doc) => !doc.folderId),
+        (d) => d.title,
+      ),
+    [docs],
+  )
   const connectedFolderIds = useMemo(() => {
     return new Set(
-      connectedFolders
-        .map((folder) => folder.folderId)
-        .filter((id): id is string => id !== null),
+      connectedFolders.map((folder) => folder.folderId).filter((id): id is string => id !== null),
     )
   }, [connectedFolders])
 
   const getChildren = useCallback(
-    (parentId: string) => folders.filter((f) => f.parentId === parentId),
+    (parentId: string) =>
+      sortByPosition(
+        folders.filter((f) => f.parentId === parentId),
+        (f) => f.name,
+      ),
     [folders],
   )
   const getDocsForFolder = useCallback(
-    (folderId: string) => docs.filter((doc) => doc.folderId === folderId),
+    (folderId: string) =>
+      sortByPosition(
+        docs.filter((doc) => doc.folderId === folderId),
+        (d) => d.title,
+      ),
     [docs],
   )
 
@@ -177,14 +138,17 @@ export function FolderTree() {
     try {
       const res = await fetch('/api/documents', { cache: 'no-store' })
       if (!res.ok) return
-      const body = await res.json() as unknown
+      const body = (await res.json()) as unknown
       if (!Array.isArray(body)) return
       const nextDocs: SidebarDoc[] = body
-        .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+        .filter(
+          (item): item is Record<string, unknown> => typeof item === 'object' && item !== null,
+        )
         .map((item) => ({
           id: typeof item.id === 'string' ? item.id : '',
           title: typeof item.title === 'string' && item.title.trim() ? item.title : 'Untitled',
           folderId: typeof item.folderId === 'string' ? item.folderId : null,
+          position: typeof item.position === 'number' ? item.position : 0,
         }))
         .filter((doc) => doc.id.length > 0)
       setDocs(nextDocs)
@@ -313,12 +277,15 @@ export function FolderTree() {
     setContextMenu({ id, x: e.clientX, y: e.clientY })
   }
 
-  const focusContextMenuItem = useCallback((index: number) => {
-    if (!contextMenu) return
-    const itemCount = 3
-    const normalized = (index + itemCount) % itemCount
-    contextMenuItemRefs.current[normalized]?.focus()
-  }, [contextMenu])
+  const focusContextMenuItem = useCallback(
+    (index: number) => {
+      if (!contextMenu) return
+      const itemCount = 3
+      const normalized = (index + itemCount) % itemCount
+      contextMenuItemRefs.current[normalized]?.focus()
+    },
+    [contextMenu],
+  )
 
   useEffect(() => {
     if (!contextMenu) return
@@ -355,6 +322,16 @@ export function FolderTree() {
     }
   }
 
+  // Expose the drop target setter and docs setter for the layout DndContext
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ folderId: string | null }>).detail
+      setDropTargetFolderId(detail?.folderId ?? null)
+    }
+    window.addEventListener('collabmd:dnd-drop-target', handler)
+    return () => window.removeEventListener('collabmd:dnd-drop-target', handler)
+  }, [])
+
   const renderFolder = (folder: Folder, depth: number) => {
     const children = getChildren(folder.id)
     const folderDocs = getDocsForFolder(folder.id)
@@ -362,9 +339,14 @@ export function FolderTree() {
     const isExpanded = expanded.has(folder.id)
     const isActive = activeFolderId === folder.id
 
+    const childSortableIds = [
+      ...children.map((c) => `folder:${c.id}`),
+      ...folderDocs.map((d) => `doc:${d.id}`),
+    ]
+
     return (
       <div key={folder.id}>
-        <DroppableFolderRow
+        <SortableFolderRow
           folder={folder}
           depth={depth}
           isActive={isActive}
@@ -379,44 +361,42 @@ export function FolderTree() {
           onContextMenu={handleContextMenu}
           setRenamingId={setRenamingId}
           isConnected={connectedFolderIds.has(folder.id)}
+          isDropTarget={dropTargetFolderId === folder.id}
         />
 
         {isExpanded && (
-          <>
+          <SortableContext items={childSortableIds} strategy={verticalListSortingStrategy}>
             {children.map((child) => renderFolder(child, depth + 1))}
-            {folderDocs.map((doc) => renderDoc(doc, depth + 1))}
+            {folderDocs.map((doc) => (
+              <SortableDocRow
+                key={doc.id}
+                doc={doc}
+                depth={depth + 1}
+                isActive={activeDocId === doc.id}
+                onClose={() => setOpen(false)}
+              />
+            ))}
             {creating === folder.id && renderCreateInput(folder.id, depth + 1)}
-          </>
+          </SortableContext>
         )}
       </div>
     )
   }
 
-  const renderDoc = (doc: SidebarDoc, depth: number) => {
-    const isActive = activeDocId === doc.id
-    return (
-      <Link
-        key={doc.id}
-        href={`/doc/${doc.id}`}
-        onClick={() => setOpen(false)}
-        className={`group flex items-center rounded pr-1 text-[13px] ${
-          isActive
-            ? 'bg-bg text-fg shadow-sm'
-            : 'text-fg-secondary hover:bg-bg-hover hover:text-fg'
-        }`}
-        style={{ paddingLeft: `${depth * 12 + 8 + 20}px` }}
-        title={doc.title}
-      >
-        <span className={`mr-1.5 shrink-0 font-mono text-[11px] ${isActive ? 'text-fg-muted' : 'text-fg-faint'}`}>#</span>
-        <span className="min-w-0 flex-1 truncate py-[5px]">{doc.title}</span>
-      </Link>
-    )
-  }
-
   const renderCreateInput = (parentId: string | null, depth: number) => (
     <div className="flex items-center" style={{ paddingLeft: `${depth * 12 + 8 + 20}px` }}>
-      <svg className="mr-1.5 h-4 w-4 shrink-0 text-fg-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+      <svg
+        className="mr-1.5 h-4 w-4 shrink-0 text-fg-faint"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"
+        />
       </svg>
       <input
         ref={createInputRef}
@@ -434,10 +414,18 @@ export function FolderTree() {
     </div>
   )
 
+  // Build sortable IDs for root level
+  const rootSortableIds = [
+    ...sortedRootFolders.map((f) => `folder:${f.id}`),
+    ...rootDocs.map((d) => `doc:${d.id}`),
+  ]
+
   return (
     <div className="mt-2">
       <div className="mb-1 flex items-center justify-between px-[10px] py-[12px]">
-        <span className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Folders</span>
+        <span className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+          Folders
+        </span>
         <button
           onClick={() => {
             setCreating('root')
@@ -447,20 +435,60 @@ export function FolderTree() {
           className="text-fg-faint opacity-40 hover:text-fg-muted hover:opacity-100"
           title="New folder"
         >
-          <svg className="h-[14px] w-[14px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg
+            className="h-[14px] w-[14px]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
         </button>
       </div>
 
-      {rootFolders.map((folder) => renderFolder(folder, 0))}
-      {creating === 'root' && renderCreateInput(null, 0)}
-      {rootDocs.map((doc) => renderDoc(doc, 0))}
+      <SortableContext items={rootSortableIds} strategy={verticalListSortingStrategy}>
+        {sortedRootFolders.map((folder) => renderFolder(folder, 0))}
+        {creating === 'root' && renderCreateInput(null, 0)}
+        {rootDocs.map((doc) => (
+          <SortableDocRow
+            key={doc.id}
+            doc={doc}
+            depth={0}
+            isActive={activeDocId === doc.id}
+            onClose={() => setOpen(false)}
+          />
+        ))}
+      </SortableContext>
 
       {folders.length === 0 && rootDocs.length === 0 && creating === null && (
         <p className="px-[10px] py-1 text-xs text-fg-faint">No folders or documents yet</p>
       )}
       {error && <p className="px-[10px] py-1 text-xs text-red">{error}</p>}
+
+      {/* Synced folders section */}
+      {connectedFolders.length > 0 && (
+        <div className="mt-3 border-t border-border pt-2">
+          <span className="block px-[10px] py-1 font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+            Synced folders
+          </span>
+          {connectedFolders.map((cf) => (
+            <div
+              key={cf.folderId ?? cf.folderName}
+              className="flex items-center gap-1.5 px-[10px] py-1 text-[12px] text-fg-secondary"
+              title={`${statusLabel(cf.status)} · ${cf.fileCount} files · ${formatRelativeTime(cf.lastSync)}`}
+            >
+              <span
+                className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${statusDotClass(cf.status)}`}
+              />
+              <span className="truncate">{cf.folderName}</span>
+              <span className="ml-auto shrink-0 text-fg-faint">
+                {formatRelativeTime(cf.lastSync)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Context menu */}
       {contextMenu && (

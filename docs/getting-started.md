@@ -71,18 +71,18 @@ npx collabmd link               # register current folder
 
 ## CLI reference
 
-| Command | What it does |
-|---------|-------------|
-| `collabmd dev` | Start foreground daemon for current folder |
-| `collabmd init` | Run onboarding in the current directory |
-| `collabmd login` | Authenticate with CollabMD server |
-| `collabmd logout` | Clear saved credentials |
-| `collabmd link [url]` | Connect folder to a server |
-| `collabmd unlink` | Disconnect folder from daemon |
-| `collabmd push` | Push local git commits to remote |
-| `collabmd pull` | Fetch and merge remote changes |
-| `collabmd status` | Show daemon status |
-| `collabmd service install/start/stop/restart/status/uninstall` | Manage background daemon |
+| Command                                                        | What it does                               |
+| -------------------------------------------------------------- | ------------------------------------------ |
+| `collabmd dev`                                                 | Start foreground daemon for current folder |
+| `collabmd init`                                                | Run onboarding in the current directory    |
+| `collabmd login`                                               | Authenticate with CollabMD server          |
+| `collabmd logout`                                              | Clear saved credentials                    |
+| `collabmd link [url]`                                          | Connect folder to a server                 |
+| `collabmd unlink`                                              | Disconnect folder from daemon              |
+| `collabmd push`                                                | Push local git commits to remote           |
+| `collabmd pull`                                                | Fetch and merge remote changes             |
+| `collabmd status`                                              | Show daemon status                         |
+| `collabmd service install/start/stop/restart/status/uninstall` | Manage background daemon                   |
 
 ## Git integration
 
@@ -125,10 +125,10 @@ CollabMD supports inline comments that sync between the web editor and local fil
 
 See [.env.example](../.env.example) for the full list. The essentials:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `BETTER_AUTH_SECRET` | Yes | Random 32-char string for session signing |
-| `BETTER_AUTH_URL` | Yes | Public URL of the web app |
-| `NEXT_PUBLIC_SYNC_URL` | Yes | WebSocket URL for the sync server |
+| Variable               | Required | Description                               |
+| ---------------------- | -------- | ----------------------------------------- |
+| `BETTER_AUTH_SECRET`   | Yes      | Random 32-char string for session signing |
+| `BETTER_AUTH_URL`      | Yes      | Public URL of the web app                 |
+| `NEXT_PUBLIC_SYNC_URL` | Yes      | WebSocket URL for the sync server         |
 
 Everything else has sensible defaults for local development.

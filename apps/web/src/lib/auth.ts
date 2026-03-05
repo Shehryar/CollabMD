@@ -64,10 +64,10 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
-          const slug = (user.name ?? user.email.split('@')[0])
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            + '-' + Math.random().toString(36).slice(2, 6)
+          const slug =
+            (user.name ?? user.email.split('@')[0]).toLowerCase().replace(/[^a-z0-9]+/g, '-') +
+            '-' +
+            Math.random().toString(36).slice(2, 6)
 
           await auth.api.createOrganization({
             body: {

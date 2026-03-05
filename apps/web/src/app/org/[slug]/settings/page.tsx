@@ -81,8 +81,14 @@ const permissionOptions: { value: DocPermission; label: string }[] = [
 
 const agentPolicyOptions: { value: AgentPolicy; label: string }[] = [
   { value: 'enabled', label: 'Enabled - agents can edit all documents' },
-  { value: 'suggest-only', label: 'Suggest only - agents can only propose changes via suggestions' },
-  { value: 'restricted', label: 'Restricted - agents can only edit documents marked as agent-editable' },
+  {
+    value: 'suggest-only',
+    label: 'Suggest only - agents can only propose changes via suggestions',
+  },
+  {
+    value: 'restricted',
+    label: 'Restricted - agents can only edit documents marked as agent-editable',
+  },
   { value: 'disabled', label: 'Disabled - agent editing is blocked' },
 ]
 
@@ -105,7 +111,11 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
   const [agents, setAgents] = useState<AgentRegistryEntry[]>([])
   const [newAgentName, setNewAgentName] = useState('')
   const [newAgentDescription, setNewAgentDescription] = useState('')
-  const [agentSaveState, setAgentSaveState] = useState<{ saving: boolean; error: string; saved: boolean }>({
+  const [agentSaveState, setAgentSaveState] = useState<{
+    saving: boolean
+    error: string
+    saved: boolean
+  }>({
     saving: false,
     error: '',
     saved: false,
@@ -148,7 +158,7 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
         setWebhookError('Failed to load webhooks')
         return
       }
-      const rows = await res.json() as WebhookRecord[]
+      const rows = (await res.json()) as WebhookRecord[]
       setWebhooks(rows)
     } catch {
       setWebhookError('Failed to load webhooks')
@@ -165,7 +175,7 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
         setApiKeyError('Failed to load API keys')
         return
       }
-      const rows = await res.json() as ApiKeyRecord[]
+      const rows = (await res.json()) as ApiKeyRecord[]
       setApiKeys(rows)
     } catch {
       setApiKeyError('Failed to load API keys')
@@ -198,7 +208,7 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
       try {
         const res = await fetch(`/api/orgs/${orgData.id}/settings`)
         if (res.ok) {
-          const settings = await res.json() as {
+          const settings = (await res.json()) as {
             defaultDocPermission?: DocPermission
             agentPolicy?: AgentPolicy
             agents?: AgentRegistryEntry[]
@@ -211,11 +221,14 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
         setError('Failed to load organization settings')
       }
 
-      if (orgData.members.some((member) => member.user.id === session?.user?.id && (member.role === 'admin' || member.role === 'owner'))) {
-        await Promise.all([
-          loadWebhooks(orgData.id),
-          loadApiKeys(orgData.id),
-        ])
+      if (
+        orgData.members.some(
+          (member) =>
+            member.user.id === session?.user?.id &&
+            (member.role === 'admin' || member.role === 'owner'),
+        )
+      ) {
+        await Promise.all([loadWebhooks(orgData.id), loadApiKeys(orgData.id)])
       }
 
       setLoading(false)
@@ -313,7 +326,7 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
         setWebhookError('Failed to create webhook')
         return
       }
-      const created = await res.json() as { secret?: string }
+      const created = (await res.json()) as { secret?: string }
       if (typeof created.secret === 'string' && created.secret) {
         setCreatedWebhookSecret(created.secret)
       }
@@ -353,7 +366,7 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
         setWebhookError('Failed to load deliveries')
         return
       }
-      const rows = await res.json() as WebhookDelivery[]
+      const rows = (await res.json()) as WebhookDelivery[]
       setSelectedWebhookId(webhookId)
       setDeliveries(rows)
     } catch {
@@ -365,8 +378,14 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
     if (!org) return
     setApiKeyError('')
     setCreatedKey(null)
-    const docs = newKeyDocScopes.split(',').map((entry) => entry.trim()).filter(Boolean)
-    const folders = newKeyFolderScopes.split(',').map((entry) => entry.trim()).filter(Boolean)
+    const docs = newKeyDocScopes
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+    const folders = newKeyFolderScopes
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
     try {
       const res = await fetch(`/api/orgs/${org.id}/agent-keys`, {
         method: 'POST',
@@ -383,7 +402,7 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
         setApiKeyError('Failed to create API key')
         return
       }
-      const created = await res.json() as { key: string }
+      const created = (await res.json()) as { key: string }
       setCreatedKey(created.key)
       setNewKeyName('')
       setNewKeyDocScopes('')
@@ -425,7 +444,7 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
         body: JSON.stringify(body),
       })
       if (!res.ok) {
-        const data = await res.json() as { error?: string }
+        const data = (await res.json()) as { error?: string }
         setConnectError(data.error || 'Failed to connect agent')
         return
       }
@@ -437,7 +456,7 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
       // Reload agents list and API keys
       const settingsRes = await fetch(`/api/orgs/${org.id}/settings`)
       if (settingsRes.ok) {
-        const settings = await settingsRes.json() as { agents?: AgentRegistryEntry[] }
+        const settings = (await settingsRes.json()) as { agents?: AgentRegistryEntry[] }
         setAgents(Array.isArray(settings.agents) ? settings.agents : [])
       }
       await loadApiKeys(org.id)
@@ -482,7 +501,9 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
           &larr; Back
         </button>
 
-        <h1 className="font-mono text-[18px] font-semibold tracking-[-0.03em] text-fg">{org.name}</h1>
+        <h1 className="font-mono text-[18px] font-semibold tracking-[-0.03em] text-fg">
+          {org.name}
+        </h1>
         <p className="mt-1 font-mono text-sm text-fg-muted">{org.slug}</p>
         {isAdminOrOwner && (
           <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -520,7 +541,9 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
         {(!isAdminOrOwner || settingsTab === 'general') && (
           <>
             <section className="mt-8">
-              <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Members</h2>
+              <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+                Members
+              </h2>
               <div className="mt-3 divide-y divide-border rounded border border-border bg-bg">
                 {org.members.map((member) => (
                   <div key={member.id} className="flex items-center justify-between px-4 py-3">
@@ -537,7 +560,9 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
             </section>
 
             <section className="mt-8">
-              <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Invite member</h2>
+              <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+                Invite member
+              </h2>
               <div className="mt-3 rounded border border-border bg-bg p-4">
                 <InviteForm
                   onInvited={() => {
@@ -550,13 +575,16 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
             {isAdminOrOwner && (
               <>
                 <section className="mt-8">
-                  <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Document defaults</h2>
+                  <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+                    Document defaults
+                  </h2>
                   <div className="mt-3 rounded border border-border bg-bg p-4">
                     <label className="block font-sans text-sm text-fg">
                       Default permission for new documents
                     </label>
                     <p className="mt-1 font-sans text-xs text-fg-secondary">
-                      When a new document is created, all org members will automatically receive this role.
+                      When a new document is created, all org members will automatically receive
+                      this role.
                     </p>
                     <div className="mt-3 flex items-center gap-3">
                       <select
@@ -577,24 +605,23 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
                       >
                         {savingPerm ? 'Saving...' : 'Save'}
                       </button>
-                      {permSaved && (
-                        <span className="text-xs text-green">Saved</span>
-                      )}
-                      {permError && (
-                        <span className="text-xs text-red">{permError}</span>
-                      )}
+                      {permSaved && <span className="text-xs text-green">Saved</span>}
+                      {permError && <span className="text-xs text-red">{permError}</span>}
                     </div>
                   </div>
                 </section>
 
                 <section className="mt-8">
-                  <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Agent access</h2>
+                  <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+                    Agent access
+                  </h2>
                   <div className="mt-3 rounded border border-border bg-bg p-4">
                     <label className="block font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
                       AGENT ACCESS POLICY
                     </label>
                     <p className="mt-1 text-fg-muted text-xs font-sans">
-                      Controls whether AI agents connected via the CLI daemon can edit documents in this workspace.
+                      Controls whether AI agents connected via the CLI daemon can edit documents in
+                      this workspace.
                     </p>
                     <div className="mt-3 flex items-center gap-3">
                       <select
@@ -613,9 +640,7 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
                       {savingAgentPolicy && (
                         <span className="text-xs text-fg-muted">Saving...</span>
                       )}
-                      {agentPolicySaved && (
-                        <span className="text-xs text-green">Saved</span>
-                      )}
+                      {agentPolicySaved && <span className="text-xs text-green">Saved</span>}
                       {agentPolicyError && (
                         <span className="text-xs text-red">{agentPolicyError}</span>
                       )}
@@ -629,15 +654,22 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
 
         {isAdminOrOwner && settingsTab === 'agents' && (
           <section className="mt-8">
-            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Agent registry</h2>
+            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+              Agent registry
+            </h2>
             <div className="mt-3 rounded border border-border bg-bg p-4">
               <div className="space-y-2">
                 {agents.map((agent) => (
-                  <div key={agent.name} className="rounded border border-border bg-bg-subtle px-3 py-2">
+                  <div
+                    key={agent.name}
+                    className="rounded border border-border bg-bg-subtle px-3 py-2"
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <p className="font-mono text-[11px] text-fg">@{agent.name}</p>
-                        <p className="text-xs text-fg-muted">{agent.description || 'No description'}</p>
+                        <p className="text-xs text-fg-muted">
+                          {agent.description || 'No description'}
+                        </p>
                       </div>
                       <label className="flex items-center gap-1.5 font-mono text-[10px] text-fg-secondary">
                         Enabled
@@ -645,9 +677,11 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
                           type="checkbox"
                           checked={agent.enabled}
                           onChange={(event) => {
-                            const next = agents.map((entry) => (
-                              entry.name === agent.name ? { ...entry, enabled: event.target.checked } : entry
-                            ))
+                            const next = agents.map((entry) =>
+                              entry.name === agent.name
+                                ? { ...entry, enabled: event.target.checked }
+                                : entry,
+                            )
                             void saveAgents(next)
                           }}
                           className="h-3.5 w-3.5"
@@ -662,7 +696,9 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
               </div>
 
               <div className="mt-4 space-y-2 border-t border-border pt-3">
-                <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-muted">Add agent</p>
+                <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-muted">
+                  Add agent
+                </p>
                 <input
                   value={newAgentName}
                   onChange={(event) => setNewAgentName(event.target.value)}
@@ -681,7 +717,10 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
                     onClick={() => {
                       const name = newAgentName.trim().replace(/^@+/, '')
                       if (!name) return
-                      const next = [...agents, { name, description: newAgentDescription.trim(), enabled: true }]
+                      const next = [
+                        ...agents,
+                        { name, description: newAgentDescription.trim(), enabled: true },
+                      ]
                       void saveAgents(next)
                       setNewAgentName('')
                       setNewAgentDescription('')
@@ -692,7 +731,9 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
                     {agentSaveState.saving ? 'Saving...' : 'Add agent'}
                   </button>
                   {agentSaveState.saved && <span className="text-xs text-green">Saved</span>}
-                  {agentSaveState.error && <span className="text-xs text-red">{agentSaveState.error}</span>}
+                  {agentSaveState.error && (
+                    <span className="text-xs text-red">{agentSaveState.error}</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -701,7 +742,9 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
 
         {isAdminOrOwner && settingsTab === 'agents' && (
           <section className="mt-8">
-            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Connect agent</h2>
+            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+              Connect agent
+            </h2>
             <p className="mt-1 font-sans text-xs text-fg-secondary">
               Set up a new agent with API key and webhook in one step.
             </p>
@@ -754,7 +797,9 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
                   {connectResult.webhookSecret && (
                     <div>
                       <p className="font-mono text-[10px] text-fg-muted">Webhook Secret</p>
-                      <p className="break-all font-mono text-xs text-fg">{connectResult.webhookSecret}</p>
+                      <p className="break-all font-mono text-xs text-fg">
+                        {connectResult.webhookSecret}
+                      </p>
                     </div>
                   )}
                   <div>
@@ -763,9 +808,11 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
                   </div>
                 </div>
                 <div className="border-t border-border pt-3">
-                  <p className="font-mono text-[10px] text-fg-muted">For local agents, add to collabmd.json:</p>
+                  <p className="font-mono text-[10px] text-fg-muted">
+                    For local agents, add to collabmd.json:
+                  </p>
                   <pre className="mt-1 rounded border border-border bg-bg p-2 font-mono text-[10px] text-fg overflow-x-auto">
-{`collabmd agent add ${connectResult.agentName} --command "your-command-here"`}
+                    {`collabmd agent add ${connectResult.agentName} --command "your-command-here"`}
                   </pre>
                 </div>
               </div>
@@ -775,7 +822,9 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
 
         {isAdminOrOwner && settingsTab === 'webhooks' && (
           <section className="mt-8">
-            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Webhooks</h2>
+            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+              Webhooks
+            </h2>
             <div className="mt-3 rounded border border-border bg-bg p-4 space-y-3">
               <div className="space-y-2">
                 <input
@@ -786,7 +835,10 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
                 />
                 <div className="flex flex-wrap gap-2">
                   {webhookEventOptions.map((eventType) => (
-                    <label key={eventType} className="flex items-center gap-1 rounded border border-border px-2 py-1 font-mono text-[10px] text-fg-secondary">
+                    <label
+                      key={eventType}
+                      className="flex items-center gap-1 rounded border border-border px-2 py-1 font-mono text-[10px] text-fg-secondary"
+                    >
                       <input
                         type="checkbox"
                         checked={newWebhookEvents.includes(eventType)}
@@ -814,7 +866,9 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
 
               {createdWebhookSecret && (
                 <div className="rounded border border-accent/40 bg-bg-subtle p-3">
-                  <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-muted">Copy now (shown once)</p>
+                  <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-muted">
+                    Copy now (shown once)
+                  </p>
                   <p className="mt-1 break-all font-mono text-xs text-fg">{createdWebhookSecret}</p>
                 </div>
               )}
@@ -824,9 +878,14 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
               ) : (
                 <div className="space-y-2">
                   {webhooks.map((webhook) => (
-                    <div key={webhook.id} className="rounded border border-border bg-bg-subtle px-3 py-2">
+                    <div
+                      key={webhook.id}
+                      className="rounded border border-border bg-bg-subtle px-3 py-2"
+                    >
                       <p className="font-mono text-[11px] text-fg">{webhook.url}</p>
-                      <p className="mt-1 font-mono text-[10px] text-fg-muted">Events: {webhook.events.join(', ')}</p>
+                      <p className="mt-1 font-mono text-[10px] text-fg-muted">
+                        Events: {webhook.events.join(', ')}
+                      </p>
                       <div className="mt-2 flex items-center gap-2">
                         <button
                           type="button"
@@ -858,14 +917,20 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
                   </p>
                   <div className="mt-2 space-y-1.5">
                     {deliveries.map((delivery) => (
-                      <div key={delivery.id} className="rounded border border-border bg-bg px-2 py-1.5">
+                      <div
+                        key={delivery.id}
+                        className="rounded border border-border bg-bg px-2 py-1.5"
+                      >
                         <p className="font-mono text-[10px] text-fg">{delivery.eventType}</p>
                         <p className="text-[11px] text-fg-muted">
-                          status {delivery.statusCode ?? 'n/a'} · attempt {delivery.attemptCount} · {new Date(delivery.lastAttemptAt).toLocaleString()}
+                          status {delivery.statusCode ?? 'n/a'} · attempt {delivery.attemptCount} ·{' '}
+                          {new Date(delivery.lastAttemptAt).toLocaleString()}
                         </p>
                       </div>
                     ))}
-                    {deliveries.length === 0 && <p className="text-xs text-fg-muted">No deliveries yet.</p>}
+                    {deliveries.length === 0 && (
+                      <p className="text-xs text-fg-muted">No deliveries yet.</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -876,7 +941,9 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
 
         {isAdminOrOwner && settingsTab === 'api-keys' && (
           <section className="mt-8">
-            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">Agent API keys</h2>
+            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.06em] text-fg-muted">
+              Agent API keys
+            </h2>
             <div className="mt-3 rounded border border-border bg-bg p-4 space-y-3">
               <div className="space-y-2">
                 <input
@@ -909,7 +976,9 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
 
               {createdKey && (
                 <div className="rounded border border-accent/40 bg-bg-subtle p-3">
-                  <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-muted">Copy now (shown once)</p>
+                  <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-fg-muted">
+                    Copy now (shown once)
+                  </p>
                   <p className="mt-1 break-all font-mono text-xs text-fg">{createdKey}</p>
                 </div>
               )}
@@ -917,10 +986,14 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
               <div className="space-y-2">
                 {apiKeys.map((key) => (
                   <div key={key.id} className="rounded border border-border bg-bg-subtle px-3 py-2">
-                    <p className="font-mono text-[11px] text-fg">{key.name} · {key.keyPrefix}</p>
+                    <p className="font-mono text-[11px] text-fg">
+                      {key.name} · {key.keyPrefix}
+                    </p>
                     <p className="text-[11px] text-fg-muted">
                       Created {new Date(key.createdAt).toLocaleString()}
-                      {key.lastUsedAt ? ` · Last used ${new Date(key.lastUsedAt).toLocaleString()}` : ' · Never used'}
+                      {key.lastUsedAt
+                        ? ` · Last used ${new Date(key.lastUsedAt).toLocaleString()}`
+                        : ' · Never used'}
                     </p>
                     <button
                       type="button"
@@ -931,7 +1004,9 @@ export default function OrgSettingsPage({ params }: OrgSettingsProps) {
                     </button>
                   </div>
                 ))}
-                {apiKeys.length === 0 && <p className="text-xs text-fg-muted">No active API keys.</p>}
+                {apiKeys.length === 0 && (
+                  <p className="text-xs text-fg-muted">No active API keys.</p>
+                )}
               </div>
               {apiKeyError && <p className="text-xs text-red">{apiKeyError}</p>}
             </div>

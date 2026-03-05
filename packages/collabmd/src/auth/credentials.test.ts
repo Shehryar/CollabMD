@@ -170,10 +170,7 @@ describe('credentials', () => {
 
       clearCredential('https://app.collabmd.dev')
 
-      expect(mockWriteFileSync).toHaveBeenCalledWith(
-        CRED_FILE,
-        JSON.stringify({}, null, 2) + '\n',
-      )
+      expect(mockWriteFileSync).toHaveBeenCalledWith(CRED_FILE, JSON.stringify({}, null, 2) + '\n')
     })
 
     it('handles already-empty store gracefully', () => {
@@ -183,10 +180,7 @@ describe('credentials', () => {
 
       clearCredential('https://app.collabmd.dev')
 
-      expect(mockWriteFileSync).toHaveBeenCalledWith(
-        CRED_FILE,
-        JSON.stringify({}, null, 2) + '\n',
-      )
+      expect(mockWriteFileSync).toHaveBeenCalledWith(CRED_FILE, JSON.stringify({}, null, 2) + '\n')
     })
 
     it('preserves other server credentials when clearing one', () => {

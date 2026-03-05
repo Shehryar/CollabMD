@@ -1,5 +1,12 @@
 import type { Extension, Range } from '@codemirror/state'
-import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, WidgetType } from '@codemirror/view'
+import {
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  ViewPlugin,
+  type ViewUpdate,
+  WidgetType,
+} from '@codemirror/view'
 
 interface ConflictBlock {
   fullFrom: number
@@ -57,9 +64,15 @@ function scanConflictBlocks(state: EditorView['state']): ConflictBlock[] {
     }
 
     if (END_MARKER.test(line.text)) {
-      const currentFrom = Math.min(startLine.to + lineBreakWidth(startLine.to, docLength), docLength)
+      const currentFrom = Math.min(
+        startLine.to + lineBreakWidth(startLine.to, docLength),
+        docLength,
+      )
       const currentTo = separatorLine.from
-      const incomingFrom = Math.min(separatorLine.to + lineBreakWidth(separatorLine.to, docLength), docLength)
+      const incomingFrom = Math.min(
+        separatorLine.to + lineBreakWidth(separatorLine.to, docLength),
+        docLength,
+      )
       const incomingTo = line.from
       const fullTo = Math.min(line.to + lineBreakWidth(line.to, docLength), docLength)
 
@@ -134,11 +147,12 @@ class ConflictActionsWidget extends WidgetType {
   }
 
   private applyResolution(view: EditorView, mode: ResolutionMode): void {
-    const replacement = mode === 'current'
-      ? this.block.currentText
-      : mode === 'incoming'
-        ? this.block.incomingText
-        : this.block.currentText + this.block.incomingText
+    const replacement =
+      mode === 'current'
+        ? this.block.currentText
+        : mode === 'incoming'
+          ? this.block.incomingText
+          : this.block.currentText + this.block.incomingText
 
     view.dispatch({
       changes: {
@@ -192,7 +206,10 @@ function buildConflictDecorations(state: EditorView['state']): DecorationSet {
 
     if (block.incomingFrom < block.incomingTo) {
       decorations.push(
-        Decoration.mark({ class: 'cm-conflict-incoming' }).range(block.incomingFrom, block.incomingTo),
+        Decoration.mark({ class: 'cm-conflict-incoming' }).range(
+          block.incomingFrom,
+          block.incomingTo,
+        ),
       )
     }
   }
@@ -200,20 +217,23 @@ function buildConflictDecorations(state: EditorView['state']): DecorationSet {
   return Decoration.set(decorations, true)
 }
 
-export const conflictPlugin: Extension = ViewPlugin.fromClass(class {
-  decorations: DecorationSet
+export const conflictPlugin: Extension = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet
 
-  constructor(view: EditorView) {
-    this.decorations = buildConflictDecorations(view.state)
-  }
+    constructor(view: EditorView) {
+      this.decorations = buildConflictDecorations(view.state)
+    }
 
-  update(update: ViewUpdate) {
-    if (!update.docChanged) return
-    this.decorations = buildConflictDecorations(update.state)
-  }
-}, {
-  decorations: (value) => value.decorations,
-})
+    update(update: ViewUpdate) {
+      if (!update.docChanged) return
+      this.decorations = buildConflictDecorations(update.state)
+    }
+  },
+  {
+    decorations: (value) => value.decorations,
+  },
+)
 
 export const conflictTheme = EditorView.theme({
   '.cm-conflict-current': { backgroundColor: 'rgba(34, 197, 94, 0.08)' },

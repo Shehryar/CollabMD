@@ -26,9 +26,9 @@ export class TokenManager {
     const data = (await res.json()) as { token: string }
     this.cachedJwt = data.token
 
-    const payload = JSON.parse(
-      Buffer.from(data.token.split('.')[1], 'base64url').toString(),
-    ) as { exp: number }
+    const payload = JSON.parse(Buffer.from(data.token.split('.')[1], 'base64url').toString()) as {
+      exp: number
+    }
     this.jwtExpiresAt = payload.exp
 
     return data.token

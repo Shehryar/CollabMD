@@ -5,7 +5,8 @@ import * as Y from 'yjs'
 
 const mockAuthenticateAgentKey = vi.fn()
 vi.mock('@/lib/agent-key-auth', () => ({
-  authenticateAgentKey: (...args: unknown[]) => mockAuthenticateAgentKey.apply(undefined, args as never),
+  authenticateAgentKey: (...args: unknown[]) =>
+    mockAuthenticateAgentKey.apply(undefined, args as never),
 }))
 
 const mockRateLimit = vi.fn(() => ({
@@ -14,7 +15,9 @@ const mockRateLimit = vi.fn(() => ({
   remaining: 99,
   reset: Date.now() + 60_000,
 }))
-const mockRateLimitResponse = vi.fn(() => NextResponse.json({ error: 'rate limit exceeded' }, { status: 429 }))
+const mockRateLimitResponse = vi.fn(() =>
+  NextResponse.json({ error: 'rate limit exceeded' }, { status: 429 }),
+)
 vi.mock('@/lib/rate-limit', () => ({
   rateLimit: (...args: unknown[]) => mockRateLimit.apply(undefined, args as never),
   rateLimitResponse: (...args: unknown[]) => mockRateLimitResponse.apply(undefined, args as never),
@@ -62,14 +65,16 @@ import { GET } from './route'
 
 const originalFetch = globalThis.fetch
 
-function createMockSnapshot(comments: Array<{
-  id: string
-  text: string
-  resolved: boolean
-  thread: Array<{ authorName: string; text: string }>
-  anchorFrom?: number
-  anchorTo?: number
-}>): Uint8Array {
+function createMockSnapshot(
+  comments: Array<{
+    id: string
+    text: string
+    resolved: boolean
+    thread: Array<{ authorName: string; text: string }>
+    anchorFrom?: number
+    anchorTo?: number
+  }>,
+): Uint8Array {
   const ydoc = new Y.Doc()
   const ytext = ydoc.getText('codemirror')
   ytext.insert(0, 'line one\nline two\nline three\nline four\nline five')
@@ -86,8 +91,14 @@ function createMockSnapshot(comments: Array<{
       comment.set('createdAt', '2026-02-22T00:00:00.000Z')
       const from = c.anchorFrom ?? 0
       const to = c.anchorTo ?? 8
-      comment.set('anchorStart', Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, from)))
-      comment.set('anchorEnd', Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, to)))
+      comment.set(
+        'anchorStart',
+        Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, from)),
+      )
+      comment.set(
+        'anchorEnd',
+        Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, to)),
+      )
       const thread = new Y.Array<Y.Map<unknown>>()
       for (const r of c.thread) {
         const reply = new Y.Map<unknown>()
@@ -140,9 +151,7 @@ describe('/api/v1/mentions/pending', () => {
   })
 
   it('returns pending mentions for the authenticated agent', async () => {
-    mockAll.mockReturnValue([
-      { id: 'doc-1', title: 'First document' },
-    ])
+    mockAll.mockReturnValue([{ id: 'doc-1', title: 'First document' }])
 
     const snapshot = createMockSnapshot([
       {
@@ -170,9 +179,7 @@ describe('/api/v1/mentions/pending', () => {
   })
 
   it('excludes mentions where agent has already replied', async () => {
-    mockAll.mockReturnValue([
-      { id: 'doc-1', title: 'First document' },
-    ])
+    mockAll.mockReturnValue([{ id: 'doc-1', title: 'First document' }])
 
     const snapshot = createMockSnapshot([
       {
@@ -193,9 +200,7 @@ describe('/api/v1/mentions/pending', () => {
   })
 
   it('excludes resolved comments', async () => {
-    mockAll.mockReturnValue([
-      { id: 'doc-1', title: 'First document' },
-    ])
+    mockAll.mockReturnValue([{ id: 'doc-1', title: 'First document' }])
 
     const snapshot = createMockSnapshot([
       {
@@ -216,9 +221,7 @@ describe('/api/v1/mentions/pending', () => {
   })
 
   it('filters by documentId query param', async () => {
-    mockAll.mockReturnValue([
-      { id: 'doc-1', title: 'First document' },
-    ])
+    mockAll.mockReturnValue([{ id: 'doc-1', title: 'First document' }])
 
     const snapshot = createMockSnapshot([
       {
@@ -278,9 +281,7 @@ describe('/api/v1/mentions/pending', () => {
       },
     })
 
-    mockAll.mockReturnValue([
-      { id: 'doc-1', title: 'First document' },
-    ])
+    mockAll.mockReturnValue([{ id: 'doc-1', title: 'First document' }])
 
     const snapshot = createMockSnapshot([
       {

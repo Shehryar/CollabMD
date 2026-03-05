@@ -74,9 +74,7 @@ describe('LoginServer', () => {
     expect(text).toBe('Not found')
 
     // Clean up
-    await fetch(
-      `http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`,
-    )
+    await fetch(`http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`)
   })
 
   it('returns 400 for missing params (no state, userId, email)', async () => {
@@ -90,9 +88,7 @@ describe('LoginServer', () => {
     expect(text).toBe('Missing parameters')
 
     // Clean up
-    await fetch(
-      `http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`,
-    )
+    await fetch(`http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`)
   })
 
   it('returns 400 when token is missing', async () => {
@@ -105,18 +101,14 @@ describe('LoginServer', () => {
     expect(res.status).toBe(400)
 
     // Clean up
-    await fetch(
-      `http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`,
-    )
+    await fetch(`http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`)
   })
 
   it('server closes after successful callback', async () => {
     const state = 'test-state-close'
     const { port, result } = await startLoginServer(state)
 
-    await fetch(
-      `http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`,
-    )
+    await fetch(`http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`)
     await result
 
     // Server should be closed now; next request should fail
@@ -131,9 +123,7 @@ describe('LoginServer', () => {
     const state = 'test-state-no-name'
     const { port, result } = await startLoginServer(state)
 
-    await fetch(
-      `http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`,
-    )
+    await fetch(`http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`)
 
     const loginResult = await result
     expect(loginResult.name).toBe('')

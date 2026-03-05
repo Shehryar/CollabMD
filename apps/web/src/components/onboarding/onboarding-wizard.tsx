@@ -104,7 +104,10 @@ export function OnboardingWizard({
     try {
       const orgApi = authClient.organization as unknown as {
         update?: (args: { data: { name: string } }) => Promise<{ error?: { message?: string } }>
-        updateOrganization?: (args: { data?: { name: string }; name?: string }) => Promise<{ error?: { message?: string } }>
+        updateOrganization?: (args: {
+          data?: { name: string }
+          name?: string
+        }) => Promise<{ error?: { message?: string } }>
       }
       if (!orgApi.update && !orgApi.updateOrganization) {
         setNameError('Organization update is unavailable')
@@ -167,7 +170,7 @@ export function OnboardingWizard({
         body: JSON.stringify({ title: 'Untitled', orgId }),
       })
       if (res.ok) {
-        const doc = await res.json() as { id?: unknown }
+        const doc = (await res.json()) as { id?: unknown }
         if (typeof doc.id === 'string' && doc.id.trim()) {
           nextDocId = doc.id
         }
@@ -205,7 +208,9 @@ export function OnboardingWizard({
 
         {step === 1 && (
           <div className="animate-[fade-in_150ms_ease-out]">
-            <h2 className="font-mono text-[14px] font-semibold tracking-[-0.02em] text-fg">Choose your path</h2>
+            <h2 className="font-mono text-[14px] font-semibold tracking-[-0.02em] text-fg">
+              Choose your path
+            </h2>
             <p className="mt-1 font-sans text-sm text-fg-secondary">
               Start writing in the browser or sync your local markdown files.
             </p>
@@ -242,7 +247,9 @@ export function OnboardingWizard({
 
         {step === 2 && (
           <div className="animate-[fade-in_150ms_ease-out]">
-            <h2 className="font-mono text-[14px] font-semibold tracking-[-0.02em] text-fg">Name your workspace</h2>
+            <h2 className="font-mono text-[14px] font-semibold tracking-[-0.02em] text-fg">
+              Name your workspace
+            </h2>
             <p className="mt-1 font-sans text-sm text-fg-secondary">
               Give your team space a clear name before you start collaborating.
             </p>
@@ -280,7 +287,9 @@ export function OnboardingWizard({
 
         {step === 3 && path === 'web' && (
           <div className="animate-[fade-in_150ms_ease-out]">
-            <h2 className="font-mono text-[14px] font-semibold tracking-[-0.02em] text-fg">Invite your team</h2>
+            <h2 className="font-mono text-[14px] font-semibold tracking-[-0.02em] text-fg">
+              Invite your team
+            </h2>
             <p className="mt-1 font-sans text-sm text-fg-secondary">
               Add one or more emails, separated by commas or Enter.
             </p>
@@ -357,7 +366,9 @@ export function OnboardingWizard({
 
         {step === 3 && path === 'local' && (
           <div className="animate-[fade-in_150ms_ease-out]">
-            <h2 className="font-mono text-[14px] font-semibold tracking-[-0.02em] text-fg">Sync local files</h2>
+            <h2 className="font-mono text-[14px] font-semibold tracking-[-0.02em] text-fg">
+              Sync local files
+            </h2>
             <p className="mt-1 font-sans text-sm text-fg-secondary">
               Continue to connect your machine and link a folder for sync.
             </p>

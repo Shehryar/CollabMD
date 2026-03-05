@@ -192,15 +192,11 @@ export function setDiscussionResolvedInYArray(input: {
 }
 
 export function useDiscussions(options: UseDiscussionsOptions) {
-  const {
-    ydoc,
-    ydiscussions,
-    currentUser,
-    canComment = false,
-    canResolve = false,
-  } = options
+  const { ydoc, ydiscussions, currentUser, canComment = false, canResolve = false } = options
 
-  const [discussions, setDiscussions] = useState<DiscussionEntry[]>(() => readDiscussions(ydiscussions))
+  const [discussions, setDiscussions] = useState<DiscussionEntry[]>(() =>
+    readDiscussions(ydiscussions),
+  )
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -237,41 +233,50 @@ export function useDiscussions(options: UseDiscussionsOptions) {
     return map
   }, [discussions])
 
-  const createDiscussion = useCallback((input: { title: string; text: string }): string | null => {
-    if (!canComment || !currentUser?.id) return null
-    const name = currentUser.name?.trim() || 'Unknown user'
-    return createDiscussionInYArray({
-      ydoc,
-      ydiscussions,
-      authorId: currentUser.id,
-      authorName: name,
-      title: input.title,
-      text: input.text,
-    })
-  }, [canComment, currentUser?.id, currentUser?.name, ydoc, ydiscussions])
+  const createDiscussion = useCallback(
+    (input: { title: string; text: string }): string | null => {
+      if (!canComment || !currentUser?.id) return null
+      const name = currentUser.name?.trim() || 'Unknown user'
+      return createDiscussionInYArray({
+        ydoc,
+        ydiscussions,
+        authorId: currentUser.id,
+        authorName: name,
+        title: input.title,
+        text: input.text,
+      })
+    },
+    [canComment, currentUser?.id, currentUser?.name, ydoc, ydiscussions],
+  )
 
-  const replyToDiscussion = useCallback((discussionId: string, text: string): boolean => {
-    if (!canComment || !currentUser?.id) return false
-    const name = currentUser.name?.trim() || 'Unknown user'
-    return replyToDiscussionInYArray({
-      ydoc,
-      ydiscussions,
-      discussionId,
-      authorId: currentUser.id,
-      authorName: name,
-      text,
-    })
-  }, [canComment, currentUser?.id, currentUser?.name, ydoc, ydiscussions])
+  const replyToDiscussion = useCallback(
+    (discussionId: string, text: string): boolean => {
+      if (!canComment || !currentUser?.id) return false
+      const name = currentUser.name?.trim() || 'Unknown user'
+      return replyToDiscussionInYArray({
+        ydoc,
+        ydiscussions,
+        discussionId,
+        authorId: currentUser.id,
+        authorName: name,
+        text,
+      })
+    },
+    [canComment, currentUser?.id, currentUser?.name, ydoc, ydiscussions],
+  )
 
-  const setResolved = useCallback((discussionId: string, resolved: boolean): boolean => {
-    if (!canResolve) return false
-    return setDiscussionResolvedInYArray({
-      ydoc,
-      ydiscussions,
-      discussionId,
-      resolved,
-    })
-  }, [canResolve, ydoc, ydiscussions])
+  const setResolved = useCallback(
+    (discussionId: string, resolved: boolean): boolean => {
+      if (!canResolve) return false
+      return setDiscussionResolvedInYArray({
+        ydoc,
+        ydiscussions,
+        discussionId,
+        resolved,
+      })
+    },
+    [canResolve, ydoc, ydiscussions],
+  )
 
   return {
     discussions,

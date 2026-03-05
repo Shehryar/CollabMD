@@ -43,9 +43,7 @@ function parseOrgSettings(metadata: string | null): OrgSettings {
     const perm = validPermissions.includes(parsed.defaultDocPermission)
       ? parsed.defaultDocPermission
       : 'none'
-    const policy = validAgentPolicies.includes(parsed.agentPolicy)
-      ? parsed.agentPolicy
-      : 'enabled'
+    const policy = validAgentPolicies.includes(parsed.agentPolicy) ? parsed.agentPolicy : 'enabled'
     const agents = parseAgentRegistry(parsed.agents)
     return { defaultDocPermission: perm, agentPolicy: policy, agents }
   } catch {
@@ -115,7 +113,10 @@ export async function PATCH(
   }
 
   if (membership.role !== 'admin' && membership.role !== 'owner') {
-    return NextResponse.json({ error: 'only admins and owners can update settings' }, { status: 403 })
+    return NextResponse.json(
+      { error: 'only admins and owners can update settings' },
+      { status: 403 },
+    )
   }
 
   const body = await request.json()
@@ -125,7 +126,10 @@ export async function PATCH(
     agents?: unknown
   }
 
-  if (defaultDocPermission !== undefined && !validPermissions.includes(defaultDocPermission as DocPermission)) {
+  if (
+    defaultDocPermission !== undefined &&
+    !validPermissions.includes(defaultDocPermission as DocPermission)
+  ) {
     return NextResponse.json(
       { error: `invalid permission; must be one of: ${validPermissions.join(', ')}` },
       { status: 400 },
@@ -140,10 +144,7 @@ export async function PATCH(
   }
 
   if (agents !== undefined && !Array.isArray(agents)) {
-    return NextResponse.json(
-      { error: 'invalid agents; must be an array' },
-      { status: 400 },
-    )
+    return NextResponse.json({ error: 'invalid agents; must be an array' }, { status: 400 })
   }
 
   const org = db.select().from(organizations).where(eq(organizations.id, orgId)).get()
@@ -158,7 +159,8 @@ export async function PATCH(
     // invalid JSON, start fresh
   }
 
-  if (defaultDocPermission !== undefined) existingMetadata.defaultDocPermission = defaultDocPermission
+  if (defaultDocPermission !== undefined)
+    existingMetadata.defaultDocPermission = defaultDocPermission
   if (agentPolicy !== undefined) existingMetadata.agentPolicy = agentPolicy
   if (agents !== undefined) existingMetadata.agents = parseAgentRegistry(agents)
 

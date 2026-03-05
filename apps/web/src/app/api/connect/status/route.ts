@@ -47,23 +47,28 @@ export async function GET(request: NextRequest) {
   }
 
   const daemonConnections = await fetchDaemonConnections()
-  const connectedDocIds = Array.from(new Set(
-    daemonConnections
-      .filter((conn) => conn.source === 'daemon' && conn.userId === session.user.id)
-      .map((conn) => conn.docId),
-  ))
+  const connectedDocIds = Array.from(
+    new Set(
+      daemonConnections
+        .filter((conn) => conn.source === 'daemon' && conn.userId === session.user.id)
+        .map((conn) => conn.docId),
+    ),
+  )
 
-  const connectedDoc = connectedDocIds.length > 0
-    ? db
-      .select({ id: documents.id })
-      .from(documents)
-      .where(and(
-        eq(documents.orgId, orgId),
-        inArray(documents.id, connectedDocIds),
-        isNull(documents.deletedAt),
-      ))
-      .get()
-    : null
+  const connectedDoc =
+    connectedDocIds.length > 0
+      ? db
+          .select({ id: documents.id })
+          .from(documents)
+          .where(
+            and(
+              eq(documents.orgId, orgId),
+              inArray(documents.id, connectedDocIds),
+              isNull(documents.deletedAt),
+            ),
+          )
+          .get()
+      : null
 
   return NextResponse.json({
     cliAuthenticated,

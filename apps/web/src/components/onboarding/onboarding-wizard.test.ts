@@ -65,20 +65,23 @@ describe('OnboardingWizard', () => {
 
   async function renderWizard(onClose = vi.fn()) {
     await act(async () => {
-      root?.render(createElement(OnboardingWizard, {
-        open: true,
-        orgId: 'org-1',
-        orgName: 'Workspace',
-        onClose,
-        onRefreshStatus: async () => {},
-      }))
+      root?.render(
+        createElement(OnboardingWizard, {
+          open: true,
+          orgId: 'org-1',
+          orgName: 'Workspace',
+          onClose,
+          onRefreshStatus: async () => {},
+        }),
+      )
     })
     return onClose
   }
 
   function requireButton(text: string): HTMLButtonElement {
-    const button = Array.from(container?.querySelectorAll('button') ?? [])
-      .find((entry) => entry.textContent?.includes(text))
+    const button = Array.from(container?.querySelectorAll('button') ?? []).find((entry) =>
+      entry.textContent?.includes(text),
+    )
     if (!button) throw new Error(`button "${text}" not found`)
     return button as HTMLButtonElement
   }
@@ -119,10 +122,12 @@ describe('OnboardingWizard', () => {
   })
 
   it('navigates to the created starter document when creation succeeds', async () => {
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ id: 'doc-123' }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    }))
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: 'doc-123' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
     const onClose = await renderWizard()
     await navigateToInviteStep()
 

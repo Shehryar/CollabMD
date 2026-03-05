@@ -8,7 +8,9 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 const mockCheckPermission = vi.fn()
@@ -19,13 +21,15 @@ vi.mock('@collabmd/shared', () => ({
 const mockEnforceUserMutationRateLimit = vi.fn(() => null)
 const mockGetClientIp = vi.fn(() => '127.0.0.1')
 vi.mock('@/lib/rate-limit', () => ({
-  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit.apply(undefined, args as never),
+  enforceUserMutationRateLimit: (...args: unknown[]) =>
+    mockEnforceUserMutationRateLimit.apply(undefined, args as never),
   getClientIp: (...args: unknown[]) => mockGetClientIp.apply(undefined, args as never),
 }))
 
 const mockRequireJsonContentType = vi.fn(() => null)
 vi.mock('@/lib/http', () => ({
-  requireJsonContentType: (...args: unknown[]) => mockRequireJsonContentType.apply(undefined, args as never),
+  requireJsonContentType: (...args: unknown[]) =>
+    mockRequireJsonContentType.apply(undefined, args as never),
 }))
 
 const mockSelectGet = vi.fn()
@@ -114,7 +118,9 @@ describe('/api/documents/[id]/revert', () => {
   })
 
   it('POST reverts document state', async () => {
-    const req = jsonRequest('http://localhost:3000/api/documents/doc-1/revert', { snapshotId: 'snap-1' })
+    const req = jsonRequest('http://localhost:3000/api/documents/doc-1/revert', {
+      snapshotId: 'snap-1',
+    })
     const res = await POST(req, makeParams('doc-1'))
 
     expect(res.status).toBe(200)
@@ -134,7 +140,9 @@ describe('/api/documents/[id]/revert', () => {
   })
 
   it('POST creates backup snapshot before reverting', async () => {
-    const req = jsonRequest('http://localhost:3000/api/documents/doc-1/revert', { snapshotId: 'snap-1' })
+    const req = jsonRequest('http://localhost:3000/api/documents/doc-1/revert', {
+      snapshotId: 'snap-1',
+    })
     const res = await POST(req, makeParams('doc-1'))
 
     expect(res.status).toBe(200)
@@ -155,7 +163,9 @@ describe('/api/documents/[id]/revert', () => {
   })
 
   it('POST creates labeled revert snapshot', async () => {
-    const req = jsonRequest('http://localhost:3000/api/documents/doc-1/revert', { snapshotId: 'snap-1' })
+    const req = jsonRequest('http://localhost:3000/api/documents/doc-1/revert', {
+      snapshotId: 'snap-1',
+    })
     const res = await POST(req, makeParams('doc-1'))
 
     expect(res.status).toBe(200)
@@ -172,7 +182,9 @@ describe('/api/documents/[id]/revert', () => {
   it('POST requires can_edit permission', async () => {
     mockCheckPermission.mockResolvedValueOnce(false)
 
-    const req = jsonRequest('http://localhost:3000/api/documents/doc-1/revert', { snapshotId: 'snap-1' })
+    const req = jsonRequest('http://localhost:3000/api/documents/doc-1/revert', {
+      snapshotId: 'snap-1',
+    })
     const res = await POST(req, makeParams('doc-1'))
 
     expect(res.status).toBe(403)
@@ -183,7 +195,9 @@ describe('/api/documents/[id]/revert', () => {
   it('POST returns 404 for missing snapshot', async () => {
     mockSelectGet.mockReturnValueOnce(undefined)
 
-    const req = jsonRequest('http://localhost:3000/api/documents/doc-1/revert', { snapshotId: 'missing' })
+    const req = jsonRequest('http://localhost:3000/api/documents/doc-1/revert', {
+      snapshotId: 'missing',
+    })
     const res = await POST(req, makeParams('doc-1'))
 
     expect(res.status).toBe(404)

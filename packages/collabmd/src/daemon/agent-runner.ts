@@ -59,9 +59,8 @@ export class AgentRunner {
         return
       }
 
-      const mentionedAgent = typeof payload.mentionedAgent === 'string'
-        ? payload.mentionedAgent.trim()
-        : ''
+      const mentionedAgent =
+        typeof payload.mentionedAgent === 'string' ? payload.mentionedAgent.trim() : ''
       if (!mentionedAgent) {
         console.log(`[AgentRunner] No mentionedAgent in trigger file: ${triggerRelativePath}`)
         return
@@ -75,9 +74,7 @@ export class AgentRunner {
 
       const timeoutSeconds = agentCommand.timeout ?? this.config.timeout ?? 30
       const cwd = agentCommand.cwd ?? this.workDir
-      const env = agentCommand.env
-        ? { ...process.env, ...agentCommand.env }
-        : process.env
+      const env = agentCommand.env ? { ...process.env, ...agentCommand.env } : process.env
 
       const result = await this.executeCommand({
         command: agentCommand.command,

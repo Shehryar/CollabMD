@@ -29,7 +29,10 @@ export async function DELETE(
   }
 
   if (!doc.deletedAt) {
-    return NextResponse.json({ error: 'document must be in trash before permanent deletion' }, { status: 409 })
+    return NextResponse.json(
+      { error: 'document must be in trash before permanent deletion' },
+      { status: 409 },
+    )
   }
 
   await hardDeleteDocument(id)

@@ -19,7 +19,10 @@ async function requireOrgAdmin(orgId: string): Promise<true | NextResponse> {
     return NextResponse.json({ error: 'not a member of this organization' }, { status: 403 })
   }
   if (membership.role !== 'admin' && membership.role !== 'owner') {
-    return NextResponse.json({ error: 'only admins and owners can view webhook deliveries' }, { status: 403 })
+    return NextResponse.json(
+      { error: 'only admins and owners can view webhook deliveries' },
+      { status: 403 },
+    )
   }
 
   return true
@@ -58,15 +61,17 @@ export async function GET(
     .limit(200)
     .all()
 
-  return NextResponse.json(deliveries.map((delivery) => ({
-    id: delivery.id,
-    webhookId: delivery.webhookId,
-    eventType: delivery.eventType,
-    payload: safeJsonParse(delivery.payload),
-    statusCode: delivery.statusCode,
-    responseBody: delivery.responseBody,
-    attemptCount: delivery.attemptCount,
-    lastAttemptAt: delivery.lastAttemptAt.toISOString(),
-    createdAt: delivery.createdAt.toISOString(),
-  })))
+  return NextResponse.json(
+    deliveries.map((delivery) => ({
+      id: delivery.id,
+      webhookId: delivery.webhookId,
+      eventType: delivery.eventType,
+      payload: safeJsonParse(delivery.payload),
+      statusCode: delivery.statusCode,
+      responseBody: delivery.responseBody,
+      attemptCount: delivery.attemptCount,
+      lastAttemptAt: delivery.lastAttemptAt.toISOString(),
+      createdAt: delivery.createdAt.toISOString(),
+    })),
+  )
 }

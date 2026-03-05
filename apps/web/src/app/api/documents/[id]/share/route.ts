@@ -35,11 +35,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'bad request' }, { status: 400 })
   }
 
-  const targetUser = db
-    .select()
-    .from(users)
-    .where(eq(users.email, email))
-    .get()
+  const targetUser = db.select().from(users).where(eq(users.email, email)).get()
 
   if (!targetUser) {
     return NextResponse.json({ error: 'user not found' }, { status: 404 })
@@ -70,11 +66,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const userIds = userTuples.map((t) => t.user.replace('user:', ''))
   const uniqueUserIds = [...new Set(userIds)]
 
-  const userRows = uniqueUserIds.length > 0
-    ? uniqueUserIds.map((uid) =>
-        db.select().from(users).where(eq(users.id, uid)).get()
-      ).filter(Boolean)
-    : []
+  const userRows =
+    uniqueUserIds.length > 0
+      ? uniqueUserIds
+          .map((uid) => db.select().from(users).where(eq(users.id, uid)).get())
+          .filter(Boolean)
+      : []
 
   const userMap = new Map(userRows.map((u) => [u!.id, u!]))
 
@@ -147,7 +144,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   }
 
   const body = await request.json()
-  const { userId: targetUserId, oldRole, newRole } = body as {
+  const {
+    userId: targetUserId,
+    oldRole,
+    newRole,
+  } = body as {
     userId?: string
     oldRole?: string
     newRole?: string

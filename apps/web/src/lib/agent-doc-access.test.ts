@@ -4,7 +4,8 @@ import { NextRequest } from 'next/server'
 
 const mockAuthenticateAgentKey = vi.fn()
 vi.mock('@/lib/agent-key-auth', () => ({
-  authenticateAgentKey: (...args: unknown[]) => mockAuthenticateAgentKey.apply(undefined, args as never),
+  authenticateAgentKey: (...args: unknown[]) =>
+    mockAuthenticateAgentKey.apply(undefined, args as never),
 }))
 
 const mockRateLimit = vi.fn()
@@ -56,7 +57,12 @@ describe('authorizeAgentForDocument', () => {
         scopes: {},
       },
     })
-    mockRateLimit.mockReturnValue({ success: true, limit: 100, remaining: 99, reset: Date.now() + 1000 })
+    mockRateLimit.mockReturnValue({
+      success: true,
+      limit: 100,
+      remaining: 99,
+      reset: Date.now() + 1000,
+    })
     mockCheckPermission.mockResolvedValue(true)
   })
 

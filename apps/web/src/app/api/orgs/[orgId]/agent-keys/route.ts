@@ -32,9 +32,12 @@ function parseStoredScopes(value: string): AgentKeyScopesInput {
   }
 }
 
-async function requireOrgAdmin(orgId: string): Promise<{
-  session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>
-} | NextResponse> {
+async function requireOrgAdmin(orgId: string): Promise<
+  | {
+      session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>
+    }
+  | NextResponse
+> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -50,7 +53,10 @@ async function requireOrgAdmin(orgId: string): Promise<{
     return NextResponse.json({ error: 'not a member of this organization' }, { status: 403 })
   }
   if (membership.role !== 'admin' && membership.role !== 'owner') {
-    return NextResponse.json({ error: 'only admins and owners can manage api keys' }, { status: 403 })
+    return NextResponse.json(
+      { error: 'only admins and owners can manage api keys' },
+      { status: 403 },
+    )
   }
 
   return { session }
@@ -79,16 +85,18 @@ export async function GET(
     .orderBy(desc(agentKeys.createdAt))
     .all()
 
-  return NextResponse.json(keys.map((key) => ({
-    id: key.id,
-    keyPrefix: key.keyPrefix,
-    name: key.name,
-    scopes: parseStoredScopes(key.scopes),
-    createdBy: key.createdBy,
-    createdAt: key.createdAt.toISOString(),
-    lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
-    revokedAt: key.revokedAt?.toISOString() ?? null,
-  })))
+  return NextResponse.json(
+    keys.map((key) => ({
+      id: key.id,
+      keyPrefix: key.keyPrefix,
+      name: key.name,
+      scopes: parseStoredScopes(key.scopes),
+      createdBy: key.createdBy,
+      createdAt: key.createdAt.toISOString(),
+      lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
+      revokedAt: key.revokedAt?.toISOString() ?? null,
+    })),
+  )
 }
 
 export async function POST(
@@ -99,13 +107,15 @@ export async function POST(
   const authz = await requireOrgAdmin(orgId)
   if (authz instanceof NextResponse) return authz
 
-  const rateLimitError = enforceUserMutationRateLimit(authz.session.user.id, { ip: getClientIp(request) })
+  const rateLimitError = enforceUserMutationRateLimit(authz.session.user.id, {
+    ip: getClientIp(request),
+  })
   if (rateLimitError) return rateLimitError
 
   const contentTypeError = requireJsonContentType(request)
   if (contentTypeError) return contentTypeError
 
-  const body = await request.json() as {
+  const body = (await request.json()) as {
     name?: string
     scopes?: AgentKeyScopesInput
   }
@@ -119,25 +129,30 @@ export async function POST(
   const createdAt = new Date()
   const keyId = crypto.randomUUID()
 
-  db.insert(agentKeys).values({
-    id: keyId,
-    keyHash: hashKey(rawKey),
-    keyPrefix: rawKey.slice(0, 11),
-    orgId,
-    name,
-    scopes: JSON.stringify(scopes),
-    createdBy: authz.session.user.id,
-    createdAt,
-    lastUsedAt: null,
-    revokedAt: null,
-  }).run()
+  db.insert(agentKeys)
+    .values({
+      id: keyId,
+      keyHash: hashKey(rawKey),
+      keyPrefix: rawKey.slice(0, 11),
+      orgId,
+      name,
+      scopes: JSON.stringify(scopes),
+      createdBy: authz.session.user.id,
+      createdAt,
+      lastUsedAt: null,
+      revokedAt: null,
+    })
+    .run()
 
-  return NextResponse.json({
-    id: keyId,
-    name,
-    key: rawKey,
-    keyPrefix: rawKey.slice(0, 11),
-    scopes,
-    createdAt: createdAt.toISOString(),
-  }, { status: 201 })
+  return NextResponse.json(
+    {
+      id: keyId,
+      name,
+      key: rawKey,
+      keyPrefix: rawKey.slice(0, 11),
+      scopes,
+      createdAt: createdAt.toISOString(),
+    },
+    { status: 201 },
+  )
 }

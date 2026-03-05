@@ -46,7 +46,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'parent folder not found' }, { status: 404 })
     }
     if (parent.orgId !== orgId) {
-      return NextResponse.json({ error: 'parent folder belongs to a different organization' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'parent folder belongs to a different organization' },
+        { status: 400 },
+      )
     }
     const canEditParent = await checkPermission(session.user.id, 'can_edit', 'folder', parentId)
     if (!canEditParent) {
@@ -100,7 +103,7 @@ export async function GET(request: NextRequest) {
     .select()
     .from(folders)
     .where(and(inArray(folders.id, folderIds), eq(folders.orgId, orgId)))
-    .orderBy(asc(folders.path))
+    .orderBy(asc(folders.position), asc(folders.path))
     .all()
 
   return NextResponse.json(result)

@@ -7,10 +7,7 @@ import { createSuggestionInYArray } from '@/components/editor/use-comments'
 
 type RouteParams = { params: Promise<{ id: string }> }
 
-export async function POST(
-  request: NextRequest,
-  { params }: RouteParams,
-) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const authz = await authorizeAgentForDocument(request, id, 'can_comment')
   if ('error' in authz) return authz.error
@@ -18,7 +15,7 @@ export async function POST(
   const contentTypeError = requireJsonContentType(request)
   if (contentTypeError) return contentTypeError
 
-  const body = await request.json() as {
+  const body = (await request.json()) as {
     anchorText?: string
     proposedText?: string
     note?: string

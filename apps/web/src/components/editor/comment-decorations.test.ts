@@ -3,7 +3,11 @@ import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
-import { createCommentDecorations, listAnchoredCommentRanges, setActiveComment } from './comment-decorations'
+import {
+  createCommentDecorations,
+  listAnchoredCommentRanges,
+  setActiveComment,
+} from './comment-decorations'
 import {
   acceptSuggestionInYArray,
   createInlineComment,

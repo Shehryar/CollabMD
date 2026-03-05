@@ -10,7 +10,9 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 const mockWriteTuple = vi.fn().mockResolvedValue(undefined)
@@ -75,6 +77,13 @@ vi.mock('@collabmd/db', () => ({
   ne: vi.fn((a: unknown, b: unknown) => ({ ne: [a, b] })),
 }))
 
+const mockIndexDocument = vi.fn()
+const mockSearchDocuments = vi.fn()
+vi.mock('@/lib/search-index', () => ({
+  indexDocument: (...args: unknown[]) => mockIndexDocument.apply(undefined, args as never),
+  searchDocuments: (...args: unknown[]) => mockSearchDocuments.apply(undefined, args as never),
+}))
+
 // ── Import handlers after mocks ────────────────────────────────────────
 
 import { POST, GET } from './route'
@@ -86,11 +95,7 @@ const fakeSession = {
   session: { id: 'session-1', activeOrganizationId: 'org-1' },
 }
 
-function jsonRequest(
-  url: string,
-  body: Record<string, unknown>,
-  method = 'POST',
-): NextRequest {
+function jsonRequest(url: string, body: Record<string, unknown>, method = 'POST'): NextRequest {
   return new NextRequest(url, {
     method,
     body: JSON.stringify(body),
@@ -107,6 +112,7 @@ beforeEach(() => {
   mockDeleteRun.mockReset()
   mockDeleteWhere.mockClear()
   mockDelete.mockClear()
+  mockSearchDocuments.mockReturnValue([])
 })
 
 describe('POST /api/documents', () => {
@@ -251,9 +257,7 @@ describe('POST /api/documents', () => {
     expect(res.status).toBe(201)
 
     // Should write editor tuples for user-2 and user-3, but NOT user-1 (the owner)
-    const editorCalls = mockWriteTuple.mock.calls.filter(
-      (c: unknown[]) => c[1] === 'editor',
-    )
+    const editorCalls = mockWriteTuple.mock.calls.filter((c: unknown[]) => c[1] === 'editor')
     expect(editorCalls).toHaveLength(2)
     expect(editorCalls[0][0]).toBe('user:user-2')
     expect(editorCalls[1][0]).toBe('user:user-3')
@@ -336,10 +340,7 @@ describe('GET /api/documents', () => {
 
   it('returns docs matching accessible IDs, excluding soft-deleted', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
-    mockListAccessible.mockResolvedValueOnce([
-      'document:doc-1',
-      'document:doc-2',
-    ])
+    mockListAccessible.mockResolvedValueOnce(['document:doc-1', 'document:doc-2'])
 
     const fakeDocs = [
       { id: 'doc-1', title: 'Active Doc', deletedAt: null },
@@ -392,39 +393,66 @@ describe('GET /api/documents', () => {
     expect(ne).toHaveBeenCalledWith('owner_id', 'user-1')
   })
 
-  it('filters by search term when ?search= is provided', async () => {
+  it('uses FTS5 search with snippets when ?search= matches content', async () => {
+    mockGetSession.mockResolvedValueOnce(fakeSession)
+    mockListAccessible.mockResolvedValueOnce(['document:doc-1', 'document:doc-2'])
+    mockSearchDocuments.mockReturnValueOnce([
+      { documentId: 'doc-1', snippet: 'Hello <mark>world</mark> content' },
+    ])
+    mockDbResult.all.mockReturnValueOnce([{ id: 'doc-1', title: 'test doc', deletedAt: null }])
+
+    const res = await GET(getRequest('http://localhost:3000/api/documents?search=world'))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toHaveLength(1)
+    expect(body[0].snippet).toBe('Hello <mark>world</mark> content')
+
+    // FTS should be called with the search query and accessible doc IDs
+    expect(mockSearchDocuments).toHaveBeenCalledWith('world', ['doc-1', 'doc-2'])
+
+    // Should use inArray (not like) since FTS returned results
+    const { inArray } = await import('@collabmd/db')
+    expect(inArray).toHaveBeenCalledWith('id', ['doc-1'])
+  })
+
+  it('falls back to title LIKE when FTS5 returns no results', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
     mockListAccessible.mockResolvedValueOnce(['document:doc-1'])
-    mockDbResult.all.mockReturnValueOnce([
-      { id: 'doc-1', title: 'test doc', deletedAt: null },
-    ])
+    mockSearchDocuments.mockReturnValueOnce([])
+    mockDbResult.all.mockReturnValueOnce([{ id: 'doc-1', title: 'test doc', deletedAt: null }])
 
     const res = await GET(getRequest('http://localhost:3000/api/documents?search=test'))
 
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toHaveLength(1)
+    expect(body[0].snippet).toBeNull()
 
     const { like } = await import('@collabmd/db')
     expect(like).toHaveBeenCalledWith('title', '%test%')
   })
 
-  it('combines multiple filters', async () => {
+  it('combines FTS search with folder filter', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
     mockListAccessible.mockResolvedValueOnce(['document:doc-1'])
+    mockSearchDocuments.mockReturnValueOnce([
+      { documentId: 'doc-1', snippet: 'matching <mark>content</mark>' },
+    ])
     mockDbResult.all.mockReturnValueOnce([
       { id: 'doc-1', title: 'test doc', deletedAt: null, folderId: 'f1' },
     ])
 
-    const res = await GET(getRequest('http://localhost:3000/api/documents?folderId=f1&search=test'))
+    const res = await GET(
+      getRequest('http://localhost:3000/api/documents?folderId=f1&search=content'),
+    )
 
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toHaveLength(1)
 
-    const { eq, like } = await import('@collabmd/db')
+    const { eq } = await import('@collabmd/db')
     expect(eq).toHaveBeenCalledWith('folder_id', 'f1')
-    expect(like).toHaveBeenCalledWith('title', '%test%')
   })
 
   it('returns 503 when permission service is unavailable during list', async () => {

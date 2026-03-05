@@ -2,11 +2,14 @@ import { NextResponse } from 'next/server'
 import * as Y from 'yjs'
 import { getSyncHttpUrl } from '@/lib/sync-url'
 
-export async function fetchDocFromSyncServer(docId: string): Promise<{
-  ydoc: Y.Doc
-} | {
-  error: NextResponse
-}> {
+export async function fetchDocFromSyncServer(docId: string): Promise<
+  | {
+      ydoc: Y.Doc
+    }
+  | {
+      error: NextResponse
+    }
+> {
   const syncHttpUrl = getSyncHttpUrl()
   const response = await fetch(`${syncHttpUrl}/snapshot/${encodeURIComponent(docId)}`, {
     method: 'GET',
@@ -30,7 +33,10 @@ export async function fetchDocFromSyncServer(docId: string): Promise<{
   return { ydoc }
 }
 
-export async function replaceDocOnSyncServer(docId: string, ydoc: Y.Doc): Promise<NextResponse | null> {
+export async function replaceDocOnSyncServer(
+  docId: string,
+  ydoc: Y.Doc,
+): Promise<NextResponse | null> {
   const update = Y.encodeStateAsUpdate(ydoc)
   const syncHttpUrl = getSyncHttpUrl()
   const response = await fetch(`${syncHttpUrl}/replace/${encodeURIComponent(docId)}`, {

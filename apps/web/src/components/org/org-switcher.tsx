@@ -37,7 +37,12 @@ export default function OrgSwitcher() {
         className="flex items-center gap-1.5 rounded border border-border bg-bg px-[10px] py-[5px] font-mono text-[12px] text-fg-secondary hover:bg-bg-hover"
       >
         <span className="max-w-[150px] truncate">{activeName}</span>
-        <svg className="h-3.5 w-3.5 text-fg-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg
+          className="h-3.5 w-3.5 text-fg-faint"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -54,8 +59,18 @@ export default function OrgSwitcher() {
             >
               <span className="truncate">{org.name}</span>
               {org.id === activeOrg?.id && (
-                <svg className="ml-auto h-4 w-4 text-fg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <svg
+                  className="ml-auto h-4 w-4 text-fg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
               )}
             </button>

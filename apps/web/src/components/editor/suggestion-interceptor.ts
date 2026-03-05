@@ -28,16 +28,16 @@ function isRemoteTransaction(tr: Transaction): boolean {
 }
 
 function isUndoRedo(tr: Transaction): boolean {
-  return tr.annotation(Transaction.userEvent)?.startsWith('undo') === true
-    || tr.annotation(Transaction.userEvent)?.startsWith('redo') === true
+  return (
+    tr.annotation(Transaction.userEvent)?.startsWith('undo') === true ||
+    tr.annotation(Transaction.userEvent)?.startsWith('redo') === true
+  )
 }
 
-export function createSuggestionInterceptor(
-  options: SuggestionInterceptorOptions,
-): Extension {
+export function createSuggestionInterceptor(options: SuggestionInterceptorOptions): Extension {
   let buffer: SuggestionBuffer | null = null
 
-  function flush(view: EditorView): void {
+  function flush(): void {
     if (!buffer) return
     const current = buffer
     buffer = null
@@ -65,10 +65,10 @@ export function createSuggestionInterceptor(
     }, 0)
   }
 
-  function resetIdleTimer(view: EditorView): void {
+  function resetIdleTimer(): void {
     if (!buffer) return
     if (buffer.idleTimer) clearTimeout(buffer.idleTimer)
-    buffer.idleTimer = setTimeout(() => flush(view), FLUSH_IDLE_MS)
+    buffer.idleTimer = setTimeout(() => flush(), FLUSH_IDLE_MS)
   }
 
   const transactionFilter = EditorState.transactionFilter.of((tr) => {
@@ -98,8 +98,7 @@ export function createSuggestionInterceptor(
 
     if (buffer) {
       const bufferEnd = buffer.from + buffer.originalText.length
-      const isContiguous =
-        changeFrom >= buffer.from && changeFrom <= bufferEnd + 1
+      const isContiguous = changeFrom >= buffer.from && changeFrom <= bufferEnd + 1
 
       if (isContiguous) {
         const offsetInOriginal = changeFrom - buffer.from
@@ -124,16 +123,14 @@ export function createSuggestionInterceptor(
           buffer.originalText += extraOriginal
 
           const proposedOffset = offsetInOriginal
-          buffer.proposedText =
-            buffer.proposedText.slice(0, proposedOffset) +
-            insertedText
+          buffer.proposedText = buffer.proposedText.slice(0, proposedOffset) + insertedText
         }
 
-        resetIdleTimer(view)
+        resetIdleTimer()
         return []
       }
 
-      flush(view)
+      flush()
     }
 
     buffer = {
@@ -143,7 +140,7 @@ export function createSuggestionInterceptor(
       proposedText: insertedText,
       idleTimer: null,
     }
-    resetIdleTimer(view)
+    resetIdleTimer()
 
     return []
   })
@@ -159,7 +156,7 @@ export function createSuggestionInterceptor(
     const bufferEnd = buffer.from + buffer.originalText.length
     const isFar = cursor < buffer.from - 1 || cursor > bufferEnd + 1
     if (isFar) {
-      flush(update.view)
+      flush()
     }
   })
 
@@ -167,7 +164,7 @@ export function createSuggestionInterceptor(
     for (const tr of update.transactions) {
       for (const effect of tr.effects) {
         if (effect.is(setEditorModeEffect) && effect.value !== 'suggesting') {
-          flush(update.view)
+          flush()
         }
       }
     }

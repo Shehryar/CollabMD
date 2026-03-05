@@ -9,11 +9,7 @@ function wrapSelection(view: EditorView, marker: string) {
   const changes = state.changeByRange((range) => {
     const text = state.sliceDoc(range.from, range.to)
     // If already wrapped, unwrap
-    if (
-      text.startsWith(marker) &&
-      text.endsWith(marker) &&
-      text.length > marker.length * 2
-    ) {
+    if (text.startsWith(marker) && text.endsWith(marker) && text.length > marker.length * 2) {
       const inner = text.slice(marker.length, -marker.length)
       return {
         range: EditorSelection.range(range.from, range.from + inner.length),
@@ -27,7 +23,7 @@ function wrapSelection(view: EditorView, marker: string) {
       return {
         range: EditorSelection.range(
           range.from - marker.length,
-          range.from + (range.to - range.from)
+          range.from + (range.to - range.from),
         ),
         changes: [
           { from: range.from - marker.length, to: range.from, insert: '' },
@@ -40,7 +36,7 @@ function wrapSelection(view: EditorView, marker: string) {
     return {
       range: EditorSelection.range(
         range.from + marker.length,
-        range.from + marker.length + text.length
+        range.from + marker.length + text.length,
       ),
       changes: { from: range.from, to: range.to, insert: wrapped },
     }
@@ -58,9 +54,7 @@ function prefixLine(view: EditorView, prefix: string) {
     // If already has this prefix, remove it
     if (lineText.startsWith(prefix)) {
       return {
-        range: EditorSelection.cursor(
-          range.from - prefix.length
-        ),
+        range: EditorSelection.cursor(range.from - prefix.length),
         changes: {
           from: line.from,
           to: line.from + prefix.length,
@@ -74,7 +68,7 @@ function prefixLine(view: EditorView, prefix: string) {
     if (headingMatch && prefix.startsWith('#')) {
       return {
         range: EditorSelection.cursor(
-          line.from + prefix.length + (range.from - line.from - headingMatch[0].length)
+          line.from + prefix.length + (range.from - line.from - headingMatch[0].length),
         ),
         changes: {
           from: line.from,
@@ -139,10 +133,7 @@ export function toggleCheckboxList(view: EditorView) {
 
 export function insertLink(view: EditorView) {
   const { state } = view
-  const sel = state.sliceDoc(
-    state.selection.main.from,
-    state.selection.main.to
-  )
+  const sel = state.sliceDoc(state.selection.main.from, state.selection.main.to)
   if (sel) {
     const replacement = `[${sel}](url)`
     view.dispatch({
@@ -153,7 +144,7 @@ export function insertLink(view: EditorView) {
       },
       selection: EditorSelection.range(
         state.selection.main.from + sel.length + 2,
-        state.selection.main.from + sel.length + 5
+        state.selection.main.from + sel.length + 5,
       ),
     })
   } else {
@@ -194,6 +185,10 @@ export function insertTable(view: EditorView) {
   insertAtCursor(view, table)
 }
 
+export function toggleBlockquote(view: EditorView) {
+  prefixLine(view, '> ')
+}
+
 // --- Keymap extension ---
 
 export const formattingKeymap = keymap.of([
@@ -229,6 +224,62 @@ export const formattingKeymap = keymap.of([
     key: 'Mod-Shift-k',
     run: (view) => {
       insertLink(view)
+      return true
+    },
+  },
+  {
+    key: 'Mod-Shift-7',
+    run: (view) => {
+      toggleNumberedList(view)
+      return true
+    },
+  },
+  {
+    key: 'Mod-Shift-8',
+    run: (view) => {
+      toggleBulletList(view)
+      return true
+    },
+  },
+  {
+    key: 'Mod-Shift-9',
+    run: (view) => {
+      toggleCheckboxList(view)
+      return true
+    },
+  },
+  {
+    key: 'Mod-Shift-.',
+    run: (view) => {
+      toggleBlockquote(view)
+      return true
+    },
+  },
+  {
+    key: 'Mod-Alt-c',
+    run: (view) => {
+      insertCodeBlock(view)
+      return true
+    },
+  },
+  {
+    key: 'Mod-1',
+    run: (view) => {
+      setHeading(view, 1)
+      return true
+    },
+  },
+  {
+    key: 'Mod-2',
+    run: (view) => {
+      setHeading(view, 2)
+      return true
+    },
+  },
+  {
+    key: 'Mod-3',
+    run: (view) => {
+      setHeading(view, 3)
       return true
     },
   },

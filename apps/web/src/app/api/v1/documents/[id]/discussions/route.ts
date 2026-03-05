@@ -34,23 +34,29 @@ function serializeDiscussions(ydiscussions: Y.Array<Y.Map<unknown>>) {
       text: asString(entry.get('text')),
       createdAt: asString(entry.get('createdAt')),
       resolved: entry.get('resolved') === true,
-      thread: thread instanceof Y.Array
-        ? thread.toArray().flatMap((reply) => {
-            if (!(reply instanceof Y.Map)) return []
-            return [{
-              author: readAuthor(reply.get('author')),
-              text: asString(reply.get('text')),
-              createdAt: asString(reply.get('createdAt')),
-            }]
-          })
-        : [],
+      thread:
+        thread instanceof Y.Array
+          ? thread.toArray().flatMap((reply) => {
+              if (!(reply instanceof Y.Map)) return []
+              return [
+                {
+                  author: readAuthor(reply.get('author')),
+                  text: asString(reply.get('text')),
+                  createdAt: asString(reply.get('createdAt')),
+                },
+              ]
+            })
+          : [],
     })
   }
 
   return discussions
 }
 
-function findDiscussionById(ydiscussions: Y.Array<Y.Map<unknown>>, id: string): Y.Map<unknown> | null {
+function findDiscussionById(
+  ydiscussions: Y.Array<Y.Map<unknown>>,
+  id: string,
+): Y.Map<unknown> | null {
   for (const entry of ydiscussions.toArray()) {
     if (!(entry instanceof Y.Map)) continue
     if (entry.get('id') === id) return entry
@@ -65,10 +71,7 @@ function createAuthorMap(userId: string, name: string): Y.Map<unknown> {
   return author
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: RouteParams,
-) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const authz = await authorizeAgentForDocument(request, id, 'can_view')
   if ('error' in authz) return authz.error
@@ -81,10 +84,7 @@ export async function GET(
   return NextResponse.json(discussions)
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: RouteParams,
-) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params
   const authz = await authorizeAgentForDocument(request, id, 'can_comment')
   if ('error' in authz) return authz.error
@@ -92,7 +92,7 @@ export async function POST(
   const contentTypeError = requireJsonContentType(request)
   if (contentTypeError) return contentTypeError
 
-  const body = await request.json() as {
+  const body = (await request.json()) as {
     discussionId?: string
     title?: string
     text?: string
@@ -137,7 +137,10 @@ export async function POST(
     const title = typeof body.title === 'string' ? body.title.trim() : ''
     if (!title) {
       ydoc.destroy()
-      return NextResponse.json({ error: 'title is required when creating a discussion' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'title is required when creating a discussion' },
+        { status: 400 },
+      )
     }
 
     ydoc.transact(() => {

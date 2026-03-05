@@ -32,10 +32,14 @@ function writeConflictsFile(workDir: string, conflicts: string[]): void {
   mkdirSync(collabDir, { recursive: true })
   writeFileSync(
     path,
-    JSON.stringify({
-      conflicts,
-      mergedAt: new Date().toISOString(),
-    }, null, 2) + '\n',
+    JSON.stringify(
+      {
+        conflicts,
+        mergedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    ) + '\n',
   )
 }
 
@@ -55,7 +59,9 @@ async function ensureRemoteConfigured(
   const remotes = await git.getRemotes(true)
 
   if (remotes.length === 0) {
-    console.error(`No git remotes are configured for ${workDir}. Add one with \`git remote add origin <url>\`.`)
+    console.error(
+      `No git remotes are configured for ${workDir}. Add one with \`git remote add origin <url>\`.`,
+    )
     return false
   }
 
@@ -83,7 +89,9 @@ export async function pullCommand(options: PullCommandOptions = {}): Promise<voi
 
     const statusBefore = await git.status()
     if (statusBefore.files.length > 0) {
-      console.error('Pull aborted: repository has uncommitted changes. Commit or stash your changes first.')
+      console.error(
+        'Pull aborted: repository has uncommitted changes. Commit or stash your changes first.',
+      )
       return
     }
 
@@ -97,8 +105,11 @@ export async function pullCommand(options: PullCommandOptions = {}): Promise<voi
 
     try {
       const mergeResult = await git.merge([`${remote}/${branch}`])
-      const conflictsFromMerge = listConflictFiles((mergeResult as { conflicts?: unknown }).conflicts)
-      const conflicts = conflictsFromMerge.length > 0 ? conflictsFromMerge : await listConflictsFromRepo(git)
+      const conflictsFromMerge = listConflictFiles(
+        (mergeResult as { conflicts?: unknown }).conflicts,
+      )
+      const conflicts =
+        conflictsFromMerge.length > 0 ? conflictsFromMerge : await listConflictsFromRepo(git)
 
       if (conflicts.length > 0) {
         writeConflictsFile(workDir, conflicts)
@@ -108,7 +119,7 @@ export async function pullCommand(options: PullCommandOptions = {}): Promise<voi
 
       console.log(`Pulled ${branch} from ${remote}.`)
       const changedFiles = Array.isArray((mergeResult as { files?: unknown }).files)
-        ? ((mergeResult as { files: string[] }).files)
+        ? (mergeResult as { files: string[] }).files
         : []
 
       if (changedFiles.length === 0) {
@@ -121,8 +132,11 @@ export async function pullCommand(options: PullCommandOptions = {}): Promise<voi
         console.log(`- ${file}`)
       }
     } catch (error) {
-      const conflictsFromError = listConflictFiles((error as { git?: { conflicts?: unknown } })?.git?.conflicts)
-      const conflicts = conflictsFromError.length > 0 ? conflictsFromError : await listConflictsFromRepo(git)
+      const conflictsFromError = listConflictFiles(
+        (error as { git?: { conflicts?: unknown } })?.git?.conflicts,
+      )
+      const conflicts =
+        conflictsFromError.length > 0 ? conflictsFromError : await listConflictsFromRepo(git)
 
       if (conflicts.length > 0) {
         writeConflictsFile(workDir, conflicts)

@@ -8,7 +8,9 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 const mockCheckPermission = vi.fn()
@@ -19,7 +21,8 @@ vi.mock('@collabmd/shared', () => ({
 const mockEnforceUserMutationRateLimit = vi.fn(() => null)
 const mockGetClientIp = vi.fn(() => '127.0.0.1')
 vi.mock('@/lib/rate-limit', () => ({
-  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit.apply(undefined, args as never),
+  enforceUserMutationRateLimit: (...args: unknown[]) =>
+    mockEnforceUserMutationRateLimit.apply(undefined, args as never),
   getClientIp: (...args: unknown[]) => mockGetClientIp.apply(undefined, args as never),
 }))
 
@@ -47,7 +50,10 @@ const fakeSession = {
   session: { id: 'session-1' },
 }
 
-function makeParams(id: string, linkId: string): { params: Promise<{ id: string; linkId: string }> } {
+function makeParams(
+  id: string,
+  linkId: string,
+): { params: Promise<{ id: string; linkId: string }> } {
   return { params: Promise.resolve({ id, linkId }) }
 }
 

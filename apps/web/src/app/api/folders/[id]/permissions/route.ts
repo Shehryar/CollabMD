@@ -6,10 +6,7 @@ import { checkPermission, writeTuple, deleteTuple, readTuples } from '@collabmd/
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireJsonContentType } from '@/lib/http'
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -31,7 +28,10 @@ export async function POST(
   const { userId: targetUserId, role } = body as { userId: string; role: 'editor' | 'viewer' }
 
   if (!targetUserId || !role || !['editor', 'viewer'].includes(role)) {
-    return NextResponse.json({ error: 'user id and role (editor|viewer) are required' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'user id and role (editor|viewer) are required' },
+      { status: 400 },
+    )
   }
 
   await writeTuple(`user:${targetUserId}`, role, `folder:${id}`)
@@ -39,10 +39,7 @@ export async function POST(
   return NextResponse.json({ ok: true })
 }
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })

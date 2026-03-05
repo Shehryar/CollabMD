@@ -21,7 +21,8 @@ interface CliOptions {
 const TOOLS: Tool[] = [
   {
     name: 'collabmd_list_documents',
-    description: 'List documents the API key can access. Use this before reading or editing a document.',
+    description:
+      'List documents the API key can access. Use this before reading or editing a document.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
@@ -60,7 +61,8 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'collabmd_add_comment',
-    description: 'Create a new anchored comment. If anchorText is omitted, it anchors to the first character in a non-empty document. If anchorText appears multiple times, the call fails and you must provide a unique anchor.',
+    description:
+      'Create a new anchored comment. If anchorText is omitted, it anchors to the first character in a non-empty document. If anchorText appears multiple times, the call fails and you must provide a unique anchor.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -97,12 +99,16 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'collabmd_suggest_edit',
-    description: 'Suggest an edit to a document. The suggestion appears as a tracked change that can be accepted or dismissed. Use this when the org policy requires suggest-only, or when you want to propose a change rather than directly editing.',
+    description:
+      'Suggest an edit to a document. The suggestion appears as a tracked change that can be accepted or dismissed. Use this when the org policy requires suggest-only, or when you want to propose a change rather than directly editing.',
     inputSchema: {
       type: 'object',
       properties: {
         documentId: { type: 'string', description: 'The document ID to suggest an edit for.' },
-        anchorText: { type: 'string', description: 'Exact text in the document to replace. Must be unique.' },
+        anchorText: {
+          type: 'string',
+          description: 'Exact text in the document to replace. Must be unique.',
+        },
         proposedText: { type: 'string', description: 'The replacement text to propose.' },
         note: { type: 'string', description: 'Optional note explaining the suggestion.' },
       },
@@ -111,11 +117,15 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'collabmd_get_pending_mentions',
-    description: 'Get comments where this agent is @mentioned but has not yet replied. Use this to discover work assigned to you via @mentions.',
+    description:
+      'Get comments where this agent is @mentioned but has not yet replied. Use this to discover work assigned to you via @mentions.',
     inputSchema: {
       type: 'object',
       properties: {
-        documentId: { type: 'string', description: 'Optional document ID to filter mentions to a specific document.' },
+        documentId: {
+          type: 'string',
+          description: 'Optional document ID to filter mentions to a specific document.',
+        },
       },
     },
   },
@@ -169,10 +179,7 @@ function makeToolText(text: string, isError = false) {
   }
 }
 
-function readRequiredString(
-  args: Record<string, unknown>,
-  key: string,
-): string {
+function readRequiredString(args: Record<string, unknown>, key: string): string {
   const value = args[key]
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error(`"${key}" must be a non-empty string`)
@@ -243,11 +250,13 @@ async function start(): Promise<void> {
       switch (request.params.name) {
         case 'collabmd_list_documents': {
           const docs = await client.listDocuments()
-          return makeToolText(JSON.stringify(
-            docs.map((doc) => ({ id: doc.id, title: doc.title })),
-            null,
-            2,
-          ))
+          return makeToolText(
+            JSON.stringify(
+              docs.map((doc) => ({ id: doc.id, title: doc.title })),
+              null,
+              2,
+            ),
+          )
         }
         case 'collabmd_read_document': {
           const documentId = readRequiredString(args, 'documentId')
@@ -315,11 +324,13 @@ async function start(): Promise<void> {
     const documentId = parseDocumentIdFromResourceUri(request.params.uri)
     const doc = await client.readDocument(documentId)
     return {
-      contents: [{
-        uri: request.params.uri,
-        mimeType: 'text/markdown',
-        text: doc.content,
-      }],
+      contents: [
+        {
+          uri: request.params.uri,
+          mimeType: 'text/markdown',
+          text: doc.content,
+        },
+      ],
     }
   })
 

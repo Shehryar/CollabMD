@@ -8,7 +8,9 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 const mockCheckPermission = vi.fn()
@@ -19,7 +21,8 @@ vi.mock('@collabmd/shared', () => ({
 const mockEnforceUserMutationRateLimit = vi.fn(() => null)
 const mockGetClientIp = vi.fn(() => '127.0.0.1')
 vi.mock('@/lib/rate-limit', () => ({
-  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit.apply(undefined, args as never),
+  enforceUserMutationRateLimit: (...args: unknown[]) =>
+    mockEnforceUserMutationRateLimit.apply(undefined, args as never),
   getClientIp: (...args: unknown[]) => mockGetClientIp.apply(undefined, args as never),
 }))
 
@@ -63,7 +66,10 @@ const fakeSession = {
   session: { id: 'session-1', activeOrganizationId: 'org-1' },
 }
 
-function makeParams(id: string, snapshotId: string): { params: Promise<{ id: string; snapshotId: string }> } {
+function makeParams(
+  id: string,
+  snapshotId: string,
+): { params: Promise<{ id: string; snapshotId: string }> } {
   return { params: Promise.resolve({ id, snapshotId }) }
 }
 
@@ -82,9 +88,12 @@ describe('/api/documents/[id]/snapshots/[snapshotId]/revert', () => {
   })
 
   it('POST reverts document and creates "Reverted to..." snapshot', async () => {
-    const req = new NextRequest('http://localhost:3000/api/documents/doc-1/snapshots/snap-1/revert', {
-      method: 'POST',
-    })
+    const req = new NextRequest(
+      'http://localhost:3000/api/documents/doc-1/snapshots/snap-1/revert',
+      {
+        method: 'POST',
+      },
+    )
     const res = await POST(req, makeParams('doc-1', 'snap-1'))
 
     expect(res.status).toBe(200)
@@ -110,9 +119,12 @@ describe('/api/documents/[id]/snapshots/[snapshotId]/revert', () => {
   it('POST returns 403 when user lacks can_edit', async () => {
     mockCheckPermission.mockResolvedValueOnce(false)
 
-    const req = new NextRequest('http://localhost:3000/api/documents/doc-1/snapshots/snap-1/revert', {
-      method: 'POST',
-    })
+    const req = new NextRequest(
+      'http://localhost:3000/api/documents/doc-1/snapshots/snap-1/revert',
+      {
+        method: 'POST',
+      },
+    )
     const res = await POST(req, makeParams('doc-1', 'snap-1'))
 
     expect(res.status).toBe(403)
@@ -122,9 +134,12 @@ describe('/api/documents/[id]/snapshots/[snapshotId]/revert', () => {
   it('POST returns 404 for nonexistent snapshot', async () => {
     mockSelectGet.mockReturnValueOnce(undefined)
 
-    const req = new NextRequest('http://localhost:3000/api/documents/doc-1/snapshots/missing/revert', {
-      method: 'POST',
-    })
+    const req = new NextRequest(
+      'http://localhost:3000/api/documents/doc-1/snapshots/missing/revert',
+      {
+        method: 'POST',
+      },
+    )
     const res = await POST(req, makeParams('doc-1', 'missing'))
 
     expect(res.status).toBe(404)

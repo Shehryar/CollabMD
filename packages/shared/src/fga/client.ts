@@ -53,20 +53,12 @@ export async function checkPermission(
   return allowed ?? false
 }
 
-export async function writeTuple(
-  user: string,
-  relation: string,
-  object: string,
-): Promise<void> {
+export async function writeTuple(user: string, relation: string, object: string): Promise<void> {
   const client = await getFgaClient()
   await client.write({ writes: [{ user, relation, object }] })
 }
 
-export async function deleteTuple(
-  user: string,
-  relation: string,
-  object: string,
-): Promise<void> {
+export async function deleteTuple(user: string, relation: string, object: string): Promise<void> {
   const client = await getFgaClient()
   await client.write({ deletes: [{ user, relation, object }] })
 }

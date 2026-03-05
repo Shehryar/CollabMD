@@ -2,7 +2,13 @@ import Link from 'next/link'
 
 function Logo() {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="28" height="28" className="shrink-0">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 32 32"
+      width="28"
+      height="28"
+      className="shrink-0"
+    >
       <rect width="32" height="32" fill="#f7f7f5" rx="6" />
       <rect x="5" y="12.5" width="22" height="7" rx="1.5" fill="#c2682b" opacity="0.08" />
       <rect x="8" y="10" width="1.5" height="12" rx="0.75" fill="#c2682b" opacity="0.35" />
@@ -23,27 +29,33 @@ function GitHubIcon() {
 const features = [
   {
     title: 'Real-time sync',
-    description: 'Conflict-free editing powered by CRDTs via Yjs. Multiple users, one document, zero merge issues.',
+    description:
+      'Conflict-free editing powered by CRDTs via Yjs. Multiple users, one document, zero merge issues.',
   },
   {
     title: 'Local-first',
-    description: 'A daemon watches your .md files on disk and syncs changes to the web editor automatically.',
+    description:
+      'A daemon watches your .md files on disk and syncs changes to the web editor automatically.',
   },
   {
     title: 'Comments & suggestions',
-    description: 'Inline comment threads with suggestion mode. Accept or dismiss proposed changes in one click.',
+    description:
+      'Inline comment threads with suggestion mode. Accept or dismiss proposed changes in one click.',
   },
   {
     title: 'Version history',
-    description: 'Automatic snapshots of every document. Browse, compare, and revert to any previous version.',
+    description:
+      'Automatic snapshots of every document. Browse, compare, and revert to any previous version.',
   },
   {
     title: 'Fine-grained permissions',
-    description: 'OpenFGA-based access control. Set per-document roles for owners, editors, and viewers.',
+    description:
+      'OpenFGA-based access control. Set per-document roles for owners, editors, and viewers.',
   },
   {
     title: 'Self-hosted',
-    description: 'Run the entire stack on your own infrastructure. SQLite for local dev, Postgres for production.',
+    description:
+      'Run the entire stack on your own infrastructure. SQLite for local dev, Postgres for production.',
   },
 ]
 
@@ -54,7 +66,9 @@ export function LandingHero() {
       <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
         <div className="flex items-center gap-2.5">
           <Logo />
-          <span className="font-mono text-[15px] font-semibold tracking-[-0.02em] text-fg">CollabMD</span>
+          <span className="font-mono text-[15px] font-semibold tracking-[-0.02em] text-fg">
+            CollabMD
+          </span>
         </div>
         <div className="flex items-center gap-4">
           <a

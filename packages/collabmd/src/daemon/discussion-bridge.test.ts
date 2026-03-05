@@ -63,7 +63,9 @@ describe('DiscussionBridge', () => {
 
     initialize()
 
-    const payload = JSON.parse(readFileSync(sidecarPath(), 'utf-8')) as { discussions: Array<{ id: string; title: string }> }
+    const payload = JSON.parse(readFileSync(sidecarPath(), 'utf-8')) as {
+      discussions: Array<{ id: string; title: string }>
+    }
     expect(payload.discussions).toHaveLength(1)
     expect(payload.discussions[0]?.id).toBe('d-1')
     expect(payload.discussions[0]?.title).toBe('Thread')
@@ -72,20 +74,28 @@ describe('DiscussionBridge', () => {
   it('reads sidecar discussions into CRDT', () => {
     initialize()
     mkdirSync(join(tempDir, '.collabmd', 'discussions', 'docs'), { recursive: true })
-    writeFileSync(sidecarPath(), JSON.stringify({
-      documentPath: 'docs/file.md',
-      discussions: [
+    writeFileSync(
+      sidecarPath(),
+      JSON.stringify(
         {
-          id: 'd-2',
-          author: { userId: 'u-2', name: 'Agent' },
-          title: 'Incoming',
-          text: 'From sidecar',
-          createdAt: '2026-02-12T00:00:00.000Z',
-          resolved: false,
-          thread: [],
+          documentPath: 'docs/file.md',
+          discussions: [
+            {
+              id: 'd-2',
+              author: { userId: 'u-2', name: 'Agent' },
+              title: 'Incoming',
+              text: 'From sidecar',
+              createdAt: '2026-02-12T00:00:00.000Z',
+              resolved: false,
+              thread: [],
+            },
+          ],
         },
-      ],
-    }, null, 2) + '\n', 'utf-8')
+        null,
+        2,
+      ) + '\n',
+      'utf-8',
+    )
 
     bridge!.onDiscussionFileChange()
 
@@ -110,7 +120,14 @@ describe('DiscussionBridge', () => {
 
     initialize()
 
-    const triggerPath = join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'file.md', 'discussion-d-mention.json')
+    const triggerPath = join(
+      tempDir,
+      '.collabmd',
+      'agent-triggers',
+      'docs',
+      'file.md',
+      'discussion-d-mention.json',
+    )
     const trigger = JSON.parse(readFileSync(triggerPath, 'utf-8')) as {
       discussionId: string
       mentionedAgent: string
@@ -137,15 +154,24 @@ describe('DiscussionBridge', () => {
 
     initialize()
 
-    const responseRelativePath = '.collabmd/agent-triggers/docs/file.md/discussion-d-reply.response.json'
+    const responseRelativePath =
+      '.collabmd/agent-triggers/docs/file.md/discussion-d-reply.response.json'
     const responsePath = join(tempDir, responseRelativePath)
     mkdirSync(join(tempDir, '.collabmd', 'agent-triggers', 'docs', 'file.md'), { recursive: true })
-    writeFileSync(responsePath, JSON.stringify({
-      discussionId: 'd-reply',
-      mentionedAgent: 'writer',
-      replyText: 'Looks good to me.',
-      resolved: true,
-    }, null, 2) + '\n', 'utf-8')
+    writeFileSync(
+      responsePath,
+      JSON.stringify(
+        {
+          discussionId: 'd-reply',
+          mentionedAgent: 'writer',
+          replyText: 'Looks good to me.',
+          resolved: true,
+        },
+        null,
+        2,
+      ) + '\n',
+      'utf-8',
+    )
 
     bridge!.onAgentTriggerResponseFileChange(responseRelativePath)
 

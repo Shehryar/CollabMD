@@ -43,9 +43,8 @@ export interface CollabMDConfig {
 
 // ─── Defaults (zero-config local dev) ───
 
-export const defaultConfig: Required<
-  Pick<CollabMDConfig, 'server' | 'database' | 'permissions'>
-> & CollabMDConfig = {
+export const defaultConfig: Required<Pick<CollabMDConfig, 'server' | 'database' | 'permissions'>> &
+  CollabMDConfig = {
   server: 'http://localhost:3000',
   database: {
     engine: 'sqlite',
@@ -61,9 +60,9 @@ export const defaultConfig: Required<
 
 // ─── defineConfig helper ───
 
-export function defineConfig(config: CollabMDConfig = {}): Required<
-  Pick<CollabMDConfig, 'server' | 'database' | 'permissions'>
-> & CollabMDConfig {
+export function defineConfig(
+  config: CollabMDConfig = {},
+): Required<Pick<CollabMDConfig, 'server' | 'database' | 'permissions'>> & CollabMDConfig {
   return {
     ...defaultConfig,
     ...config,

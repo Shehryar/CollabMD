@@ -5,10 +5,7 @@ import { db, documents, eq } from '@collabmd/db'
 import { writeTuple } from '@collabmd/shared'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })

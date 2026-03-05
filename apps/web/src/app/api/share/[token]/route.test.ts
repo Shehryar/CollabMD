@@ -78,10 +78,7 @@ function shareRequest(
   if (body) {
     init.body = JSON.stringify(body)
   }
-  return new NextRequest(
-    `http://localhost:3000/api/share/${token}`,
-    init,
-  )
+  return new NextRequest(`http://localhost:3000/api/share/${token}`, init)
 }
 
 /**

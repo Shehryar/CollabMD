@@ -8,12 +8,15 @@ vi.mock('next/headers', () => ({
 
 const mockGetSession = vi.fn()
 vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) } },
+  auth: {
+    api: { getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never) },
+  },
 }))
 
 const mockEnforceUserMutationRateLimit = vi.fn(() => null)
 vi.mock('@/lib/rate-limit', () => ({
-  enforceUserMutationRateLimit: (...args: unknown[]) => mockEnforceUserMutationRateLimit.apply(undefined, args as never),
+  enforceUserMutationRateLimit: (...args: unknown[]) =>
+    mockEnforceUserMutationRateLimit.apply(undefined, args as never),
   getClientIp: vi.fn(() => '127.0.0.1'),
 }))
 
@@ -65,7 +68,9 @@ describe('DELETE /api/orgs/[orgId]/agent-keys/[keyId]', () => {
       .mockReturnValueOnce({ role: 'owner' })
       .mockReturnValueOnce({ id: 'key-1', orgId: 'org-1' })
 
-    const req = new NextRequest('http://localhost:3000/api/orgs/org-1/agent-keys/key-1', { method: 'DELETE' })
+    const req = new NextRequest('http://localhost:3000/api/orgs/org-1/agent-keys/key-1', {
+      method: 'DELETE',
+    })
     const res = await DELETE(req, params())
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true })
