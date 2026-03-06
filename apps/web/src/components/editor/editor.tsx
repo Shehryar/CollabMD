@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Decoration,
   EditorView,
   drawSelection,
   highlightActiveLine,
@@ -10,8 +11,9 @@ import {
   lineNumbers,
   placeholder,
   rectangularSelection,
+  type DecorationSet,
 } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import { EditorState, RangeSet, StateEffect, StateField } from '@codemirror/state'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
@@ -51,6 +53,24 @@ import {
 import { createSuggestionInterceptor } from './suggestion-interceptor'
 import { useCommentPositions } from './use-comment-positions'
 
+const pendingCommentMark = Decoration.mark({ class: 'cm-pending-comment' })
+const setPendingCommentRange = StateEffect.define<{ from: number; to: number } | null>()
+
+const pendingCommentField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setPendingCommentRange)) {
+        if (!effect.value) return Decoration.none
+        const { from, to } = effect.value
+        return RangeSet.of([pendingCommentMark.range(from, to)])
+      }
+    }
+    return value.map(tr.changes)
+  },
+  provide: (field) => EditorView.decorations.from(field),
+})
+
 const editorTheme = EditorView.theme({
   '&': {
     height: '100%',
@@ -88,6 +108,11 @@ const editorTheme = EditorView.theme({
     padding: '1px 4px',
     borderRadius: '3px 3px 3px 0',
     opacity: '1',
+  },
+  '.cm-pending-comment': {
+    backgroundColor: 'rgba(251, 191, 36, 0.25)',
+    borderBottom: '2px solid rgba(251, 191, 36, 0.6)',
+    borderRadius: '2px',
   },
 })
 
@@ -189,6 +214,8 @@ export default function CollabEditor({
   const [previewMode, setPreviewMode] = useState(true)
   const [editorMode, setEditorMode] = useState<EditorMode>(defaultMode)
   const [selectionAnchor, setSelectionAnchor] = useState<SelectionAnchor | null>(null)
+  const [stableAnchor, setStableAnchor] = useState<SelectionAnchor | null>(null)
+  const stableTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [commentInputOpen, setCommentInputOpen] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null)
@@ -286,6 +313,7 @@ export default function CollabEditor({
     (editorView: EditorView) => {
       if (!commentable) {
         setSelectionAnchor(null)
+        setStableAnchor(null)
         return
       }
 
@@ -293,6 +321,8 @@ export default function CollabEditor({
       if (!selected) {
         if (!commentInputOpenRef.current) {
           setSelectionAnchor((previous) => (previous ? null : previous))
+          setStableAnchor(null)
+          if (stableTimerRef.current) clearTimeout(stableTimerRef.current)
         }
         return
       }
@@ -301,6 +331,8 @@ export default function CollabEditor({
       if (!next) {
         if (!commentInputOpenRef.current) {
           setSelectionAnchor((previous) => (previous ? null : previous))
+          setStableAnchor(null)
+          if (stableTimerRef.current) clearTimeout(stableTimerRef.current)
         }
         return
       }
@@ -308,6 +340,12 @@ export default function CollabEditor({
       if (commentInputOpenRef.current) return
 
       setSelectionAnchor((previous) => (sameAnchor(previous, next) ? previous : next))
+
+      // Debounce the visible button so it doesn't follow while dragging
+      if (stableTimerRef.current) clearTimeout(stableTimerRef.current)
+      stableTimerRef.current = setTimeout(() => {
+        setStableAnchor(next)
+      }, 200)
     },
     [commentable],
   )
@@ -323,6 +361,7 @@ export default function CollabEditor({
       if (!nextAnchor) return false
 
       setSelectionAnchor(nextAnchor)
+      setStableAnchor(nextAnchor)
       setCommentInputOpen(true)
       return true
     },
@@ -367,6 +406,7 @@ export default function CollabEditor({
           indentWithTab,
         ]),
         formattingKeymap,
+        pendingCommentField,
         editorModeField,
         editableCompartment.of(initialExtensions.editable),
         readOnlyCompartment.of(initialExtensions.readOnly),
@@ -429,9 +469,27 @@ export default function CollabEditor({
       viewRef.current = null
       setView(null)
       setSelectionAnchor(null)
+      setStableAnchor(null)
+      if (stableTimerRef.current) clearTimeout(stableTimerRef.current)
       setCommentInputOpen(false)
     }
   }, [defaultMode, commentable, updateSelectionAnchor, yjs, createSuggestion])
+
+  // Show/hide pending comment highlight when comment input opens/closes
+  useEffect(() => {
+    const editorView = viewRef.current
+    if (!editorView) return
+    if (commentInputOpen && selectionAnchor) {
+      editorView.dispatch({
+        effects: setPendingCommentRange.of({
+          from: selectionAnchor.from,
+          to: selectionAnchor.to,
+        }),
+      })
+    } else {
+      editorView.dispatch({ effects: setPendingCommentRange.of(null) })
+    }
+  }, [commentInputOpen, selectionAnchor])
 
   useEffect(() => {
     const editorView = viewRef.current
@@ -562,12 +620,12 @@ export default function CollabEditor({
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           <div ref={containerRef} className="h-full min-h-0 overflow-hidden" />
 
-          {commentable && selectionAnchor && !commentInputOpen && editorMode !== 'suggesting' && (
+          {commentable && stableAnchor && !commentInputOpen && editorMode !== 'suggesting' && (
             <div
-              className="fixed z-30 flex items-center gap-1"
+              className="fixed z-30 flex items-center gap-1 animate-in fade-in duration-150"
               style={{
-                left: `${selectionAnchor.buttonLeft}px`,
-                top: `${selectionAnchor.buttonTop}px`,
+                left: `${stableAnchor.buttonLeft}px`,
+                top: `${stableAnchor.buttonTop}px`,
               }}
             >
               <button

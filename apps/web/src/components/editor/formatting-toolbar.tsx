@@ -32,9 +32,9 @@ function useIsMac(): boolean {
 function formatShortcut(shortcut: string, isMac: boolean): string {
   if (isMac) return shortcut
   return shortcut
-    .replace(/\u2318/g, 'Ctrl')
-    .replace(/\u21E7/g, 'Shift')
-    .replace(/\u2325/g, 'Alt')
+    .replace(/⌘/g, 'Ctrl')
+    .replace(/⇧/g, 'Shift')
+    .replace(/⌥/g, 'Alt')
 }
 
 interface ToolbarButtonProps {
@@ -168,7 +168,7 @@ export default function FormattingToolbar({
         label="H1"
         title="Heading 1"
         ariaLabel="heading 1"
-        shortcut={sc('\u23181')}
+        shortcut={sc('⌘1')}
         onClick={() => run((v) => setHeading(v, 1))}
         tabIndex={activeIndex === 0 ? 0 : -1}
         onFocus={() => setActiveIndex(0)}
@@ -181,7 +181,7 @@ export default function FormattingToolbar({
         label="H2"
         title="Heading 2"
         ariaLabel="heading 2"
-        shortcut={sc('\u23182')}
+        shortcut={sc('⌘2')}
         onClick={() => run((v) => setHeading(v, 2))}
         tabIndex={activeIndex === 1 ? 0 : -1}
         onFocus={() => setActiveIndex(1)}
@@ -194,7 +194,7 @@ export default function FormattingToolbar({
         label="H3"
         title="Heading 3"
         ariaLabel="heading 3"
-        shortcut={sc('\u23183')}
+        shortcut={sc('⌘3')}
         onClick={() => run((v) => setHeading(v, 3))}
         tabIndex={activeIndex === 2 ? 0 : -1}
         onFocus={() => setActiveIndex(2)}
@@ -209,7 +209,7 @@ export default function FormattingToolbar({
         label="B"
         title="Bold"
         ariaLabel="bold"
-        shortcut={sc('\u2318B')}
+        shortcut={sc('⌘B')}
         onClick={() => run(toggleBold)}
         tabIndex={activeIndex === 3 ? 0 : -1}
         onFocus={() => setActiveIndex(3)}
@@ -222,7 +222,7 @@ export default function FormattingToolbar({
         label="I"
         title="Italic"
         ariaLabel="italic"
-        shortcut={sc('\u2318I')}
+        shortcut={sc('⌘I')}
         onClick={() => run(toggleItalic)}
         tabIndex={activeIndex === 4 ? 0 : -1}
         onFocus={() => setActiveIndex(4)}
@@ -235,7 +235,7 @@ export default function FormattingToolbar({
         label="S"
         title="Strikethrough"
         ariaLabel="strikethrough"
-        shortcut={sc('\u2318\u21E7X')}
+        shortcut={sc('⌘⇧X')}
         onClick={() => run(toggleStrikethrough)}
         tabIndex={activeIndex === 5 ? 0 : -1}
         onFocus={() => setActiveIndex(5)}
@@ -248,7 +248,7 @@ export default function FormattingToolbar({
         label="<>"
         title="Inline code"
         ariaLabel="inline code"
-        shortcut={sc('\u2318E')}
+        shortcut={sc('⌘E')}
         onClick={() => run(toggleCode)}
         tabIndex={activeIndex === 6 ? 0 : -1}
         onFocus={() => setActiveIndex(6)}
@@ -260,10 +260,10 @@ export default function FormattingToolbar({
       <Separator />
 
       <ToolbarButton
-        label="\u2022"
+        label="•"
         title="Bullet list"
         ariaLabel="bullet list"
-        shortcut={sc('\u2318\u21E78')}
+        shortcut={sc('⌘⇧8')}
         onClick={() => run(toggleBulletList)}
         tabIndex={activeIndex === 7 ? 0 : -1}
         onFocus={() => setActiveIndex(7)}
@@ -276,7 +276,7 @@ export default function FormattingToolbar({
         label="1."
         title="Numbered list"
         ariaLabel="numbered list"
-        shortcut={sc('\u2318\u21E77')}
+        shortcut={sc('⌘⇧7')}
         onClick={() => run(toggleNumberedList)}
         tabIndex={activeIndex === 8 ? 0 : -1}
         onFocus={() => setActiveIndex(8)}
@@ -286,10 +286,10 @@ export default function FormattingToolbar({
         }}
       />
       <ToolbarButton
-        label="\u2610"
+        label="☐"
         title="Checkbox list"
         ariaLabel="checkbox list"
-        shortcut={sc('\u2318\u21E79')}
+        shortcut={sc('⌘⇧9')}
         onClick={() => run(toggleCheckboxList)}
         tabIndex={activeIndex === 9 ? 0 : -1}
         onFocus={() => setActiveIndex(9)}
@@ -302,7 +302,7 @@ export default function FormattingToolbar({
         label=">"
         title="Blockquote"
         ariaLabel="blockquote"
-        shortcut={sc('\u2318\u21E7.')}
+        shortcut={sc('⌘⇧.')}
         onClick={() => run(toggleBlockquote)}
         tabIndex={activeIndex === 10 ? 0 : -1}
         onFocus={() => setActiveIndex(10)}
@@ -314,10 +314,10 @@ export default function FormattingToolbar({
       <Separator />
 
       <ToolbarButton
-        label="\uD83D\uDD17"
+        label="🔗"
         title="Link"
         ariaLabel="insert link"
-        shortcut={sc('\u2318\u21E7K')}
+        shortcut={sc('⌘⇧K')}
         onClick={() => run(insertLink)}
         tabIndex={activeIndex === 11 ? 0 : -1}
         onFocus={() => setActiveIndex(11)}
@@ -327,7 +327,7 @@ export default function FormattingToolbar({
         }}
       />
       <ToolbarButton
-        label="\uD83D\uDDBC"
+        label="🖼"
         title="Image"
         ariaLabel="insert image"
         onClick={() => run(insertImage)}
@@ -342,7 +342,7 @@ export default function FormattingToolbar({
         label="```"
         title="Code block"
         ariaLabel="insert code block"
-        shortcut={sc('\u2318\u2325C')}
+        shortcut={sc('⌘⌥C')}
         onClick={() => run(insertCodeBlock)}
         tabIndex={activeIndex === 13 ? 0 : -1}
         onFocus={() => setActiveIndex(13)}
@@ -352,7 +352,7 @@ export default function FormattingToolbar({
         }}
       />
       <ToolbarButton
-        label="\u229E"
+        label="⊞"
         title="Table"
         ariaLabel="insert table"
         onClick={() => run(insertTable)}
@@ -364,7 +364,7 @@ export default function FormattingToolbar({
         }}
       />
       <ToolbarButton
-        label="\u2014"
+        label="—"
         title="Horizontal rule"
         ariaLabel="insert horizontal rule"
         onClick={() => run(insertHorizontalRule)}
