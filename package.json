@@ -22,7 +22,11 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "test:e2e:ui": "playwright test --config e2e/playwright.config.ts --ui",
-    "test:e2e:headed": "playwright test --config e2e/playwright.config.ts --headed"
+    "test:e2e:headed": "playwright test --config e2e/playwright.config.ts --headed",
+    "queue": "tsx scripts/queue.ts",
+    "queue:progress": "tsx scripts/queue.ts progress",
+    "queue:run": "tsx scripts/queue.ts run",
+    "queue:dry-run": "tsx scripts/queue.ts run --dry-run"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
