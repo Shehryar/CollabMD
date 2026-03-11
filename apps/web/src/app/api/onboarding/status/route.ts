@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import {
   and,
+  count,
   db,
   documentSnapshots,
   documents,
@@ -44,16 +45,16 @@ export async function GET(request: NextRequest) {
   }
 
   const docCount = db
-    .select({ id: documents.id })
+    .select({ count: count() })
     .from(documents)
     .where(and(eq(documents.orgId, orgId), isNull(documents.deletedAt)))
-    .all().length
+    .get()?.count ?? 0
 
   const memberCount = db
-    .select({ id: members.id })
+    .select({ count: count() })
     .from(members)
     .where(eq(members.organizationId, orgId))
-    .all().length
+    .get()?.count ?? 0
 
   const daemonSnapshot = db
     .select({ id: documentSnapshots.id })

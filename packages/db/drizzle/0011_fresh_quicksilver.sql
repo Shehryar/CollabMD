@@ -1,0 +1,1 @@
+CREATE INDEX `documents_org_deleted_updated_idx` ON `documents` (`org_id`,`deleted_at`,`updated_at`);

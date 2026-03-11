@@ -12,6 +12,7 @@ const editorShortcuts: ShortcutEntry[] = [
   { label: 'Bold', keys: 'Mod-b' },
   { label: 'Italic', keys: 'Mod-i' },
   { label: 'Inline code', keys: 'Mod-e' },
+  { label: 'Highlight', keys: 'Mod-Shift-h' },
   { label: 'Strikethrough', keys: 'Mod-Shift-x' },
   { label: 'Link', keys: 'Mod-Shift-k' },
   { label: 'Heading 1', keys: 'Mod-1' },

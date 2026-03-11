@@ -9,6 +9,7 @@ import { useActiveOrganization } from '@/lib/auth-client'
 import { FolderTree } from './folder-tree'
 import { useSidebar } from './sidebar-context'
 import { GettingStarted } from './getting-started'
+import { NotificationBell } from './notification-bell'
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -120,6 +121,11 @@ export function Sidebar() {
             </span>
           </Link>
           <div className="flex items-center gap-2">
+            <NotificationBell
+              userId={session?.user?.id}
+              orgId={activeOrg?.id ?? session?.session?.activeOrganizationId}
+              onNavigate={() => setOpen(false)}
+            />
             <button
               onClick={() => void createDoc()}
               disabled={creatingDoc}
@@ -257,6 +263,13 @@ export function Sidebar() {
                     {activeOrg.name}
                   </p>
                 )}
+                <Link
+                  href="/settings/notifications"
+                  onClick={() => setOpen(false)}
+                  className="mt-0.5 inline-block font-mono text-[10.5px] text-fg-muted hover:text-fg"
+                >
+                  Notifications
+                </Link>
               </div>
               <button
                 onClick={() =>

@@ -5,6 +5,7 @@ import { EditorView } from '@codemirror/view'
 import {
   toggleBold,
   toggleItalic,
+  toggleHighlight,
   toggleCode,
   toggleStrikethrough,
   setHeading,
@@ -72,15 +73,41 @@ describe('toggleBold', () => {
 })
 
 describe('toggleItalic', () => {
-  it('wraps selected text with _', () => {
+  it('wraps selected text with *', () => {
     createView('hello world', 0, 5)
     toggleItalic(view)
-    expect(doc()).toBe('_hello_ world')
+    expect(doc()).toBe('*hello* world')
+  })
+
+  it('unwraps text already wrapped with *', () => {
+    createView('*hello* world', 0, 7)
+    toggleItalic(view)
+    expect(doc()).toBe('hello world')
   })
 
   it('unwraps text already wrapped with _', () => {
     createView('_hello_ world', 0, 7)
     toggleItalic(view)
+    expect(doc()).toBe('hello world')
+  })
+
+  it('inserts empty markers at cursor when nothing selected', () => {
+    createView('hello', 5)
+    toggleItalic(view)
+    expect(doc()).toBe('hello**')
+  })
+})
+
+describe('toggleHighlight', () => {
+  it('wraps selected text with ==', () => {
+    createView('hello world', 0, 5)
+    toggleHighlight(view)
+    expect(doc()).toBe('==hello== world')
+  })
+
+  it('unwraps text already wrapped with ==', () => {
+    createView('==hello== world', 0, 9)
+    toggleHighlight(view)
     expect(doc()).toBe('hello world')
   })
 })

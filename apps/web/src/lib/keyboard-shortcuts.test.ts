@@ -272,6 +272,29 @@ describe('handleGlobalKeyDown', () => {
 
     document.body.removeChild(input)
   })
+
+  it('skips handling when another listener already prevented the event', () => {
+    const action = vi.fn()
+    registerShortcut({
+      id: 'open-history',
+      label: 'Version history',
+      category: 'document',
+      keys: 'Mod-Shift-h',
+      action,
+    })
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'h',
+      ctrlKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    event.preventDefault()
+
+    handleGlobalKeyDown(event)
+    expect(action).not.toHaveBeenCalled()
+  })
 })
 
 describe('formatKeyCombo', () => {

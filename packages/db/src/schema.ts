@@ -182,6 +182,11 @@ export const documents = sqliteTable(
     ownerIdIdx: index('documents_owner_id_idx').on(table.ownerId),
     folderIdIdx: index('documents_folder_id_idx').on(table.folderId),
     deletedAtIdx: index('documents_deleted_at_idx').on(table.deletedAt),
+    orgDeletedUpdatedIdx: index('documents_org_deleted_updated_idx').on(
+      table.orgId,
+      table.deletedAt,
+      table.updatedAt,
+    ),
   }),
 )
 
@@ -293,5 +298,48 @@ export const agentKeys = sqliteTable(
     orgIdIdx: index('agent_keys_org_id_idx').on(table.orgId),
     createdByIdx: index('agent_keys_created_by_idx').on(table.createdBy),
     revokedAtIdx: index('agent_keys_revoked_at_idx').on(table.revokedAt),
+  }),
+)
+
+export const userNotificationPreferences = sqliteTable(
+  'user_notification_preferences',
+  {
+    userId: text('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    emailNotifications: text('email_notifications').notNull().default('all'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => ({
+    emailNotificationsIdx: index('user_notification_preferences_email_notifications_idx').on(
+      table.emailNotifications,
+    ),
+  }),
+)
+
+export const notifications = sqliteTable(
+  'notifications',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    resourceId: text('resource_id').notNull(),
+    resourceType: text('resource_type').notNull(),
+    read: integer('read', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => ({
+    userIdIdx: index('notifications_user_id_idx').on(table.userId),
+    orgIdIdx: index('notifications_org_id_idx').on(table.orgId),
+    readIdx: index('notifications_read_idx').on(table.read),
+    createdAtIdx: index('notifications_created_at_idx').on(table.createdAt),
   }),
 )

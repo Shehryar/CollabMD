@@ -9,8 +9,8 @@
  *   tsx scripts/queue.ts list --todo       # list only todo tickets
  *   tsx scripts/queue.ts run               # run next ready auto ticket
  *   tsx scripts/queue.ts run --dry-run     # show what would run without executing
- *   tsx scripts/queue.ts run --agent claude # use claude (default)
- *   tsx scripts/queue.ts run --agent codex  # use codex
+ *   tsx scripts/queue.ts run --agent codex  # use codex (default)
+ *   tsx scripts/queue.ts run --agent claude # use claude
  *   tsx scripts/queue.ts run --loop        # keep running until no ready tickets
  *   tsx scripts/queue.ts validate T-080    # run validation for a specific ticket
  *
@@ -138,7 +138,7 @@ async function cmdRun(args: string[]): Promise<void> {
   const loop = args.includes('--loop')
   const agentFlag = args.includes('--agent')
     ? args[args.indexOf('--agent') + 1]
-    : 'claude'
+    : 'codex'
 
   const agentSetup = getAgentSetup()
 
@@ -269,7 +269,7 @@ function executeAgent(
     switch (agent) {
       case 'codex':
         cmd = 'codex'
-        cmdArgs = ['exec', '--quiet', '-']
+        cmdArgs = ['exec', '--full-auto', '-']
         break
       case 'claude':
         cmd = 'claude'
@@ -369,7 +369,7 @@ Usage:
 Run flags:
   --dry-run          Show what would run without executing
   --loop             Keep running until no ready tickets
-  --agent <name>     Agent to use: claude (default), codex, or custom command
+  --agent <name>     Agent to use: codex (default), claude, or custom command
 
 Environment:
   PROGRESS_MD        Path to Progress.md (default: ~/Documents/Notes/.../Progress.md)

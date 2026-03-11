@@ -13,6 +13,8 @@ export type {
 } from './config.js'
 
 export * from './fga/index.js'
+export * from './email-notifications.js'
+export * from './notifications.js'
 export * from './webhooks.js'
 
 export { fonts, colors, radii, shadows, typeScale, cssVariables } from './design-system.js'

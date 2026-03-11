@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
-import { db, users, eq } from '@collabmd/db'
+import { db, documents, users, eq, getUserEmailNotificationPreference } from '@collabmd/db'
 import { auth } from '@/lib/auth'
 import { checkPermission, writeTuple, deleteTuple, readTuples } from '@collabmd/shared'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireJsonContentType } from '@/lib/http'
+import { createAndBroadcastNotification } from '@/lib/notification-service'
+import { sendShareInviteEmail } from '@/lib/notification-email-service'
 
 type RouteParams = { params: Promise<{ id: string }> }
 
@@ -36,12 +38,39 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const targetUser = db.select().from(users).where(eq(users.email, email)).get()
+  const document = db
+    .select({ title: documents.title, orgId: documents.orgId })
+    .from(documents)
+    .where(eq(documents.id, docId))
+    .get()
 
-  if (!targetUser) {
+  if (!targetUser || !document) {
     return NextResponse.json({ error: 'user not found' }, { status: 404 })
   }
 
   await writeTuple(`user:${targetUser.id}`, role, `document:${docId}`)
+
+  if (targetUser.id !== userId) {
+    await createAndBroadcastNotification({
+      userId: targetUser.id,
+      orgId: document.orgId,
+      type: 'share_invite',
+      title: 'Document shared with you',
+      body: `${session.user.name ?? session.user.email} shared ${document.title} with you.`,
+      resourceId: docId,
+      resourceType: 'document',
+    })
+
+    await sendShareInviteEmail({
+      to: targetUser.email,
+      inviterName: session.user.name ?? session.user.email,
+      resourceName: document.title,
+      resourceType: 'document',
+      resourceId: docId,
+      preference: getUserEmailNotificationPreference(targetUser.id),
+      baseUrl: request.nextUrl.origin,
+    })
+  }
 
   return NextResponse.json({ ok: true, userId: targetUser.id, role })
 }

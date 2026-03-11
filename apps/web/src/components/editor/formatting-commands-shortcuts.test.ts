@@ -13,6 +13,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { EditorState, EditorSelection } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import {
+  toggleHighlight,
   toggleBlockquote,
   toggleBulletList,
   toggleNumberedList,
@@ -98,6 +99,20 @@ describe('Mod-Shift-9: checkbox list', () => {
     createView('- [ ] task', 6)
     toggleCheckboxList(view)
     expect(doc()).toBe('task')
+  })
+})
+
+describe('Mod-Shift-h: highlight', () => {
+  it('wraps selected text with ==', () => {
+    createView('important', 0, 9)
+    toggleHighlight(view)
+    expect(doc()).toBe('==important==')
+  })
+
+  it('removes existing == markers when toggled off', () => {
+    createView('==important==', 0, 13)
+    toggleHighlight(view)
+    expect(doc()).toBe('important')
   })
 })
 

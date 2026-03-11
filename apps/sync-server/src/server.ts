@@ -6,14 +6,28 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import * as encoding from 'lib0/encoding'
 import * as decoding from 'lib0/decoding'
+import type { NotificationRealtimeEvent } from '@collabmd/shared'
 import type { TokenPayload } from './auth.js'
 
 const messageSync = 0
 const messageAwareness = 1
+const messageNotification = 4
+const NOTIFICATION_ROOM_PREFIX = '__notifications__:'
+
+function isNotificationRoomName(name: string): boolean {
+  return name.startsWith(NOTIFICATION_ROOM_PREFIX)
+}
+
+function getNotificationRoomUserId(name: string): string | null {
+  if (!isNotificationRoomName(name)) return null
+  const userId = name.slice(NOTIFICATION_ROOM_PREFIX.length).trim()
+  return userId || null
+}
 
 // Room-per-document: each room holds a shared Y.Doc and awareness state
 interface Room {
   name: string
+  kind: 'document' | 'notification'
   doc: Y.Doc
   awareness: awarenessProtocol.Awareness
   conns: Map<WebSocket, Set<number>>
@@ -36,6 +50,7 @@ interface ConnMeta {
 type SyncEventType =
   | 'document.edited'
   | 'comment.created'
+  | 'comment.replied'
   | 'comment.mention'
   | 'suggestion.created'
   | 'suggestion.accepted'
@@ -82,6 +97,7 @@ export function createSyncServer(config?: SyncServerConfig) {
   const snapshotIntervalMs = config?.snapshotIntervalMs ?? 300_000
   // Track active WebSocket connections per user for rate limiting
   const userConnections = new Map<string, Set<WebSocket>>()
+  const notificationConnections = new Map<string, Set<WebSocket>>()
   // Track connection metadata (source, userId)
   const connMeta = new Map<WebSocket, ConnMeta>()
 
@@ -109,12 +125,32 @@ export function createSyncServer(config?: SyncServerConfig) {
 
   function captureDocEventState(doc: Y.Doc): {
     commentIds: Set<string>
+    commentsById: Map<string, { authorId: string; text: string }>
+    replySignatures: Map<
+      string,
+      {
+        commentId: string
+        commentAuthorId: string
+        replyAuthorId: string
+        text: string
+      }
+    >
     mentionSignatures: Set<string>
     suggestionIds: Set<string>
     suggestionStatusByCommentId: Map<string, 'pending' | 'accepted' | 'dismissed'>
     discussionIds: Set<string>
   } {
     const commentIds = new Set<string>()
+    const commentsById = new Map<string, { authorId: string; text: string }>()
+    const replySignatures = new Map<
+      string,
+      {
+        commentId: string
+        commentAuthorId: string
+        replyAuthorId: string
+        text: string
+      }
+    >()
     const mentionSignatures = new Set<string>()
     const suggestionIds = new Set<string>()
     const suggestionStatusByCommentId = new Map<string, 'pending' | 'accepted' | 'dismissed'>()
@@ -128,8 +164,37 @@ export function createSyncServer(config?: SyncServerConfig) {
       if (!id) continue
 
       commentIds.add(id)
+      commentsById.set(id, {
+        authorId:
+          typeof comment.get('authorId') === 'string' ? (comment.get('authorId') as string) : '',
+        text,
+      })
       for (const agent of extractMentionedAgents(text)) {
         mentionSignatures.add(`${id}\u0000${agent}`)
+      }
+
+      const thread = comment.get('thread')
+      if (thread instanceof Y.Array) {
+        for (const entry of thread.toArray()) {
+          if (!(entry instanceof Y.Map)) continue
+          const replyText =
+            typeof entry.get('text') === 'string' ? (entry.get('text') as string).trim() : ''
+          if (!replyText) continue
+          const replyAuthorId =
+            typeof entry.get('authorId') === 'string' ? (entry.get('authorId') as string) : ''
+          const replyCreatedAt =
+            typeof entry.get('createdAt') === 'string' ? (entry.get('createdAt') as string) : ''
+          const signature = `${id}\u0000${replyAuthorId}\u0000${replyCreatedAt}\u0000${replyText}`
+          replySignatures.set(signature, {
+            commentId: id,
+            commentAuthorId:
+              typeof comment.get('authorId') === 'string'
+                ? (comment.get('authorId') as string)
+                : '',
+            replyAuthorId,
+            text: replyText,
+          })
+        }
       }
 
       const suggestion = comment.get('suggestion')
@@ -150,10 +215,31 @@ export function createSyncServer(config?: SyncServerConfig) {
 
     return {
       commentIds,
+      commentsById,
+      replySignatures,
       mentionSignatures,
       suggestionIds,
       suggestionStatusByCommentId,
       discussionIds,
+    }
+  }
+
+  function encodeNotificationEvent(event: NotificationRealtimeEvent): Uint8Array {
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, messageNotification)
+    encoding.writeVarString(encoder, JSON.stringify(event))
+    return encoding.toUint8Array(encoder)
+  }
+
+  function pushNotificationToUser(userId: string, event: NotificationRealtimeEvent): void {
+    const conns = notificationConnections.get(userId)
+    if (!conns || conns.size === 0) return
+
+    const payload = encodeNotificationEvent(event)
+    for (const ws of conns) {
+      if (ws.readyState === ws.OPEN) {
+        ws.send(payload)
+      }
     }
   }
 
@@ -172,6 +258,7 @@ export function createSyncServer(config?: SyncServerConfig) {
   }
 
   async function maybePersistSnapshot(room: Room): Promise<void> {
+    if (room.kind !== 'document') return
     if (!config?.snapshotCallback) return
     if (room.lastEditAt === null) return
     if (room.doc.store.clients.size === 0) return
@@ -203,6 +290,7 @@ export function createSyncServer(config?: SyncServerConfig) {
     const awareness = new awarenessProtocol.Awareness(doc)
     const room: Room = {
       name,
+      kind: isNotificationRoomName(name) ? 'notification' : 'document',
       doc,
       awareness,
       conns: new Map(),
@@ -247,6 +335,7 @@ export function createSyncServer(config?: SyncServerConfig) {
   }
 
   async function hydrateRoom(room: Room): Promise<void> {
+    if (room.kind !== 'document') return
     if (room.hydrated) return
     if (room.hydratePromise) {
       await room.hydratePromise
@@ -280,6 +369,16 @@ export function createSyncServer(config?: SyncServerConfig) {
         const syncTypeDecoder = decoding.createDecoder(data)
         decoding.readVarUint(syncTypeDecoder) // outer type
         const syncMessageType = decoding.readVarUint(syncTypeDecoder)
+
+        if (room.kind === 'notification') {
+          const encoder = encoding.createEncoder()
+          encoding.writeVarUint(encoder, messageSync)
+          syncProtocol.readSyncMessage(decoder, encoder, room.doc, ws)
+          if (encoding.length(encoder) > 1) {
+            ws.send(encoding.toUint8Array(encoder))
+          }
+          return
+        }
 
         // Read-only users may complete handshake (type 0) but cannot push updates (type 1/2).
         if (meta?.canEdit === false && syncMessageType !== 0) {
@@ -319,13 +418,35 @@ export function createSyncServer(config?: SyncServerConfig) {
 
           for (const commentId of afterState.commentIds) {
             if (beforeState.commentIds.has(commentId)) continue
+            const comment = afterState.commentsById.get(commentId)
             emitEvent({
               eventType: 'comment.created',
               documentId: room.name,
               actorId,
               actorSource,
               timestamp,
-              data: { commentId },
+              data: {
+                commentId,
+                commentAuthorId: comment?.authorId ?? '',
+                text: comment?.text ?? '',
+              },
+            })
+          }
+
+          for (const [signature, reply] of afterState.replySignatures) {
+            if (beforeState.replySignatures.has(signature)) continue
+            emitEvent({
+              eventType: 'comment.replied',
+              documentId: room.name,
+              actorId,
+              actorSource,
+              timestamp,
+              data: {
+                commentId: reply.commentId,
+                commentAuthorId: reply.commentAuthorId,
+                replyAuthorId: reply.replyAuthorId,
+                text: reply.text,
+              },
             })
           }
 
@@ -450,6 +571,7 @@ export function createSyncServer(config?: SyncServerConfig) {
     })
 
     ws.on('close', async () => {
+      const meta = connMeta.get(ws)
       const controlledIds = room.conns.get(ws)
       room.conns.delete(ws)
       const listener = room.syncListeners.get(ws)
@@ -461,6 +583,14 @@ export function createSyncServer(config?: SyncServerConfig) {
 
       if (controlledIds) {
         awarenessProtocol.removeAwarenessStates(room.awareness, Array.from(controlledIds), null)
+      }
+
+      if (room.kind === 'notification' && meta?.userId) {
+        const conns = notificationConnections.get(meta.userId)
+        conns?.delete(ws)
+        if (conns && conns.size === 0) {
+          notificationConnections.delete(meta.userId)
+        }
       }
 
       // Clean up empty rooms
@@ -584,6 +714,47 @@ export function createSyncServer(config?: SyncServerConfig) {
       })
       return
     }
+    if (req.method === 'POST' && pathname === '/notifications/broadcast') {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk: Buffer) => {
+        chunks.push(chunk)
+      })
+      req.on('end', () => {
+        try {
+          const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+            userId?: unknown
+            userIds?: unknown
+            event?: NotificationRealtimeEvent
+          }
+          const userIds = Array.isArray(body.userIds)
+            ? body.userIds.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+            : typeof body.userId === 'string' && body.userId.trim().length > 0
+              ? [body.userId]
+              : []
+
+          if (userIds.length === 0 || !body.event || typeof body.event !== 'object') {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: 'invalid notification payload' }))
+            return
+          }
+
+          for (const userId of userIds) {
+            pushNotificationToUser(userId, body.event)
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true }))
+        } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'invalid request body' }))
+        }
+      })
+      req.on('error', () => {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'failed to read request body' }))
+      })
+      return
+    }
     res.writeHead(404)
     res.end()
   })
@@ -593,7 +764,8 @@ export function createSyncServer(config?: SyncServerConfig) {
   server.on('upgrade', async (req, socket, head) => {
     try {
       const url = new URL(req.url!, 'http://localhost')
-      const roomName = url.pathname.slice(1) || 'default'
+      const roomName = decodeURIComponent(url.pathname.slice(1) || 'default')
+      const notificationUserId = getNotificationRoomUserId(roomName)
       const hasAuthHeader =
         typeof req.headers.authorization === 'string' && req.headers.authorization.length > 0
       const source: 'browser' | 'daemon' = hasAuthHeader ? 'daemon' : 'browser'
@@ -637,28 +809,38 @@ export function createSyncServer(config?: SyncServerConfig) {
           return
         }
 
-        const canView = await config.auth.checkPermission(
-          payload.id,
-          'can_view',
-          'document',
-          roomName,
-        )
-        if (!canView) {
-          wss.handleUpgrade(req, socket, head, (ws) => {
-            ws.close(4403, 'Forbidden')
-          })
-          return
-        }
-        canEdit = await config.auth.checkPermission(payload.id, 'can_edit', 'document', roomName)
-
-        // Check agent policy for daemon connections
-        if (source === 'daemon' && config.checkAgentPolicy) {
-          const policy = await config.checkAgentPolicy(roomName, source)
-          if (!policy.allowed) {
+        if (notificationUserId) {
+          if (notificationUserId !== payload.id) {
             wss.handleUpgrade(req, socket, head, (ws) => {
-              ws.close(policy.code || 4450, policy.reason || 'Agent editing disabled')
+              ws.close(4403, 'Forbidden')
             })
             return
+          }
+          canEdit = false
+        } else {
+          const canView = await config.auth.checkPermission(
+            payload.id,
+            'can_view',
+            'document',
+            roomName,
+          )
+          if (!canView) {
+            wss.handleUpgrade(req, socket, head, (ws) => {
+              ws.close(4403, 'Forbidden')
+            })
+            return
+          }
+          canEdit = await config.auth.checkPermission(payload.id, 'can_edit', 'document', roomName)
+
+          // Check agent policy for daemon connections
+          if (source === 'daemon' && config.checkAgentPolicy) {
+            const policy = await config.checkAgentPolicy(roomName, source)
+            if (!policy.allowed) {
+              wss.handleUpgrade(req, socket, head, (ws) => {
+                ws.close(policy.code || 4450, policy.reason || 'Agent editing disabled')
+              })
+              return
+            }
           }
         }
       }
@@ -685,6 +867,15 @@ export function createSyncServer(config?: SyncServerConfig) {
           })
         }
 
+        if (room.kind === 'notification' && userId) {
+          let conns = notificationConnections.get(userId)
+          if (!conns) {
+            conns = new Set()
+            notificationConnections.set(userId, conns)
+          }
+          conns.add(ws)
+        }
+
         setupConnection(ws, room)
       })
     } catch (err) {
@@ -694,5 +885,5 @@ export function createSyncServer(config?: SyncServerConfig) {
     }
   })
 
-  return { server, wss, rooms, connMeta }
+  return { server, wss, rooms, connMeta, pushNotificationToUser }
 }

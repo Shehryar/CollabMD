@@ -38,6 +38,17 @@ vi.mock('@/lib/http', () => ({
     mockRequireJsonContentType.apply(undefined, args as never),
 }))
 
+const mockCreateAndBroadcastNotification = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/notification-service', () => ({
+  createAndBroadcastNotification: (...args: unknown[]) =>
+    mockCreateAndBroadcastNotification.apply(undefined, args as never),
+}))
+
+const mockSendShareInviteEmail = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/notification-email-service', () => ({
+  sendShareInviteEmail: (...args: unknown[]) => mockSendShareInviteEmail.apply(undefined, args as never),
+}))
+
 const mockDbResult = { get: vi.fn() }
 const mockWhereSelect = vi.fn(() => ({
   get: mockDbResult.get,
@@ -54,6 +65,12 @@ vi.mock('@collabmd/db', () => ({
     email: 'email',
     name: 'name',
   },
+  documents: {
+    id: 'id',
+    title: 'title',
+    orgId: 'org_id',
+  },
+  getUserEmailNotificationPreference: vi.fn(() => 'all'),
   eq: (...args: unknown[]) => mockEq.apply(undefined, args as never),
 }))
 
@@ -89,6 +106,8 @@ describe('/api/documents/[id]/share', () => {
     mockRequireJsonContentType.mockReturnValue(null)
     mockDbResult.get.mockReturnValue(undefined)
     mockReadTuples.mockResolvedValue([])
+    mockCreateAndBroadcastNotification.mockResolvedValue(undefined)
+    mockSendShareInviteEmail.mockResolvedValue(undefined)
   })
 
   describe('POST', () => {
@@ -110,6 +129,10 @@ describe('/api/documents/[id]/share', () => {
         email: 'target@example.com',
         name: 'Target User',
       })
+      mockDbResult.get.mockReturnValueOnce({
+        title: 'Shared Doc',
+        orgId: 'org-1',
+      })
 
       const req = jsonRequest('http://localhost:3000/api/documents/doc-1/share', 'POST', {
         email: 'target@example.com',
@@ -125,6 +148,24 @@ describe('/api/documents/[id]/share', () => {
 
       expect(mockCheckPermission).toHaveBeenCalledWith('user-1', 'can_edit', 'document', 'doc-1')
       expect(mockWriteTuple).toHaveBeenCalledWith('user:user-2', 'commenter', 'document:doc-1')
+      expect(mockCreateAndBroadcastNotification).toHaveBeenCalledWith({
+        userId: 'user-2',
+        orgId: 'org-1',
+        type: 'share_invite',
+        title: 'Document shared with you',
+        body: 'Test User shared Shared Doc with you.',
+        resourceId: 'doc-1',
+        resourceType: 'document',
+      })
+      expect(mockSendShareInviteEmail).toHaveBeenCalledWith({
+        to: 'target@example.com',
+        inviterName: 'Test User',
+        resourceName: 'Shared Doc',
+        resourceType: 'document',
+        resourceId: 'doc-1',
+        preference: 'all',
+        baseUrl: 'http://localhost:3000',
+      })
       expect(mockEnforceUserMutationRateLimit).toHaveBeenCalledWith('user-1', { ip: '127.0.0.1' })
     })
   })

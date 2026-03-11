@@ -142,22 +142,26 @@ program
   .description('Run CollabMD MCP server over stdio')
   .option('--api-key <key>', 'Agent API key (or COLLABMD_API_KEY env)')
   .option('--server-url <url>', 'CollabMD server URL (or COLLABMD_SERVER_URL env)')
-  .action((opts: { apiKey?: string; serverUrl?: string }) => {
+  .option('--base-url <url>', 'Alias for --server-url')
+  .action((opts: { apiKey?: string; serverUrl?: string; baseUrl?: string }) => {
     mcpCommand({
       apiKey: opts.apiKey,
       serverUrl: opts.serverUrl,
+      baseUrl: opts.baseUrl,
     })
   })
 
 program
   .command('mcp-config')
   .description('Print a Claude Code MCP config snippet')
-  .option('--api-key <key>', 'Agent API key (optional; never printed inline)')
+  .option('--api-key <key>', 'Agent API key (optional; emitted as a placeholder only)')
   .option('--server-url <url>', 'CollabMD server URL (default: http://localhost:3000)')
-  .action((opts: { apiKey?: string; serverUrl?: string }) => {
+  .option('--base-url <url>', 'Alias for --server-url')
+  .action((opts: { apiKey?: string; serverUrl?: string; baseUrl?: string }) => {
     mcpConfigCommand({
       apiKey: opts.apiKey,
       serverUrl: opts.serverUrl,
+      baseUrl: opts.baseUrl,
     })
   })
 

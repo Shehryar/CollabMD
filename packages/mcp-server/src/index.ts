@@ -153,6 +153,16 @@ function parseCliArgs(argv: string[]): CliOptions {
       continue
     }
 
+    if (current === '--base-url') {
+      options.serverUrl = argv[index + 1]
+      index += 1
+      continue
+    }
+    if (current.startsWith('--base-url=')) {
+      options.serverUrl = current.slice('--base-url='.length)
+      continue
+    }
+
     if (current === '--api-key') {
       options.apiKey = argv[index + 1]
       index += 1
@@ -168,7 +178,7 @@ function parseCliArgs(argv: string[]): CliOptions {
 }
 
 function printUsage(): void {
-  console.error('Usage: collabmd-mcp --server-url <url> --api-key <ak_...>')
+  console.error('Usage: collabmd-mcp --base-url <url> --api-key <ak_...>')
   console.error('You can also set COLLABMD_SERVER_URL and COLLABMD_API_KEY.')
 }
 

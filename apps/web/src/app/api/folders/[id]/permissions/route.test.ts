@@ -38,6 +38,17 @@ vi.mock('@/lib/http', () => ({
     mockRequireJsonContentType.apply(undefined, args as never),
 }))
 
+const mockCreateAndBroadcastNotification = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/notification-service', () => ({
+  createAndBroadcastNotification: (...args: unknown[]) =>
+    mockCreateAndBroadcastNotification.apply(undefined, args as never),
+}))
+
+const mockSendShareInviteEmail = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/notification-email-service', () => ({
+  sendShareInviteEmail: (...args: unknown[]) => mockSendShareInviteEmail.apply(undefined, args as never),
+}))
+
 const mockDbResult = { get: vi.fn(), all: vi.fn() }
 const mockWhereSelect = vi.fn(() => ({
   get: mockDbResult.get,
@@ -45,17 +56,25 @@ const mockWhereSelect = vi.fn(() => ({
 }))
 const mockFrom = vi.fn(() => ({ where: mockWhereSelect }))
 const mockInArray = vi.fn((a: unknown, b: unknown) => ({ inArray: [a, b] }))
+const mockEq = vi.fn((a: unknown, b: unknown) => ({ eq: [a, b] }))
 
 vi.mock('@collabmd/db', () => ({
   db: {
     select: vi.fn(() => ({ from: mockFrom })),
+  },
+  folders: {
+    id: 'id',
+    name: 'name',
+    orgId: 'org_id',
   },
   users: {
     id: 'id',
     name: 'name',
     email: 'email',
   },
+  getUserEmailNotificationPreference: vi.fn(() => 'all'),
   inArray: (...args: unknown[]) => mockInArray.apply(undefined, args as never),
+  eq: (...args: unknown[]) => mockEq.apply(undefined, args as never),
 }))
 
 import { DELETE, GET, POST } from './route'
@@ -89,7 +108,12 @@ describe('/api/folders/[id]/permissions', () => {
     mockEnforceUserMutationRateLimit.mockReturnValue(null)
     mockRequireJsonContentType.mockReturnValue(null)
     mockReadTuples.mockResolvedValue([])
+    mockDbResult.get
+      .mockReturnValueOnce({ name: 'Folder Alpha', orgId: 'org-1' })
+      .mockReturnValueOnce({ id: 'user-2', email: 'target@example.com' })
     mockDbResult.all.mockReturnValue([])
+    mockCreateAndBroadcastNotification.mockResolvedValue(undefined)
+    mockSendShareInviteEmail.mockResolvedValue(undefined)
   })
 
   describe('POST', () => {
@@ -113,6 +137,24 @@ describe('/api/folders/[id]/permissions', () => {
       expect(res.status).toBe(200)
       expect(await res.json()).toEqual({ ok: true })
       expect(mockWriteTuple).toHaveBeenCalledWith('user:user-2', 'editor', 'folder:folder-1')
+      expect(mockCreateAndBroadcastNotification).toHaveBeenCalledWith({
+        userId: 'user-2',
+        orgId: 'org-1',
+        type: 'share_invite',
+        title: 'Folder shared with you',
+        body: 'Test User shared Folder Alpha with you.',
+        resourceId: 'folder-1',
+        resourceType: 'folder',
+      })
+      expect(mockSendShareInviteEmail).toHaveBeenCalledWith({
+        to: 'target@example.com',
+        inviterName: 'Test User',
+        resourceName: 'Folder Alpha',
+        resourceType: 'folder',
+        resourceId: 'folder-1',
+        preference: 'all',
+        baseUrl: 'http://localhost:3000',
+      })
       expect(mockEnforceUserMutationRateLimit).toHaveBeenCalledWith('user-1')
       expect(mockRequireJsonContentType).toHaveBeenCalledTimes(1)
     })

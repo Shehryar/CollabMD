@@ -53,6 +53,99 @@ function ensureSchemaCompatibility(sqlite: Database.Database): void {
       )
     `)
   }
+
+  const preferencesTable = sqlite
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'user_notification_preferences'",
+    )
+    .get() as { name?: string } | undefined
+  if (!preferencesTable) {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS user_notification_preferences (
+        user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        email_notifications TEXT NOT NULL DEFAULT 'all',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS user_notification_preferences_email_notifications_idx
+        ON user_notification_preferences (email_notifications);
+    `)
+  }
+
+  const webhooksTable = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'webhooks'")
+    .get() as { name?: string } | undefined
+  if (!webhooksTable) {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS webhooks (
+        id TEXT PRIMARY KEY NOT NULL,
+        org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        url TEXT NOT NULL,
+        secret TEXT NOT NULL,
+        events TEXT NOT NULL,
+        created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at INTEGER NOT NULL,
+        active INTEGER NOT NULL DEFAULT true
+      );
+    `)
+  }
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS webhooks_org_id_idx ON webhooks (org_id);
+    CREATE INDEX IF NOT EXISTS webhooks_created_by_idx ON webhooks (created_by);
+    CREATE INDEX IF NOT EXISTS webhooks_active_idx ON webhooks (active);
+  `)
+
+  const webhookDeliveriesTable = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'webhook_deliveries'")
+    .get() as { name?: string } | undefined
+  if (!webhookDeliveriesTable) {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS webhook_deliveries (
+        id TEXT PRIMARY KEY NOT NULL,
+        webhook_id TEXT NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        status_code INTEGER,
+        response_body TEXT,
+        attempt_count INTEGER NOT NULL DEFAULT 1,
+        last_attempt_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+    `)
+  }
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS webhook_deliveries_webhook_id_idx
+      ON webhook_deliveries (webhook_id);
+    CREATE INDEX IF NOT EXISTS webhook_deliveries_event_type_idx
+      ON webhook_deliveries (event_type);
+    CREATE INDEX IF NOT EXISTS webhook_deliveries_created_at_idx
+      ON webhook_deliveries (created_at);
+  `)
+
+  const agentKeysTable = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'agent_keys'")
+    .get() as { name?: string } | undefined
+  if (!agentKeysTable) {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS agent_keys (
+        id TEXT PRIMARY KEY NOT NULL,
+        key_hash TEXT NOT NULL UNIQUE,
+        key_prefix TEXT NOT NULL,
+        org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        scopes TEXT NOT NULL,
+        created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at INTEGER NOT NULL,
+        last_used_at INTEGER,
+        revoked_at INTEGER
+      );
+    `)
+  }
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS agent_keys_org_id_idx ON agent_keys (org_id);
+    CREATE INDEX IF NOT EXISTS agent_keys_created_by_idx ON agent_keys (created_by);
+    CREATE INDEX IF NOT EXISTS agent_keys_revoked_at_idx ON agent_keys (revoked_at);
+  `)
 }
 
 export function getDb(): DbInstance {

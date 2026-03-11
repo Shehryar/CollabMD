@@ -46,6 +46,7 @@ interface HistoryPageProps {
 }
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+const selectionHighlightColor = 'rgba(194, 104, 43, 0.22)'
 
 const readonlyEditorTheme = EditorView.theme({
   '&': {
@@ -78,6 +79,10 @@ const readonlyEditorTheme = EditorView.theme({
     borderLeftColor: '#111',
     borderLeftWidth: '2px',
   },
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection':
+    {
+      backgroundColor: selectionHighlightColor,
+    },
 })
 
 function parsePermission(value: unknown): DocumentPermission | null {

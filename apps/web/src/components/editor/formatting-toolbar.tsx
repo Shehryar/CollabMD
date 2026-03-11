@@ -6,6 +6,7 @@ import { EditorView } from '@codemirror/view'
 import {
   toggleBold,
   toggleItalic,
+  toggleHighlight,
   toggleCode,
   toggleStrikethrough,
   setHeading,
@@ -115,7 +116,8 @@ export default function FormattingToolbar({
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [activeIndex, setActiveIndex] = useState(0)
   const modeButtonCount = availableModes.length
-  const buttonCount = 16 + modeButtonCount + 1
+  const formattingButtonCount = 17
+  const buttonCount = formattingButtonCount + modeButtonCount + 1
 
   const focusButton = useCallback(
     (index: number) => {
@@ -232,11 +234,11 @@ export default function FormattingToolbar({
         }}
       />
       <ToolbarButton
-        label="S"
-        title="Strikethrough"
-        ariaLabel="strikethrough"
-        shortcut={sc('⌘⇧X')}
-        onClick={() => run(toggleStrikethrough)}
+        label="=="
+        title="Highlight"
+        ariaLabel="highlight"
+        shortcut={sc('⌘⇧H')}
+        onClick={() => run(toggleHighlight)}
         tabIndex={activeIndex === 5 ? 0 : -1}
         onFocus={() => setActiveIndex(5)}
         onKeyDown={(e) => handleButtonKeyDown(5, e)}
@@ -245,16 +247,29 @@ export default function FormattingToolbar({
         }}
       />
       <ToolbarButton
-        label="<>"
-        title="Inline code"
-        ariaLabel="inline code"
-        shortcut={sc('⌘E')}
-        onClick={() => run(toggleCode)}
+        label="S"
+        title="Strikethrough"
+        ariaLabel="strikethrough"
+        shortcut={sc('⌘⇧X')}
+        onClick={() => run(toggleStrikethrough)}
         tabIndex={activeIndex === 6 ? 0 : -1}
         onFocus={() => setActiveIndex(6)}
         onKeyDown={(e) => handleButtonKeyDown(6, e)}
         buttonRef={(el) => {
           buttonRefs.current[6] = el
+        }}
+      />
+      <ToolbarButton
+        label="<>"
+        title="Inline code"
+        ariaLabel="inline code"
+        shortcut={sc('⌘E')}
+        onClick={() => run(toggleCode)}
+        tabIndex={activeIndex === 7 ? 0 : -1}
+        onFocus={() => setActiveIndex(7)}
+        onKeyDown={(e) => handleButtonKeyDown(7, e)}
+        buttonRef={(el) => {
+          buttonRefs.current[7] = el
         }}
       />
       <Separator />
@@ -265,19 +280,6 @@ export default function FormattingToolbar({
         ariaLabel="bullet list"
         shortcut={sc('⌘⇧8')}
         onClick={() => run(toggleBulletList)}
-        tabIndex={activeIndex === 7 ? 0 : -1}
-        onFocus={() => setActiveIndex(7)}
-        onKeyDown={(e) => handleButtonKeyDown(7, e)}
-        buttonRef={(el) => {
-          buttonRefs.current[7] = el
-        }}
-      />
-      <ToolbarButton
-        label="1."
-        title="Numbered list"
-        ariaLabel="numbered list"
-        shortcut={sc('⌘⇧7')}
-        onClick={() => run(toggleNumberedList)}
         tabIndex={activeIndex === 8 ? 0 : -1}
         onFocus={() => setActiveIndex(8)}
         onKeyDown={(e) => handleButtonKeyDown(8, e)}
@@ -286,11 +288,11 @@ export default function FormattingToolbar({
         }}
       />
       <ToolbarButton
-        label="☐"
-        title="Checkbox list"
-        ariaLabel="checkbox list"
-        shortcut={sc('⌘⇧9')}
-        onClick={() => run(toggleCheckboxList)}
+        label="1."
+        title="Numbered list"
+        ariaLabel="numbered list"
+        shortcut={sc('⌘⇧7')}
+        onClick={() => run(toggleNumberedList)}
         tabIndex={activeIndex === 9 ? 0 : -1}
         onFocus={() => setActiveIndex(9)}
         onKeyDown={(e) => handleButtonKeyDown(9, e)}
@@ -299,16 +301,29 @@ export default function FormattingToolbar({
         }}
       />
       <ToolbarButton
-        label=">"
-        title="Blockquote"
-        ariaLabel="blockquote"
-        shortcut={sc('⌘⇧.')}
-        onClick={() => run(toggleBlockquote)}
+        label="☐"
+        title="Checkbox list"
+        ariaLabel="checkbox list"
+        shortcut={sc('⌘⇧9')}
+        onClick={() => run(toggleCheckboxList)}
         tabIndex={activeIndex === 10 ? 0 : -1}
         onFocus={() => setActiveIndex(10)}
         onKeyDown={(e) => handleButtonKeyDown(10, e)}
         buttonRef={(el) => {
           buttonRefs.current[10] = el
+        }}
+      />
+      <ToolbarButton
+        label=">"
+        title="Blockquote"
+        ariaLabel="blockquote"
+        shortcut={sc('⌘⇧.')}
+        onClick={() => run(toggleBlockquote)}
+        tabIndex={activeIndex === 11 ? 0 : -1}
+        onFocus={() => setActiveIndex(11)}
+        onKeyDown={(e) => handleButtonKeyDown(11, e)}
+        buttonRef={(el) => {
+          buttonRefs.current[11] = el
         }}
       />
       <Separator />
@@ -319,18 +334,6 @@ export default function FormattingToolbar({
         ariaLabel="insert link"
         shortcut={sc('⌘⇧K')}
         onClick={() => run(insertLink)}
-        tabIndex={activeIndex === 11 ? 0 : -1}
-        onFocus={() => setActiveIndex(11)}
-        onKeyDown={(e) => handleButtonKeyDown(11, e)}
-        buttonRef={(el) => {
-          buttonRefs.current[11] = el
-        }}
-      />
-      <ToolbarButton
-        label="🖼"
-        title="Image"
-        ariaLabel="insert image"
-        onClick={() => run(insertImage)}
         tabIndex={activeIndex === 12 ? 0 : -1}
         onFocus={() => setActiveIndex(12)}
         onKeyDown={(e) => handleButtonKeyDown(12, e)}
@@ -339,11 +342,10 @@ export default function FormattingToolbar({
         }}
       />
       <ToolbarButton
-        label="```"
-        title="Code block"
-        ariaLabel="insert code block"
-        shortcut={sc('⌘⌥C')}
-        onClick={() => run(insertCodeBlock)}
+        label="🖼"
+        title="Image"
+        ariaLabel="insert image"
+        onClick={() => run(insertImage)}
         tabIndex={activeIndex === 13 ? 0 : -1}
         onFocus={() => setActiveIndex(13)}
         onKeyDown={(e) => handleButtonKeyDown(13, e)}
@@ -352,10 +354,11 @@ export default function FormattingToolbar({
         }}
       />
       <ToolbarButton
-        label="⊞"
-        title="Table"
-        ariaLabel="insert table"
-        onClick={() => run(insertTable)}
+        label="```"
+        title="Code block"
+        ariaLabel="insert code block"
+        shortcut={sc('⌘⌥C')}
+        onClick={() => run(insertCodeBlock)}
         tabIndex={activeIndex === 14 ? 0 : -1}
         onFocus={() => setActiveIndex(14)}
         onKeyDown={(e) => handleButtonKeyDown(14, e)}
@@ -364,15 +367,27 @@ export default function FormattingToolbar({
         }}
       />
       <ToolbarButton
-        label="—"
-        title="Horizontal rule"
-        ariaLabel="insert horizontal rule"
-        onClick={() => run(insertHorizontalRule)}
+        label="⊞"
+        title="Table"
+        ariaLabel="insert table"
+        onClick={() => run(insertTable)}
         tabIndex={activeIndex === 15 ? 0 : -1}
         onFocus={() => setActiveIndex(15)}
         onKeyDown={(e) => handleButtonKeyDown(15, e)}
         buttonRef={(el) => {
           buttonRefs.current[15] = el
+        }}
+      />
+      <ToolbarButton
+        label="—"
+        title="Horizontal rule"
+        ariaLabel="insert horizontal rule"
+        onClick={() => run(insertHorizontalRule)}
+        tabIndex={activeIndex === 16 ? 0 : -1}
+        onFocus={() => setActiveIndex(16)}
+        onKeyDown={(e) => handleButtonKeyDown(16, e)}
+        buttonRef={(el) => {
+          buttonRefs.current[16] = el
         }}
       />
 
@@ -384,7 +399,7 @@ export default function FormattingToolbar({
         aria-label="editor mode"
       >
         {availableModes.map((mode, i) => {
-          const idx = 16 + i
+          const idx = formattingButtonCount + i
           const isActive = mode === editorMode
           return (
             <button
@@ -410,18 +425,18 @@ export default function FormattingToolbar({
       </div>
 
       <ToolbarButton
-        label={previewMode ? 'Preview' : 'Source'}
+        label="Source"
         title={previewMode ? 'Switch to source mode' : 'Switch to live preview'}
         ariaLabel={previewMode ? 'switch to source mode' : 'switch to live preview'}
         onClick={onTogglePreview}
-        tabIndex={activeIndex === 16 + modeButtonCount ? 0 : -1}
-        onFocus={() => setActiveIndex(16 + modeButtonCount)}
-        onKeyDown={(e) => handleButtonKeyDown(16 + modeButtonCount, e)}
+        tabIndex={activeIndex === formattingButtonCount + modeButtonCount ? 0 : -1}
+        onFocus={() => setActiveIndex(formattingButtonCount + modeButtonCount)}
+        onKeyDown={(e) => handleButtonKeyDown(formattingButtonCount + modeButtonCount, e)}
         buttonRef={(el) => {
-          buttonRefs.current[16 + modeButtonCount] = el
+          buttonRefs.current[formattingButtonCount + modeButtonCount] = el
         }}
         className={`flex h-[28px] items-center gap-1 px-2 font-mono text-[13px] ${
-          previewMode
+          !previewMode
             ? 'bg-fg text-bg rounded-sm'
             : 'text-fg-secondary hover:bg-bg-subtle rounded-sm'
         }`}

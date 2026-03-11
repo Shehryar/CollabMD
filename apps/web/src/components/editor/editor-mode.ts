@@ -39,13 +39,17 @@ export function editableExtensionsForMode(mode: EditorMode): {
   }
 }
 
-export function dispatchModeChange(view: EditorView, mode: EditorMode): void {
+export function modeEffectsForMode(mode: EditorMode) {
   const extensions = editableExtensionsForMode(mode)
+  return [
+    setEditorModeEffect.of(mode),
+    editableCompartment.reconfigure(extensions.editable),
+    readOnlyCompartment.reconfigure(extensions.readOnly),
+  ]
+}
+
+export function dispatchModeChange(view: EditorView, mode: EditorMode): void {
   view.dispatch({
-    effects: [
-      setEditorModeEffect.of(mode),
-      editableCompartment.reconfigure(extensions.editable),
-      readOnlyCompartment.reconfigure(extensions.readOnly),
-    ],
+    effects: modeEffectsForMode(mode),
   })
 }

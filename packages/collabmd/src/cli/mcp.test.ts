@@ -13,15 +13,19 @@ describe('mcpConfigCommand', () => {
 
     mcpConfigCommand({
       apiKey: 'ak_super_secret',
-      serverUrl: 'http://localhost:3000',
+      baseUrl: 'http://localhost:3000',
     })
 
     const output = String(logSpy.mock.calls[0]?.[0] ?? '')
-    expect(output).toContain('"command": "npx"')
-    expect(output).toContain('"COLLABMD_API_KEY": "<set-your-agent-api-key>"')
+    expect(output).toContain('"command": "pnpm"')
+    expect(output).toContain('"collabmd"')
+    expect(output).toContain('"mcp"')
+    expect(output).toContain('"--api-key"')
+    expect(output).toContain('"<set-your-agent-api-key>"')
+    expect(output).toContain('"--base-url"')
     expect(output).not.toContain('ak_super_secret')
     expect(errorSpy).toHaveBeenCalledWith(
-      'Warning: --api-key is not embedded in output to avoid leaking secrets. Set COLLABMD_API_KEY in the MCP env block.',
+      'Warning: --api-key is not embedded verbatim in output. Replace <set-your-agent-api-key> before using the config snippet.',
     )
   })
 
@@ -31,7 +35,7 @@ describe('mcpConfigCommand', () => {
     mcpConfigCommand({})
 
     const output = String(logSpy.mock.calls[0]?.[0] ?? '')
-    expect(output).toContain('"--server-url"')
+    expect(output).toContain('"--base-url"')
     expect(output).toContain('"http://localhost:3000"')
   })
 })

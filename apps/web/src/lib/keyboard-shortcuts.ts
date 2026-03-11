@@ -108,6 +108,8 @@ export function filterCommandItems(items: CommandItem[], query: string): Command
  * Global keydown handler. Attach to document once at the app layout level.
  */
 export function handleGlobalKeyDown(event: KeyboardEvent): void {
+  if (event.defaultPrevented) return
+
   // Don't intercept when the target is an input/textarea/select (unless it's a global shortcut)
   const target = event.target as HTMLElement | null
   const isInput =

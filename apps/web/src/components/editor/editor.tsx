@@ -48,13 +48,14 @@ import {
   editableCompartment,
   readOnlyCompartment,
   editableExtensionsForMode,
-  dispatchModeChange,
+  modeEffectsForMode,
 } from './editor-mode'
 import { createSuggestionInterceptor } from './suggestion-interceptor'
 import { useCommentPositions } from './use-comment-positions'
 
 const pendingCommentMark = Decoration.mark({ class: 'cm-pending-comment' })
 const setPendingCommentRange = StateEffect.define<{ from: number; to: number } | null>()
+const selectionHighlightColor = 'rgba(194, 104, 43, 0.22)'
 
 const pendingCommentField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
@@ -102,6 +103,10 @@ const editorTheme = EditorView.theme({
     borderLeftColor: '#111',
     borderLeftWidth: '2px',
   },
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection':
+    {
+      backgroundColor: selectionHighlightColor,
+    },
   '.cm-ySelectionInfo': {
     fontSize: '11px',
     fontFamily: 'system-ui, sans-serif',
@@ -370,12 +375,23 @@ export default function CollabEditor({
 
   openCommentFromSelectionRef.current = openCommentFromSelection
 
-  const handleModeChange = useCallback((mode: EditorMode) => {
-    const editorView = viewRef.current
-    if (!editorView) return
-    setEditorMode(mode)
-    dispatchModeChange(editorView, mode)
-  }, [])
+  const handleModeChange = useCallback(
+    (mode: EditorMode) => {
+      const editorView = viewRef.current
+      if (!editorView) return
+
+      setEditorMode(mode)
+
+      const effects = modeEffectsForMode(mode)
+      if (!previewMode) {
+        setPreviewMode(true)
+        effects.unshift(togglePreviewEffect.of(true))
+      }
+
+      editorView.dispatch({ effects })
+    },
+    [previewMode],
+  )
 
   useEffect(() => {
     if (!containerRef.current) return

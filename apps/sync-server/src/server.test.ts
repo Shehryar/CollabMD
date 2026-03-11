@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { createSyncServer, type SyncServerConfig } from './server.js'
 import type { TokenPayload } from './auth.js'
+import type { NotificationRealtimeEvent } from '@collabmd/shared'
 import { WebSocket } from 'ws'
 import * as Y from 'yjs'
 import * as syncProtocol from 'y-protocols/sync'
@@ -11,6 +12,7 @@ import type { Socket } from 'node:net'
 
 const messageSync = 0
 const messageAwareness = 1
+const messageNotification = 4
 
 let server: ReturnType<typeof createSyncServer>['server']
 let syncServer: ReturnType<typeof createSyncServer> | null = null
@@ -411,6 +413,51 @@ describe('WebSocket auth', () => {
       headers: { Cookie: 'better-auth.session_token=abc' },
     })
     expect(ws.readyState).toBe(WebSocket.OPEN)
+    ws.close()
+  })
+
+  it('delivers realtime notifications over the notification room', async () => {
+    const port = await startServer({
+      auth: mockAuth({
+        sessionCookieResult: validPayload,
+        permissions: { can_view: true, can_edit: false },
+      }),
+    })
+
+    const { msgs, ws } = await connectWsRawWithQueue(port, '/__notifications__%3Auser-1', {
+      headers: { Cookie: 'better-auth.session_token=abc' },
+    })
+
+    await msgs.next()
+
+    const event: NotificationRealtimeEvent = {
+      kind: 'notification.created',
+      notification: {
+        id: 'notif-1',
+        userId: 'user-1',
+        orgId: 'org-1',
+        type: 'document_comment',
+        title: 'New comment',
+        body: 'A collaborator commented.',
+        resourceId: 'doc-1',
+        resourceType: 'document',
+        read: false,
+        createdAt: new Date().toISOString(),
+      },
+    }
+
+    syncServer?.pushNotificationToUser('user-1', event)
+
+    let received: NotificationRealtimeEvent | null = null
+    for (let i = 0; i < 5; i++) {
+      const msg = await msgs.next()
+      const dec = decoding.createDecoder(msg)
+      if (decoding.readVarUint(dec) !== messageNotification) continue
+      received = JSON.parse(decoding.readVarString(dec)) as NotificationRealtimeEvent
+      break
+    }
+
+    expect(received).toEqual(event)
     ws.close()
   })
 

@@ -191,6 +191,10 @@ export class AgentRunner {
         stderr += data.toString()
       })
 
+      child.stdin?.on('error', () => {
+        // Some commands exit immediately and close stdin before the payload is written.
+      })
+
       child.on('error', (err) => {
         cleanup()
         console.log(`[AgentRunner] Command error: ${options.command}`, err)

@@ -3,7 +3,7 @@
 import { useActiveOrganization, useSession } from '@/lib/auth-client'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useSidebar, type Folder } from '@/components/sidebar/sidebar-context'
 import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard'
@@ -308,7 +308,6 @@ export default function HomePage() {
 
   const folderId = searchParams.get('folder')
   const view = searchParams.get('view')
-  const searchQuery = searchParams.get('search') ?? ''
 
   const [docs, setDocs] = useState<Doc[]>([])
   const [loading, setLoading] = useState(true)
@@ -319,7 +318,15 @@ export default function HomePage() {
     }
     return 'list'
   })
-  const [searchInput, setSearchInput] = useState(searchQuery)
+  const [searchInput, setSearchInput] = useState(() => searchParams.get('search') ?? '')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(() =>
+    (searchParams.get('search') ?? '').trim(),
+  )
+  const [searchResults, setSearchResults] = useState<Doc[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false)
+  const [activeSearchResultIndex, setActiveSearchResultIndex] = useState(0)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -328,6 +335,7 @@ export default function HomePage() {
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
   const [movingDocId, setMovingDocId] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (onboardingLoading || !onboardingStatus) return
@@ -343,7 +351,6 @@ export default function HomePage() {
     const params = new URLSearchParams()
     if (folderId) params.set('folderId', folderId)
     if (view === 'shared') params.set('shared', 'true')
-    if (searchQuery) params.set('search', searchQuery)
     const qs = params.toString()
     setError(null)
     try {
@@ -367,7 +374,7 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }, [folderId, view, searchQuery])
+  }, [folderId, view])
 
   useEffect(() => {
     if (session) {
@@ -387,16 +394,120 @@ export default function HomePage() {
   }, [fetchDocs])
 
   useEffect(() => {
-    setSearchInput(searchQuery)
-  }, [searchQuery])
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchInput.trim())
+    }, 300)
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    const val = searchInput.trim()
-    if (val) {
-      router.push(`/?search=${encodeURIComponent(val)}`)
-    } else {
-      router.push('/')
+    return () => window.clearTimeout(timer)
+  }, [searchInput])
+
+  useEffect(() => {
+    const query = debouncedSearchQuery
+    if (!query) {
+      setSearchResults([])
+      setSearchLoading(false)
+      setSearchError(null)
+      setActiveSearchResultIndex(0)
+      return
+    }
+
+    const controller = new AbortController()
+    const params = new URLSearchParams({ search: query })
+    setSearchLoading(true)
+    setSearchError(null)
+
+    void fetch(`/api/documents?${params.toString()}`, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) {
+          let nextError = 'Failed to search documents.'
+          try {
+            const body = (await res.json()) as { error?: unknown }
+            if (typeof body.error === 'string' && body.error.trim()) {
+              nextError = body.error
+            }
+          } catch {
+            // Use fallback message when API response body is not JSON.
+          }
+          setSearchError(nextError)
+          setSearchResults([])
+          return
+        }
+
+        const results = (await res.json()) as Doc[]
+        setSearchResults(results)
+        setActiveSearchResultIndex(0)
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return
+        }
+        setSearchError('Failed to search documents.')
+        setSearchResults([])
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setSearchLoading(false)
+        }
+      })
+
+    return () => controller.abort()
+  }, [debouncedSearchQuery])
+
+  useEffect(() => {
+    const query = searchInput.trim()
+    if (!query || !searchDropdownOpen) return
+
+    function handleClick(event: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setSearchDropdownOpen(false)
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setSearchDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [searchInput, searchDropdownOpen])
+
+  const showSearchDropdown = searchDropdownOpen && searchInput.trim().length > 0
+
+  const activeSearchResult = searchResults[activeSearchResultIndex] ?? null
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSearchDropdown) {
+      return
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveSearchResultIndex((prev) => {
+        if (searchResults.length === 0) return 0
+        return (prev + 1) % searchResults.length
+      })
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveSearchResultIndex((prev) => {
+        if (searchResults.length === 0) return 0
+        return (prev - 1 + searchResults.length) % searchResults.length
+      })
+      return
+    }
+
+    if (event.key === 'Enter' && activeSearchResult) {
+      event.preventDefault()
+      setSearchDropdownOpen(false)
+      router.push(`/doc/${activeSearchResult.id}`)
     }
   }
 
@@ -559,11 +670,9 @@ export default function HomePage() {
   const pageTitle =
     view === 'shared'
       ? 'Shared with me'
-      : searchQuery
-        ? `Search: ${searchQuery}`
-        : folderId
-          ? (breadcrumb?.[breadcrumb.length - 1]?.name ?? 'Folder')
-          : 'All documents'
+      : folderId
+        ? (breadcrumb?.[breadcrumb.length - 1]?.name ?? 'Folder')
+        : 'All documents'
 
   if (isPending) {
     return (
@@ -633,15 +742,80 @@ export default function HomePage() {
           {pageTitle}
         </h1>
         <div className="flex items-center gap-2">
-          <form onSubmit={handleSearch}>
+          <div ref={searchRef} className="relative">
             <input
               type="text"
               placeholder="search docs..."
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
+              onChange={(e) => {
+                const nextValue = e.target.value
+                const trimmedValue = nextValue.trim()
+                setSearchInput(nextValue)
+                setSearchDropdownOpen(trimmedValue.length > 0)
+                setSearchError(null)
+                setActiveSearchResultIndex(0)
+                if (trimmedValue) {
+                  setSearchLoading(true)
+                  setSearchResults([])
+                } else {
+                  setSearchLoading(false)
+                  setSearchResults([])
+                }
+              }}
+              onFocus={() => {
+                if (searchInput.trim()) {
+                  setSearchDropdownOpen(true)
+                }
+              }}
+              onKeyDown={handleSearchKeyDown}
               className="w-[200px] rounded border border-border bg-bg px-[10px] py-[6px] font-mono text-xs text-fg placeholder:text-fg-faint focus:border-fg focus:outline-none"
+              aria-label="Search documents"
+              aria-expanded={showSearchDropdown}
+              aria-controls="header-search-results"
             />
-          </form>
+            {showSearchDropdown && (
+              <div
+                id="header-search-results"
+                className="absolute right-0 top-full z-50 mt-2 w-[320px] overflow-hidden rounded border border-border bg-bg shadow"
+                role="listbox"
+              >
+                {searchLoading ? (
+                  <div className="px-3 py-3 font-mono text-[11px] text-fg-muted">Searching...</div>
+                ) : searchError ? (
+                  <div className="px-3 py-3 text-sm text-red">{searchError}</div>
+                ) : searchResults.length === 0 ? (
+                  <div className="px-3 py-3 font-mono text-[11px] text-fg-muted">
+                    No matching documents
+                  </div>
+                ) : (
+                  <div className="max-h-80 overflow-y-auto py-1">
+                    {searchResults.map((doc, index) => (
+                      <Link
+                        key={doc.id}
+                        href={`/doc/${doc.id}`}
+                        onClick={() => setSearchDropdownOpen(false)}
+                        className={`block px-3 py-2 ${
+                          index === activeSearchResultIndex ? 'bg-bg-subtle' : 'hover:bg-bg-subtle'
+                        }`}
+                        role="option"
+                        aria-selected={index === activeSearchResultIndex}
+                      >
+                        <p className="truncate font-sans text-[13px] font-medium text-fg">
+                          {doc.title}
+                        </p>
+                        {doc.snippet && (
+                          <p
+                            className="mt-0.5 line-clamp-2 text-xs text-fg-muted [&_mark]:rounded-sm [&_mark]:bg-accent/20 [&_mark]:px-0.5"
+                            dangerouslySetInnerHTML={{ __html: doc.snippet }}
+                          />
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <button
             onClick={() => {
               const fields: SortField[] = ['updatedAt', 'title', 'createdAt']
@@ -706,9 +880,9 @@ export default function HomePage() {
         ) : sortedDocs.length === 0 && childFolders.length === 0 ? (
           <div className="rounded border border-dashed border-border p-8 text-center">
             <p className="font-sans text-sm text-fg-muted">
-              {searchQuery ? 'No documents match your search' : 'No documents yet'}
+              No documents yet
             </p>
-            {!searchQuery && view !== 'shared' && (
+            {view !== 'shared' && (
               <button
                 onClick={createDoc}
                 className="mt-2 font-mono text-sm text-accent hover:text-accent-hover"

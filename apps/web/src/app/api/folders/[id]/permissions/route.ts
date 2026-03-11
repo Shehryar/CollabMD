@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
-import { db, users, inArray } from '@collabmd/db'
+import {
+  db,
+  folders,
+  users,
+  inArray,
+  eq,
+  getUserEmailNotificationPreference,
+} from '@collabmd/db'
 import { checkPermission, writeTuple, deleteTuple, readTuples } from '@collabmd/shared'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireJsonContentType } from '@/lib/http'
+import { createAndBroadcastNotification } from '@/lib/notification-service'
+import { sendShareInviteEmail } from '@/lib/notification-email-service'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -34,7 +43,47 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     )
   }
 
+  const folder = db
+    .select({ name: folders.name, orgId: folders.orgId })
+    .from(folders)
+    .where(eq(folders.id, id))
+    .get()
+  if (!folder) {
+    return NextResponse.json({ error: 'folder not found' }, { status: 404 })
+  }
+
+  const targetUser = db
+    .select({ id: users.id, email: users.email })
+    .from(users)
+    .where(eq(users.id, targetUserId))
+    .get()
+  if (!targetUser) {
+    return NextResponse.json({ error: 'user not found' }, { status: 404 })
+  }
+
   await writeTuple(`user:${targetUserId}`, role, `folder:${id}`)
+
+  if (targetUserId !== session.user.id) {
+    await createAndBroadcastNotification({
+      userId: targetUserId,
+      orgId: folder.orgId,
+      type: 'share_invite',
+      title: 'Folder shared with you',
+      body: `${session.user.name ?? session.user.email} shared ${folder.name} with you.`,
+      resourceId: id,
+      resourceType: 'folder',
+    })
+
+    await sendShareInviteEmail({
+      to: targetUser.email,
+      inviterName: session.user.name ?? session.user.email,
+      resourceName: folder.name,
+      resourceType: 'folder',
+      resourceId: id,
+      preference: getUserEmailNotificationPreference(targetUserId),
+      baseUrl: request.nextUrl.origin,
+    })
+  }
 
   return NextResponse.json({ ok: true })
 }

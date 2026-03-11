@@ -4,30 +4,43 @@ import { keymap } from '@codemirror/view'
 
 // --- Wrap / toggle helpers ---
 
-function wrapSelection(view: EditorView, marker: string) {
+function wrapSelection(view: EditorView, marker: string, alternateMarkers: string[] = []) {
   const { state } = view
+  const markers = [marker, ...alternateMarkers]
   const changes = state.changeByRange((range) => {
     const text = state.sliceDoc(range.from, range.to)
+    const textMarker = markers.find(
+      (candidate) =>
+        text.startsWith(candidate) &&
+        text.endsWith(candidate) &&
+        text.length > candidate.length * 2,
+    )
+
     // If already wrapped, unwrap
-    if (text.startsWith(marker) && text.endsWith(marker) && text.length > marker.length * 2) {
-      const inner = text.slice(marker.length, -marker.length)
+    if (textMarker) {
+      const inner = text.slice(textMarker.length, -textMarker.length)
       return {
         range: EditorSelection.range(range.from, range.from + inner.length),
         changes: { from: range.from, to: range.to, insert: inner },
       }
     }
+
     // Check if the surrounding text has markers
-    const before = state.sliceDoc(range.from - marker.length, range.from)
-    const after = state.sliceDoc(range.to, range.to + marker.length)
-    if (before === marker && after === marker) {
+    const surroundingMarker = markers.find((candidate) => {
+      const before = state.sliceDoc(range.from - candidate.length, range.from)
+      const after = state.sliceDoc(range.to, range.to + candidate.length)
+      return before === candidate && after === candidate
+    })
+
+    if (surroundingMarker) {
       return {
         range: EditorSelection.range(
-          range.from - marker.length,
+          range.from - surroundingMarker.length,
           range.from + (range.to - range.from),
         ),
         changes: [
-          { from: range.from - marker.length, to: range.from, insert: '' },
-          { from: range.to, to: range.to + marker.length, insert: '' },
+          { from: range.from - surroundingMarker.length, to: range.from, insert: '' },
+          { from: range.to, to: range.to + surroundingMarker.length, insert: '' },
         ],
       }
     }
@@ -104,7 +117,11 @@ export function toggleBold(view: EditorView) {
 }
 
 export function toggleItalic(view: EditorView) {
-  wrapSelection(view, '_')
+  wrapSelection(view, '*', ['_'])
+}
+
+export function toggleHighlight(view: EditorView) {
+  wrapSelection(view, '==')
 }
 
 export function toggleCode(view: EditorView) {
@@ -210,6 +227,13 @@ export const formattingKeymap = keymap.of([
     key: 'Mod-e',
     run: (view) => {
       toggleCode(view)
+      return true
+    },
+  },
+  {
+    key: 'Mod-Shift-h',
+    run: (view) => {
+      toggleHighlight(view)
       return true
     },
   },

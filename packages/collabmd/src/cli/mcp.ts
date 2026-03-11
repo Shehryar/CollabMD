@@ -8,6 +8,7 @@ const require = createRequire(import.meta.url)
 interface McpCommandOptions {
   apiKey?: string
   serverUrl?: string
+  baseUrl?: string
 }
 
 interface McpServerPackageJson {
@@ -39,7 +40,8 @@ export function mcpCommand(options: McpCommandOptions): void {
   }
 
   const args: string[] = [binaryPath]
-  if (options.serverUrl) args.push('--server-url', options.serverUrl)
+  const serverUrl = options.baseUrl || options.serverUrl
+  if (serverUrl) args.push('--base-url', serverUrl)
   if (options.apiKey) args.push('--api-key', options.apiKey)
 
   const result = spawnSync(process.execPath, args, {
@@ -59,21 +61,30 @@ export function mcpCommand(options: McpCommandOptions): void {
 }
 
 export function mcpConfigCommand(options: McpCommandOptions): void {
-  const serverUrl = options.serverUrl || process.env.COLLABMD_SERVER_URL || 'http://localhost:3000'
+  const serverUrl =
+    options.baseUrl ||
+    options.serverUrl ||
+    process.env.COLLABMD_SERVER_URL ||
+    'http://localhost:3000'
   if (options.apiKey) {
     console.error(
-      'Warning: --api-key is not embedded in output to avoid leaking secrets. Set COLLABMD_API_KEY in the MCP env block.',
+      'Warning: --api-key is not embedded verbatim in output. Replace <set-your-agent-api-key> before using the config snippet.',
     )
   }
 
   const config = {
     mcpServers: {
       collabmd: {
-        command: 'npx',
-        args: ['collabmd-mcp', '--server-url', serverUrl],
-        env: {
-          COLLABMD_API_KEY: '<set-your-agent-api-key>',
-        },
+        command: 'pnpm',
+        args: [
+          'exec',
+          'collabmd',
+          'mcp',
+          '--api-key',
+          '<set-your-agent-api-key>',
+          '--base-url',
+          serverUrl,
+        ],
       },
     },
   }

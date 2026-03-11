@@ -35,6 +35,10 @@ export interface ConnectedFolder {
   lastSync: string
 }
 
+function onboardingCompletedKey(orgId: string): string {
+  return `collabmd:onboarding-completed:${orgId}`
+}
+
 interface SidebarState {
   open: boolean
   setOpen: (open: boolean) => void
@@ -91,7 +95,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch(`/api/onboarding/status?orgId=${orgId}`)
       if (!res.ok) return
-      setOnboardingStatus(await res.json())
+      setOnboardingStatus((await res.json()) as OnboardingStatus)
     } catch {
       // Keep existing state when refresh fails.
     }
@@ -119,10 +123,27 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     }
 
     setLoading(true)
-    setOnboardingLoading(true)
-    refreshFolders().finally(() => setLoading(false))
-    void refreshConnectedFolders()
-    refreshOnboardingStatus().finally(() => setOnboardingLoading(false))
+    const shouldSkipOnboardingStatus =
+      typeof window !== 'undefined' &&
+      localStorage.getItem(onboardingCompletedKey(orgId)) === '1'
+
+    if (shouldSkipOnboardingStatus) {
+      setOnboardingStatus(null)
+      setOnboardingLoading(false)
+    } else {
+      setOnboardingLoading(true)
+    }
+
+    void Promise.all([
+      refreshFolders(),
+      refreshConnectedFolders(),
+      shouldSkipOnboardingStatus ? Promise.resolve() : refreshOnboardingStatus(),
+    ]).finally(() => {
+      setLoading(false)
+      if (!shouldSkipOnboardingStatus) {
+        setOnboardingLoading(false)
+      }
+    })
   }, [orgId, refreshFolders, refreshConnectedFolders, refreshOnboardingStatus])
 
   useEffect(() => {
