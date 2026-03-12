@@ -56,11 +56,13 @@ services:
       - PORT=4444
       - DATABASE_URL=${DATABASE_URL}
       - BETTER_AUTH_URL=http://web:3000
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4444/health"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:4444/health"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 10s
 
   openfga:
     image: openfga/openfga:latest
@@ -74,10 +76,11 @@ services:
       - OPENFGA_DATASTORE_URI=${OPENFGA_DATASTORE_URI:-${DATABASE_URL}}
       - OPENFGA_PLAYGROUND_ENABLED=false
     healthcheck:
-      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=:8081"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/healthz"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 15s
 
 volumes:
   caddy-data:
