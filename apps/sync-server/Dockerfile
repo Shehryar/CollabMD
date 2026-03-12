@@ -39,18 +39,9 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 appuser
 
-# Copy the entire workspace (pnpm hoists deps to root node_modules)
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/sync-server/dist ./apps/sync-server/dist
-COPY --from=builder /app/apps/sync-server/package.json ./apps/sync-server/package.json
-COPY --from=builder /app/apps/sync-server/node_modules ./apps/sync-server/node_modules
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.json
-COPY --from=builder /app/packages/db/dist ./packages/db/dist
-COPY --from=builder /app/packages/db/package.json ./packages/db/package.json
-COPY --from=builder /app/packages/db/node_modules ./packages/db/node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+# pnpm uses symlinks in node_modules — deploy the full workspace tree
+# so all hoisted and symlinked deps resolve correctly
+COPY --from=builder /app ./
 
 # Install wget for healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
