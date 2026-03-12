@@ -16,6 +16,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/db/package.json ./packages/db/
 COPY packages/collabmd/package.json ./packages/collabmd/
 COPY packages/create-collabmd/package.json ./packages/create-collabmd/
+COPY packages/mcp-server/package.json ./packages/mcp-server/
 
 RUN pnpm install --frozen-lockfile
 

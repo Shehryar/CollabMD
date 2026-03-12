@@ -22,7 +22,7 @@ import {
   inArray,
   sql,
   desc,
-  getSqlite,
+  indexDocument,
 } from '@collabmd/db'
 import * as Y from 'yjs'
 import {
@@ -46,19 +46,17 @@ async function recordWebhookDelivery(input: {
   attemptCount: number
 }): Promise<void> {
   const now = new Date()
-  db.insert(webhookDeliveries)
-    .values({
-      id: crypto.randomUUID(),
-      webhookId: input.webhookId,
-      eventType: input.eventType,
-      payload: input.payload,
-      statusCode: input.statusCode,
-      responseBody: input.responseBody,
-      attemptCount: input.attemptCount,
-      lastAttemptAt: now,
-      createdAt: now,
-    })
-    .run()
+  await db.insert(webhookDeliveries).values({
+    id: crypto.randomUUID(),
+    webhookId: input.webhookId,
+    eventType: input.eventType,
+    payload: input.payload,
+    statusCode: input.statusCode,
+    responseBody: input.responseBody,
+    attemptCount: input.attemptCount,
+    lastAttemptAt: now,
+    createdAt: now,
+  })
 }
 
 const PORT = parseInt(process.env.PORT ?? '4444', 10)
@@ -98,7 +96,7 @@ function extractMentionHandles(value: string): string[] {
   return Array.from(handles)
 }
 
-function createNotificationRow(input: {
+async function createNotificationRow(input: {
   userId: string
   orgId: string
   type: NotificationType
@@ -106,23 +104,21 @@ function createNotificationRow(input: {
   body: string
   resourceId: string
   resourceType: NotificationResourceType
-}): NotificationRecord {
+}): Promise<NotificationRecord> {
   const id = crypto.randomUUID()
   const createdAt = new Date()
-  db.insert(notifications)
-    .values({
-      id,
-      userId: input.userId,
-      orgId: input.orgId,
-      type: input.type,
-      title: input.title,
-      body: input.body,
-      resourceId: input.resourceId,
-      resourceType: input.resourceType,
-      read: false,
-      createdAt,
-    })
-    .run()
+  await db.insert(notifications).values({
+    id,
+    userId: input.userId,
+    orgId: input.orgId,
+    type: input.type,
+    title: input.title,
+    body: input.body,
+    resourceId: input.resourceId,
+    resourceType: input.resourceType,
+    read: false,
+    createdAt,
+  })
 
   return {
     id,
@@ -145,23 +141,22 @@ function createNotificationRealtimeEvent(notification: NotificationRecord): Noti
   }
 }
 
-function resolveMentionedUserIds(
+async function resolveMentionedUserIds(
   orgId: string,
   text: string,
   excludedUserIds: string[],
-): string[] {
+): Promise<string[]> {
   const handles = extractMentionHandles(text)
   if (handles.length === 0) return []
 
-  const memberRows = db
+  const memberRows = await db
     .select({ userId: members.userId })
     .from(members)
     .where(eq(members.organizationId, orgId))
-    .all()
-  const userIds = memberRows.map((row) => row.userId)
+  const userIds = memberRows.map((row: { userId: string }) => row.userId)
   if (userIds.length === 0) return []
 
-  const userRows = db
+  const userRows = await db
     .select({
       id: users.id,
       name: users.name,
@@ -169,7 +164,6 @@ function resolveMentionedUserIds(
     })
     .from(users)
     .where(inArray(users.id, userIds))
-    .all()
 
   const excluded = new Set(excludedUserIds)
   const mentioned = new Set<string>()
@@ -191,29 +185,26 @@ function resolveMentionedUserIds(
   return Array.from(mentioned)
 }
 
-function resolveActorName(actorId: string | null): string {
+async function resolveActorName(actorId: string | null): Promise<string> {
   if (!actorId) return 'Someone'
 
-  const actor = db
+  const [actor] = await db
     .select({
       name: users.name,
       email: users.email,
     })
     .from(users)
     .where(eq(users.id, actorId))
-    .get()
 
   return actor?.name?.trim() || actor?.email || 'Someone'
 }
 
-function cleanupOldWebhookDeliveries(): void {
+async function cleanupOldWebhookDeliveries(): Promise<void> {
   if (!Number.isFinite(WEBHOOK_DELIVERY_RETENTION_DAYS) || WEBHOOK_DELIVERY_RETENTION_DAYS <= 0)
     return
   try {
     const cutoff = new Date(Date.now() - WEBHOOK_DELIVERY_RETENTION_DAYS * 24 * 60 * 60 * 1000)
-    db.delete(webhookDeliveries)
-      .where(sql`${webhookDeliveries.createdAt} < ${cutoff}`)
-      .run()
+    await db.delete(webhookDeliveries).where(sql`${webhookDeliveries.createdAt} < ${cutoff}`)
   } catch {
     // keep server running
   }
@@ -234,36 +225,29 @@ const syncServer = createSyncServer({
       ? SNAPSHOT_INTERVAL_MS
       : 300_000,
   snapshotCallback: async (docId, snapshot, lastEditUserId, lastEditSource) => {
-    db.insert(documentSnapshots)
-      .values({
-        id: crypto.randomUUID(),
-        documentId: docId,
-        snapshot: Buffer.from(snapshot),
-        createdAt: new Date(),
-        createdBy: lastEditUserId,
-        isAgentEdit: lastEditSource === 'daemon',
-        label: null,
-      })
-      .run()
+    await db.insert(documentSnapshots).values({
+      id: crypto.randomUUID(),
+      documentId: docId,
+      snapshot: Buffer.from(snapshot),
+      createdAt: new Date(),
+      createdBy: lastEditUserId,
+      isAgentEdit: lastEditSource === 'daemon',
+      label: null,
+    })
 
-    // Update FTS5 search index with latest content
+    // Update search index with latest content
     try {
-      const doc = db
+      const [doc] = await db
         .select({ title: documents.title })
         .from(documents)
         .where(eq(documents.id, docId))
-        .get()
       if (doc) {
         const ydoc = new Y.Doc()
         Y.applyUpdate(ydoc, snapshot)
         const content = ydoc.getText('codemirror').toString()
         ydoc.destroy()
 
-        const sqlite = getSqlite()
-        sqlite.prepare('DELETE FROM document_search WHERE document_id = ?').run(docId)
-        sqlite
-          .prepare('INSERT INTO document_search (document_id, title, content) VALUES (?, ?, ?)')
-          .run(docId, doc.title, content)
+        await indexDocument(docId, doc.title, content)
       }
     } catch {
       // Best-effort search indexing; do not break snapshot persistence
@@ -271,15 +255,16 @@ const syncServer = createSyncServer({
   },
   snapshotLoader: async (docId) => {
     try {
-      const latest = db
+      const rows = await db
         .select({
           snapshot: documentSnapshots.snapshot,
         })
         .from(documentSnapshots)
         .where(eq(documentSnapshots.documentId, docId))
         .orderBy(desc(documentSnapshots.createdAt))
-        .get()
+        .limit(1)
 
+      const latest = rows[0]
       if (!latest?.snapshot) return null
       return new Uint8Array(latest.snapshot)
     } catch {
@@ -288,7 +273,7 @@ const syncServer = createSyncServer({
     }
   },
   eventCallback: async (event) => {
-    const document = db
+    const [document] = await db
       .select({
         id: documents.id,
         orgId: documents.orgId,
@@ -297,10 +282,9 @@ const syncServer = createSyncServer({
       })
       .from(documents)
       .where(eq(documents.id, event.documentId))
-      .get()
     if (!document) return
 
-    const createAndPushNotification = (input: {
+    const createAndPushNotification = async (input: {
       userId: string
       type: NotificationType
       title: string
@@ -308,7 +292,7 @@ const syncServer = createSyncServer({
       resourceId?: string
       resourceType?: NotificationResourceType
     }) => {
-      const notification = createNotificationRow({
+      const notification = await createNotificationRow({
         userId: input.userId,
         orgId: document.orgId,
         type: input.type,
@@ -321,9 +305,9 @@ const syncServer = createSyncServer({
     }
 
     const sendMentionNotifications = async (text: string) => {
-      const mentionUserIds = resolveMentionedUserIds(document.orgId, text, [event.actorId ?? ''])
+      const mentionUserIds = await resolveMentionedUserIds(document.orgId, text, [event.actorId ?? ''])
       for (const userId of mentionUserIds) {
-        createAndPushNotification({
+        await createAndPushNotification({
           userId,
           type: 'mention',
           title: `You were mentioned in ${document.title}`,
@@ -333,7 +317,7 @@ const syncServer = createSyncServer({
 
       await sendMentionEmails({
         userIds: mentionUserIds,
-        actorName: resolveActorName(event.actorId),
+        actorName: await resolveActorName(event.actorId),
         documentId: document.id,
         documentTitle: document.title,
         excerpt: truncateText(text, 280),
@@ -342,7 +326,7 @@ const syncServer = createSyncServer({
 
     if (event.eventType === 'comment.created') {
       if (document.ownerId && document.ownerId !== event.actorId) {
-        createAndPushNotification({
+        await createAndPushNotification({
           userId: document.ownerId,
           type: 'document_comment',
           title: `New comment on ${document.title}`,
@@ -357,7 +341,7 @@ const syncServer = createSyncServer({
       const commentAuthorId = typeof event.data?.commentAuthorId === 'string' ? event.data.commentAuthorId : ''
       const replyText = String(event.data?.text ?? '')
       if (commentAuthorId && commentAuthorId !== event.actorId) {
-        createAndPushNotification({
+        await createAndPushNotification({
           userId: commentAuthorId,
           type: 'comment_reply',
           title: `New reply in ${document.title}`,
@@ -369,7 +353,7 @@ const syncServer = createSyncServer({
     }
 
     if (event.eventType === 'suggestion.created' && document.ownerId && document.ownerId !== event.actorId) {
-      createAndPushNotification({
+      await createAndPushNotification({
         userId: document.ownerId,
         type: 'suggestion_pending',
         title: `Suggestion pending review in ${document.title}`,
@@ -377,12 +361,11 @@ const syncServer = createSyncServer({
       })
     }
 
-    const targets = db
+    const allWebhooks = await db
       .select()
       .from(webhooks)
       .where(and(eq(webhooks.orgId, document.orgId), eq(webhooks.active, true)))
-      .all()
-      .filter((webhook) => {
+    const targets = allWebhooks.filter((webhook: any) => {
         let invalidEvents = false
         const subscribed = webhookSubscribedToEvent(webhook.events, event.eventType, {
           onInvalidJson: () => {
@@ -425,10 +408,10 @@ const syncServer = createSyncServer({
 
       if (!isEncryptedWebhookSecret(webhook.secret)) {
         try {
-          db.update(webhooks)
+          await db
+            .update(webhooks)
             .set({ secret: encryptWebhookSecret(secret) })
             .where(eq(webhooks.id, webhook.id))
-            .run()
         } catch {
           // best effort migration for legacy plaintext webhook secrets
         }

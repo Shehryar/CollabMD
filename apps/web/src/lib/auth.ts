@@ -5,7 +5,7 @@ import { organization } from 'better-auth/plugins'
 import { magicLink } from 'better-auth/plugins'
 import { jwt } from 'better-auth/plugins'
 import { bearer } from 'better-auth/plugins'
-import { db } from '@collabmd/db'
+import { db, isPostgres } from '@collabmd/db'
 import * as schema from '@collabmd/db/schema'
 
 if (!process.env.BETTER_AUTH_SECRET) {
@@ -16,7 +16,7 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL ?? 'http://localhost:3000',
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, {
-    provider: 'sqlite',
+    provider: isPostgres ? 'pg' : 'sqlite',
     schema: {
       user: schema.users,
       session: schema.sessions,

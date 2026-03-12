@@ -1,32 +1,41 @@
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import * as schema from './schema.js'
+import { createRequire } from 'node:module'
+import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
+import * as sqliteSchema from './schema.js'
 
-type DbInstance = ReturnType<typeof drizzle<typeof schema>>
+const require = createRequire(import.meta.url)
+
+export const isPostgres = (process.env.DATABASE_URL ?? '').startsWith('postgres')
+
+// Use the SQLite Drizzle type as the canonical compile-time type.
+// At runtime in Postgres mode, the actual instance is a PostgresJsDatabase,
+// but the query API is structurally compatible at the JavaScript level.
+type DbInstance = BetterSQLite3Database<typeof sqliteSchema>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRawClient = any
 
 let dbInstance: DbInstance | null = null
+let rawClient: AnyRawClient | null = null
 
-function ensureSchemaCompatibility(sqlite: Database.Database): void {
-  // Backfill legacy dev DBs created before documents.source existed.
-  // These DBs don't have drizzle migration metadata, so a full migrate can fail.
+// ─── SQLite compatibility backfill (only runs for SQLite) ───
+
+function ensureSchemaCompatibility(sqlite: AnyRawClient): void {
   const documentsTable = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'documents'")
     .get() as { name?: string } | undefined
   if (!documentsTable) return
 
   const columns = sqlite.prepare('PRAGMA table_info(documents)').all() as Array<{ name?: string }>
-  const hasSource = columns.some((column) => column.name === 'source')
+  const hasSource = columns.some((column: { name?: string }) => column.name === 'source')
   if (!hasSource) {
     sqlite.exec("ALTER TABLE documents ADD COLUMN source TEXT DEFAULT 'web'")
     sqlite.exec("UPDATE documents SET source = 'web' WHERE source IS NULL")
   }
 
-  const hasDocPosition = columns.some((column) => column.name === 'position')
+  const hasDocPosition = columns.some((column: { name?: string }) => column.name === 'position')
   if (!hasDocPosition) {
     sqlite.exec('ALTER TABLE documents ADD COLUMN position INTEGER NOT NULL DEFAULT 0')
   }
 
-  // Backfill folders.position for legacy DBs.
   const foldersTable = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'folders'")
     .get() as { name?: string } | undefined
@@ -34,13 +43,14 @@ function ensureSchemaCompatibility(sqlite: Database.Database): void {
     const folderCols = sqlite.prepare('PRAGMA table_info(folders)').all() as Array<{
       name?: string
     }>
-    const hasFolderPosition = folderCols.some((column) => column.name === 'position')
+    const hasFolderPosition = folderCols.some(
+      (column: { name?: string }) => column.name === 'position',
+    )
     if (!hasFolderPosition) {
       sqlite.exec('ALTER TABLE folders ADD COLUMN position INTEGER NOT NULL DEFAULT 0')
     }
   }
 
-  // Ensure FTS5 virtual table for full-text search exists.
   const ftsTable = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'document_search'")
     .get() as { name?: string } | undefined
@@ -148,8 +158,12 @@ function ensureSchemaCompatibility(sqlite: Database.Database): void {
   `)
 }
 
-export function getDb(): DbInstance {
-  if (dbInstance) return dbInstance
+// ─── Database initialization ───
+
+function initSqlite(): { db: DbInstance; raw: AnyRawClient } {
+  // Use createRequire to conditionally load better-sqlite3 (native module)
+  const Database = require('better-sqlite3')
+  const { drizzle } = require('drizzle-orm/better-sqlite3')
 
   const configuredUrl = process.env.DATABASE_URL ?? 'local.db'
   const sqlitePath = configuredUrl.startsWith('file:')
@@ -160,23 +174,73 @@ export function getDb(): DbInstance {
   sqlite.pragma('foreign_keys = ON')
   ensureSchemaCompatibility(sqlite)
 
-  dbInstance = drizzle(sqlite, { schema })
+  return { db: drizzle(sqlite, { schema: sqliteSchema }), raw: sqlite }
+}
+
+function initPostgres(): { db: DbInstance; raw: AnyRawClient } {
+  // Use createRequire to load postgres (the postgres.js driver)
+  const pg = require('postgres')
+  const { drizzle } = require('drizzle-orm/postgres-js')
+  const pgSchema = require('./schema-pg.js')
+
+  const sql = pg(process.env.DATABASE_URL!, {
+    max: 10,
+    idle_timeout: 20,
+    connect_timeout: 10,
+  })
+
+  return { db: drizzle(sql, { schema: pgSchema }), raw: sql }
+}
+
+export function getDb(): DbInstance {
+  if (dbInstance) return dbInstance
+
+  const result = isPostgres ? initPostgres() : initSqlite()
+  dbInstance = result.db
+  rawClient = result.raw
   return dbInstance
 }
 
-export const db: DbInstance = new Proxy({} as DbInstance, {
-  get(_target, prop, receiver) {
-    const instance = getDb()
-    const value = Reflect.get(instance, prop, receiver)
-    return typeof value === 'function' ? value.bind(instance) : value
+export const db: DbInstance = new Proxy(
+  {} as DbInstance,
+  {
+    get(_target, prop, receiver) {
+      const instance = getDb()
+      const value = Reflect.get(instance, prop, receiver)
+      return typeof value === 'function' ? value.bind(instance) : value
+    },
   },
-})
+)
 
 /**
  * Get the underlying better-sqlite3 Database instance.
- * Useful for raw SQL queries (e.g., FTS5 virtual tables).
+ * Only available in SQLite mode. Throws in Postgres mode.
  */
-export function getSqlite(): Database.Database {
-  const drizzleDb = getDb()
-  return (drizzleDb as unknown as { session: { client: Database.Database } }).session.client
+export function getSqlite(): AnyRawClient {
+  getDb() // ensure initialized
+  if (isPostgres) {
+    throw new Error('getSqlite() is not available in Postgres mode. Use getPgClient() instead.')
+  }
+  return rawClient
+}
+
+/**
+ * Get the underlying postgres.js SQL client.
+ * Only available in Postgres mode. Throws in SQLite mode.
+ */
+export function getPgClient(): AnyRawClient {
+  getDb() // ensure initialized
+  if (!isPostgres) {
+    throw new Error('getPgClient() is not available in SQLite mode. Use getSqlite() instead.')
+  }
+  return rawClient
+}
+
+/**
+ * Get the raw database client (better-sqlite3 or postgres.js).
+ * Use isPostgres to determine which type.
+ */
+export function getRawClient(): AnyRawClient {
+  getDb() // ensure initialized
+  return rawClient
 }

@@ -1,0 +1,15 @@
+# Replace with your actual domain
+{$DOMAIN:localhost} {
+	# Web app
+	reverse_proxy web:3000
+
+	# Sync server WebSocket endpoint
+	handle /sync/* {
+		reverse_proxy sync-server:4444
+	}
+}
+
+# If using a separate subdomain for sync instead:
+# sync.{$DOMAIN:localhost} {
+# 	reverse_proxy sync-server:4444
+# }

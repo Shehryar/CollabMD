@@ -1,0 +1,84 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      sync-server:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      - NODE_ENV=production
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL}
+      - NEXT_PUBLIC_SYNC_URL=${NEXT_PUBLIC_SYNC_URL}
+      - SYNC_SERVER_INTERNAL_URL=http://sync-server:4444
+      - DATABASE_URL=${DATABASE_URL}
+      - OPENFGA_URL=http://openfga:8080
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      sync-server:
+        condition: service_healthy
+      openfga:
+        condition: service_healthy
+
+  sync-server:
+    build:
+      context: .
+      dockerfile: apps/sync-server/Dockerfile
+    restart: unless-stopped
+    expose:
+      - "4444"
+    environment:
+      - NODE_ENV=production
+      - PORT=4444
+      - DATABASE_URL=${DATABASE_URL}
+      - BETTER_AUTH_URL=http://web:3000
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4444/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  openfga:
+    image: openfga/openfga:latest
+    restart: unless-stopped
+    command: run
+    expose:
+      - "8080"
+      - "8081"
+    environment:
+      - OPENFGA_DATASTORE_ENGINE=postgres
+      - OPENFGA_DATASTORE_URI=${OPENFGA_DATASTORE_URI:-${DATABASE_URL}}
+      - OPENFGA_PLAYGROUND_ENABLED=false
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=:8081"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  caddy-data:
+  caddy-config:

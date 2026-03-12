@@ -205,7 +205,7 @@ export async function GET(request: NextRequest) {
 
   if (search) {
     // Use FTS5 full-text search across title + content
-    const ftsResults = searchDocuments(search, docIds)
+    const ftsResults = await searchDocuments(search, docIds)
     const snippetMap = new Map(ftsResults.map((r) => [r.documentId, r.snippet]))
     const ftsDocIds = ftsResults.map((r) => r.documentId)
 
