@@ -27,6 +27,9 @@ COPY --from=deps /app/ /app/
 COPY . .
 
 ENV DOCKER_BUILD=1
+# Dummy secrets for Next.js build-time page data collection (not used at runtime)
+ENV BETTER_AUTH_SECRET=build-time-placeholder
+ENV BETTER_AUTH_URL=http://localhost:3000
 
 RUN pnpm --filter @collabmd/shared build && \
     pnpm --filter @collabmd/db build && \
