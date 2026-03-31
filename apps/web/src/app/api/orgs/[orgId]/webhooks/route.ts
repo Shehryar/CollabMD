@@ -50,7 +50,7 @@ async function requireOrgAdmin(orgId: string): Promise<
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  const membership = db
+  const membership = await db
     .select()
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -77,7 +77,7 @@ export async function GET(
   const authz = await requireOrgAdmin(orgId)
   if (authz instanceof NextResponse) return authz
 
-  const rows = db
+  const rows = await db
     .select()
     .from(webhooks)
     .where(eq(webhooks.orgId, orgId))
@@ -91,7 +91,7 @@ export async function GET(
       url: row.url,
       events: parseStoredEvents(row.events),
       createdBy: row.createdBy,
-      createdAt: row.createdAt.toISOString(),
+      createdAt: new Date(row.createdAt).toISOString(),
       active: row.active,
     })),
   )
@@ -154,11 +154,11 @@ export async function POST(
     secret: encryptedSecret,
     events: JSON.stringify(events),
     createdBy: authz.session.user.id,
-    createdAt: new Date(),
+    createdAt: Date.now(),
     active: true,
   }
 
-  db.insert(webhooks).values(created).run()
+  await db.insert(webhooks).values(created).run()
 
   return NextResponse.json(
     {
@@ -168,7 +168,7 @@ export async function POST(
       secret,
       events,
       createdBy: created.createdBy,
-      createdAt: created.createdAt.toISOString(),
+      createdAt: new Date(created.createdAt).toISOString(),
       active: created.active,
     },
     { status: 201 },

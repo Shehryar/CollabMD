@@ -795,6 +795,149 @@ class MermaidWidget extends WidgetType {
   }
 }
 
+type TableAlignment = 'left' | 'center' | 'right' | null
+
+interface MarkdownTableBlock {
+  from: number
+  to: number
+  header: string[]
+  rows: string[][]
+  alignments: TableAlignment[]
+}
+
+class TableWidget extends WidgetType {
+  constructor(readonly table: MarkdownTableBlock) {
+    super()
+  }
+
+  toDOM() {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'cm-md-table-wrap'
+
+    const table = document.createElement('table')
+    table.className = 'cm-md-table'
+
+    const thead = document.createElement('thead')
+    const headRow = document.createElement('tr')
+    this.table.header.forEach((cell, index) => {
+      const th = document.createElement('th')
+      const alignment = this.table.alignments[index]
+      if (alignment) th.style.textAlign = alignment
+      th.textContent = cell
+      headRow.append(th)
+    })
+    thead.append(headRow)
+    table.append(thead)
+
+    if (this.table.rows.length > 0) {
+      const tbody = document.createElement('tbody')
+      this.table.rows.forEach((row) => {
+        const tr = document.createElement('tr')
+        row.forEach((cell, index) => {
+          const td = document.createElement('td')
+          const alignment = this.table.alignments[index]
+          if (alignment) td.style.textAlign = alignment
+          td.textContent = cell
+          tr.append(td)
+        })
+        tbody.append(tr)
+      })
+      table.append(tbody)
+    }
+
+    wrapper.append(table)
+    return wrapper
+  }
+
+  eq(other: TableWidget) {
+    return JSON.stringify(this.table) === JSON.stringify(other.table)
+  }
+}
+
+function splitMarkdownTableRow(lineText: string): string[] {
+  const trimmed = lineText.trim()
+  if (!trimmed.includes('|')) return []
+
+  const withoutOuterPipes = trimmed.replace(/^\|/, '').replace(/\|$/, '')
+  return withoutOuterPipes.split('|').map((cell) => cell.trim())
+}
+
+function parseTableAlignment(cell: string): TableAlignment | undefined {
+  const trimmed = cell.trim()
+  if (!/^:?-{3,}:?$/.test(trimmed)) return undefined
+  const left = trimmed.startsWith(':')
+  const right = trimmed.endsWith(':')
+  if (left && right) return 'center'
+  if (right) return 'right'
+  if (left) return 'left'
+  return null
+}
+
+function normalizeTableRow(cells: string[], width: number): string[] {
+  const normalized = cells.slice(0, width)
+  while (normalized.length < width) normalized.push('')
+  return normalized
+}
+
+function findMarkdownTables(state: EditorState): MarkdownTableBlock[] {
+  const blocks: MarkdownTableBlock[] = []
+  let inFence = false
+  let fenceMarker: string | null = null
+
+  for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber++) {
+    const line = state.doc.line(lineNumber)
+    const trimmed = line.text.trim()
+    const fenceMatch = trimmed.match(/^(```+|~~~+)/)
+    if (fenceMatch) {
+      const marker = fenceMatch[1]
+      if (!inFence) {
+        inFence = true
+        fenceMarker = marker
+      } else if (fenceMarker === marker) {
+        inFence = false
+        fenceMarker = null
+      }
+      continue
+    }
+    if (inFence || lineNumber >= state.doc.lines) continue
+
+    const nextLine = state.doc.line(lineNumber + 1)
+    const header = splitMarkdownTableRow(line.text)
+    const separator = splitMarkdownTableRow(nextLine.text)
+    if (header.length < 2 || separator.length !== header.length) continue
+
+    const alignments = separator.map(parseTableAlignment)
+    if (alignments.some((alignment) => alignment === undefined)) continue
+    const normalizedAlignments = alignments as TableAlignment[]
+
+    const rows: string[][] = []
+    let end = nextLine.to
+    let rowNumber = lineNumber + 2
+
+    while (rowNumber <= state.doc.lines) {
+      const rowLine = state.doc.line(rowNumber)
+      const rowText = rowLine.text.trim()
+      if (!rowText.includes('|')) break
+      const row = splitMarkdownTableRow(rowLine.text)
+      if (row.length < 2) break
+      rows.push(normalizeTableRow(row, header.length))
+      end = rowLine.to
+      rowNumber++
+    }
+
+    blocks.push({
+      from: line.from,
+      to: end,
+      header: normalizeTableRow(header, header.length),
+      rows,
+      alignments: normalizedAlignments,
+    })
+    lineNumber = rowNumber - 1
+  }
+
+  return blocks
+}
+
 function consumeLineWhitespace(state: EditorState, from: number, lineTo: number): number {
   let position = from
   while (position < lineTo) {
@@ -849,6 +992,7 @@ function buildDecorations(state: EditorState): DecorationSet {
   const decorations: Range<Decoration>[] = []
   const tree = syntaxTree(state)
   const cursorHead = state.selection.main.head
+  const tableBlocks = findMarkdownTables(state)
 
   tree.iterate({
     enter(node) {
@@ -1063,6 +1207,28 @@ function buildDecorations(state: EditorState): DecorationSet {
       }
     },
   })
+
+  for (const table of tableBlocks) {
+    const cursorOnTable = cursorHead >= table.from && cursorHead <= table.to
+    if (cursorOnTable) continue
+
+    const firstLine = state.doc.lineAt(table.from)
+    const lastLine = state.doc.lineAt(Math.max(table.to - 1, table.from))
+
+    decorations.push(
+      Decoration.replace({
+        widget: new TableWidget(table),
+      }).range(firstLine.from, firstLine.to),
+    )
+
+    for (let lineNumber = firstLine.number + 1; lineNumber <= lastLine.number; lineNumber++) {
+      const line = state.doc.line(lineNumber)
+      if (line.length > 0) {
+        decorations.push(Decoration.replace({}).range(line.from, line.to))
+      }
+      decorations.push(Decoration.line({ class: 'cm-md-hidden-line' }).range(line.from))
+    }
+  }
 
   for (const range of findMathRanges(state)) {
     const cursorOnMath = cursorHead >= range.from && cursorHead <= range.to
@@ -1292,6 +1458,31 @@ export const markdownPreviewTheme = EditorView.theme({
   },
   '.cm-md-math-error': {
     color: '#b45309',
+  },
+  '.cm-md-table-wrap': {
+    display: 'block',
+    margin: '10px 0 14px',
+    overflowX: 'auto',
+  },
+  '.cm-md-table': {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: '0.95em',
+    backgroundColor: '#fff',
+    border: '1px solid #e5e7eb',
+  },
+  '.cm-md-table th': {
+    backgroundColor: '#f8fafc',
+    fontWeight: '600',
+    color: '#111827',
+  },
+  '.cm-md-table th, .cm-md-table td': {
+    borderBottom: '1px solid #e5e7eb',
+    padding: '8px 10px',
+    verticalAlign: 'top',
+  },
+  '.cm-md-table tr:last-child td': {
+    borderBottom: 'none',
   },
   '.cm-md-mermaid': {
     display: 'block',

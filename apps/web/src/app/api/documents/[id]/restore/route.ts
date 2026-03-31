@@ -15,7 +15,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (rateLimitError) return rateLimitError
 
   const { id } = await params
-  const doc = db.select().from(documents).where(eq(documents.id, id)).get()
+  const doc = await db.select().from(documents).where(eq(documents.id, id)).get()
 
   if (!doc) {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
@@ -29,12 +29,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'document is not deleted' }, { status: 400 })
   }
 
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
   if (doc.deletedAt < thirtyDaysAgo) {
     return NextResponse.json({ error: 'document expired, cannot restore' }, { status: 410 })
   }
 
-  const restored = db
+  const restored = await db
     .update(documents)
     .set({ deletedAt: null })
     .where(eq(documents.id, id))

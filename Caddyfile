@@ -1,15 +1,14 @@
 # Replace with your actual domain
-{$DOMAIN:localhost} {
-	# Web app
-	reverse_proxy web:3000
-
-	# Sync server WebSocket endpoint
-	handle /sync/* {
+collabmd.dev {
+	# Sync server WebSocket endpoint — strip /sync prefix
+	handle_path /sync/* {
 		reverse_proxy sync-server:4444
 	}
+
+	# Web app (default)
+	reverse_proxy web:3000
 }
 
-# If using a separate subdomain for sync instead:
-# sync.{$DOMAIN:localhost} {
-# 	reverse_proxy sync-server:4444
-# }
+www.collabmd.dev {
+	redir https://collabmd.dev{uri} permanent
+}

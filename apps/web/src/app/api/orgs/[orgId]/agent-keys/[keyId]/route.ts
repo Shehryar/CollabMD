@@ -15,7 +15,7 @@ async function requireOrgAdmin(orgId: string): Promise<
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  const membership = db
+  const membership = await db
     .select()
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -47,7 +47,7 @@ export async function DELETE(
   })
   if (rateLimitError) return rateLimitError
 
-  const existing = db
+  const existing = await db
     .select()
     .from(agentKeys)
     .where(and(eq(agentKeys.id, keyId), eq(agentKeys.orgId, orgId), isNull(agentKeys.revokedAt)))
@@ -57,7 +57,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'api key not found' }, { status: 404 })
   }
 
-  db.update(agentKeys).set({ revokedAt: new Date() }).where(eq(agentKeys.id, keyId)).run()
+  await db.update(agentKeys).set({ revokedAt: Date.now() }).where(eq(agentKeys.id, keyId)).run()
 
   return NextResponse.json({ ok: true })
 }

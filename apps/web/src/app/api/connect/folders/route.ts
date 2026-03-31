@@ -43,7 +43,7 @@ export async function GET() {
     return NextResponse.json([])
   }
 
-  const membership = db
+  const membership = await db
     .select({ id: members.id })
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -59,7 +59,7 @@ export async function GET() {
       .map((conn) => conn.docId),
   )
 
-  const daemonDocs = db
+  const daemonDocs = await db
     .select({
       id: documents.id,
       folderId: documents.folderId,
@@ -85,7 +85,7 @@ export async function GET() {
   )
   const folderRows =
     folderIds.length > 0
-      ? db
+      ? await db
           .select({ id: folders.id, name: folders.name })
           .from(folders)
           .where(inArray(folders.id, folderIds))

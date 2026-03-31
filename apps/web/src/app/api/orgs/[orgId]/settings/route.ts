@@ -63,7 +63,7 @@ export async function GET(
 
   const { orgId } = await params
 
-  const membership = db
+  const membership = await db
     .select()
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -77,7 +77,7 @@ export async function GET(
     return NextResponse.json({ error: 'only admins and owners can read settings' }, { status: 403 })
   }
 
-  const org = db.select().from(organizations).where(eq(organizations.id, orgId)).get()
+  const org = await db.select().from(organizations).where(eq(organizations.id, orgId)).get()
   if (!org) {
     return NextResponse.json({ error: 'organization not found' }, { status: 404 })
   }
@@ -102,7 +102,7 @@ export async function PATCH(
 
   const { orgId } = await params
 
-  const membership = db
+  const membership = await db
     .select()
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -147,7 +147,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'invalid agents; must be an array' }, { status: 400 })
   }
 
-  const org = db.select().from(organizations).where(eq(organizations.id, orgId)).get()
+  const org = await db.select().from(organizations).where(eq(organizations.id, orgId)).get()
   if (!org) {
     return NextResponse.json({ error: 'organization not found' }, { status: 404 })
   }
@@ -164,7 +164,7 @@ export async function PATCH(
   if (agentPolicy !== undefined) existingMetadata.agentPolicy = agentPolicy
   if (agents !== undefined) existingMetadata.agents = parseAgentRegistry(agents)
 
-  db.update(organizations)
+  await db.update(organizations)
     .set({ metadata: JSON.stringify(existingMetadata) })
     .where(eq(organizations.id, orgId))
     .run()

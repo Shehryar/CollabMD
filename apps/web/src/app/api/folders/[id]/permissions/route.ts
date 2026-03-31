@@ -43,7 +43,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     )
   }
 
-  const folder = db
+  const folder = await db
     .select({ name: folders.name, orgId: folders.orgId })
     .from(folders)
     .where(eq(folders.id, id))
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'folder not found' }, { status: 404 })
   }
 
-  const targetUser = db
+  const targetUser = await db
     .select({ id: users.id, email: users.email })
     .from(users)
     .where(eq(users.id, targetUserId))
@@ -112,7 +112,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   const userIds = userTuples.map((t) => t.user.replace('user:', ''))
-  const userRecords = db.select().from(users).where(inArray(users.id, userIds)).all()
+  const userRecords = await db.select().from(users).where(inArray(users.id, userIds)).all()
   const userMap = new Map(userRecords.map((u) => [u.id, u]))
 
   const result = userTuples.map((t) => {

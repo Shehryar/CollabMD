@@ -292,7 +292,7 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
         aria-modal="true"
         aria-labelledby="share-dialog-title"
         tabIndex={-1}
-        className="mt-24 bg-bg border border-border rounded-lg shadow-lg w-[420px] max-h-[80vh] overflow-y-auto"
+        className="mt-24 w-[min(560px,calc(100vw-2rem))] max-h-[80vh] overflow-y-auto rounded-lg border border-border bg-bg shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="py-4 px-5 border-b border-border flex items-center justify-between">
@@ -461,7 +461,7 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
           ) : (
             <p className="mb-3 text-xs text-fg-muted">No share links yet</p>
           )}
-          <div className="flex gap-2">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_88px_auto]">
             <select
               className="font-mono text-[12px] border border-border rounded bg-bg text-fg-secondary px-2 py-[7px]"
               value={linkPerm}
@@ -475,7 +475,7 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
             <input
               type="text"
               placeholder="Password (optional)"
-              className="w-28 font-mono text-[13px] py-[7px] px-[10px] border border-border rounded bg-bg text-fg focus:border-fg focus:outline-none"
+              className="min-w-0 font-mono text-[13px] py-[7px] px-[10px] border border-border rounded bg-bg text-fg focus:border-fg focus:outline-none"
               value={linkPassword}
               onChange={(e) => setLinkPassword(e.target.value)}
               disabled={creatingLink}
@@ -483,7 +483,7 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
             <input
               type="number"
               placeholder="Days"
-              className="w-16 font-mono text-[13px] py-[7px] px-[10px] border border-border rounded bg-bg text-fg focus:border-fg focus:outline-none"
+              className="min-w-0 font-mono text-[13px] py-[7px] px-[10px] border border-border rounded bg-bg text-fg focus:border-fg focus:outline-none"
               value={linkExpiry}
               onChange={(e) => setLinkExpiry(e.target.value)}
               disabled={creatingLink}

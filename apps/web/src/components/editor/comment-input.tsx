@@ -6,7 +6,7 @@ import type { PopoverPosition } from './comment-popover-position'
 
 interface CommentInputProps {
   open: boolean
-  position: { left: number; top: number } | null
+  position: { left: number; top: number; preferredLeft?: number } | null
   orgId?: string
   onSubmitComment: (text: string) => void
   onCancel: () => void
@@ -171,48 +171,52 @@ export default function CommentInput({
       role="dialog"
       aria-label="Add inline comment"
     >
-      {/* Arrow / caret pointing toward the selected text */}
-      <div
-        className="absolute h-0 w-0"
-        style={{
-          left: `${popover.arrowLeft}px`,
-          ...(popover.flipped
-            ? {
-                bottom: '-8px',
-                borderLeft: '8px solid transparent',
-                borderRight: '8px solid transparent',
-                borderTop: '8px solid var(--border)',
-              }
-            : {
-                top: '-8px',
-                borderLeft: '8px solid transparent',
-                borderRight: '8px solid transparent',
-                borderBottom: '8px solid var(--border)',
-              }),
-          transform: 'translateX(-8px)',
-        }}
-      />
-      {/* Inner arrow (fills the border arrow) */}
-      <div
-        className="absolute h-0 w-0"
-        style={{
-          left: `${popover.arrowLeft}px`,
-          ...(popover.flipped
-            ? {
-                bottom: '-7px',
-                borderLeft: '8px solid transparent',
-                borderRight: '8px solid transparent',
-                borderTop: '8px solid var(--bg)',
-              }
-            : {
-                top: '-7px',
-                borderLeft: '8px solid transparent',
-                borderRight: '8px solid transparent',
-                borderBottom: '8px solid var(--bg)',
-              }),
-          transform: 'translateX(-8px)',
-        }}
-      />
+      {!popover.anchoredToMargin && (
+        <>
+          {/* Arrow / caret pointing toward the selected text */}
+          <div
+            className="absolute h-0 w-0"
+            style={{
+              left: `${popover.arrowLeft}px`,
+              ...(popover.flipped
+                ? {
+                    bottom: '-8px',
+                    borderLeft: '8px solid transparent',
+                    borderRight: '8px solid transparent',
+                    borderTop: '8px solid var(--border)',
+                  }
+                : {
+                    top: '-8px',
+                    borderLeft: '8px solid transparent',
+                    borderRight: '8px solid transparent',
+                    borderBottom: '8px solid var(--border)',
+                  }),
+              transform: 'translateX(-8px)',
+            }}
+          />
+          {/* Inner arrow (fills the border arrow) */}
+          <div
+            className="absolute h-0 w-0"
+            style={{
+              left: `${popover.arrowLeft}px`,
+              ...(popover.flipped
+                ? {
+                    bottom: '-7px',
+                    borderLeft: '8px solid transparent',
+                    borderRight: '8px solid transparent',
+                    borderTop: '8px solid var(--bg)',
+                  }
+                : {
+                    top: '-7px',
+                    borderLeft: '8px solid transparent',
+                    borderRight: '8px solid transparent',
+                    borderBottom: '8px solid var(--bg)',
+                  }),
+              transform: 'translateX(-8px)',
+            }}
+          />
+        </>
+      )}
 
       <form onSubmit={submit} className="space-y-2">
         <textarea
@@ -293,11 +297,11 @@ export default function CommentInput({
         @keyframes commentPopoverIn {
           from {
             opacity: 0;
-            transform: translateY(${popover.flipped ? '4px' : '-4px'});
+            transform: ${popover.anchoredToMargin ? 'translateX(6px)' : `translateY(${popover.flipped ? '4px' : '-4px'})`};
           }
           to {
             opacity: 1;
-            transform: translateY(0);
+            transform: translate(0, 0);
           }
         }
       `}</style>

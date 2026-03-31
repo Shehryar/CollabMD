@@ -45,7 +45,7 @@ async function recordWebhookDelivery(input: {
   responseBody: string
   attemptCount: number
 }): Promise<void> {
-  const now = new Date()
+  const now = Date.now()
   await db.insert(webhookDeliveries).values({
     id: crypto.randomUUID(),
     webhookId: input.webhookId,
@@ -106,7 +106,7 @@ async function createNotificationRow(input: {
   resourceType: NotificationResourceType
 }): Promise<NotificationRecord> {
   const id = crypto.randomUUID()
-  const createdAt = new Date()
+  const createdAt = Date.now()
   await db.insert(notifications).values({
     id,
     userId: input.userId,
@@ -130,7 +130,7 @@ async function createNotificationRow(input: {
     resourceId: input.resourceId,
     resourceType: input.resourceType,
     read: false,
-    createdAt: createdAt.toISOString(),
+    createdAt: new Date(createdAt).toISOString(),
   }
 }
 
@@ -229,7 +229,7 @@ const syncServer = createSyncServer({
       id: crypto.randomUUID(),
       documentId: docId,
       snapshot: Buffer.from(snapshot),
-      createdAt: new Date(),
+      createdAt: Date.now(),
       createdBy: lastEditUserId,
       isAgentEdit: lastEditSource === 'daemon',
       label: null,

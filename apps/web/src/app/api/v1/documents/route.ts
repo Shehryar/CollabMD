@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
   )
   const offset = parsePositiveInt(request.nextUrl.searchParams.get('offset'), 0)
 
-  const rows = db
+  const rows = await db
     .select({
       id: documents.id,
       title: documents.title,

@@ -24,7 +24,7 @@ function serializeNotification(row: {
   resourceId: string
   resourceType: string
   read: boolean
-  createdAt: Date
+  createdAt: number | Date
 }): NotificationRecord {
   return {
     id: row.id,
@@ -40,7 +40,7 @@ function serializeNotification(row: {
   }
 }
 
-export function createNotification(input: {
+export async function createNotification(input: {
   userId: string
   orgId: string
   type: NotificationType
@@ -48,10 +48,10 @@ export function createNotification(input: {
   body: string
   resourceId: string
   resourceType: NotificationResourceType
-}): NotificationRecord {
-  const now = new Date()
+}): Promise<NotificationRecord> {
+  const now = Date.now()
   const id = crypto.randomUUID()
-  db.insert(notifications)
+  await db.insert(notifications)
     .values({
       id,
       userId: input.userId,
@@ -76,7 +76,7 @@ export function createNotification(input: {
     resourceId: input.resourceId,
     resourceType: input.resourceType,
     read: false,
-    createdAt: now.toISOString(),
+    createdAt: new Date(now).toISOString(),
   }
 }
 
@@ -106,7 +106,7 @@ export async function createAndBroadcastNotification(input: {
   resourceId: string
   resourceType: NotificationResourceType
 }): Promise<NotificationRecord> {
-  const notification = createNotification(input)
+  const notification = await createNotification(input)
   await broadcastNotificationEvent({
     userId: input.userId,
     event: { kind: 'notification.created', notification },
@@ -114,18 +114,18 @@ export async function createAndBroadcastNotification(input: {
   return notification
 }
 
-export function listNotifications(input: {
+export async function listNotifications(input: {
   userId: string
   orgId: string
   limit: number
   offset: number
-}): {
+}): Promise<{
   notifications: NotificationRecord[]
   unreadCount: number
   nextOffset: string
-} {
+}> {
   const where = and(eq(notifications.userId, input.userId), eq(notifications.orgId, input.orgId))
-  const rows = db
+  const rows = await db
     .select()
     .from(notifications)
     .where(where)
@@ -133,7 +133,7 @@ export function listNotifications(input: {
     .limit(input.limit)
     .offset(input.offset)
     .all()
-  const unreadRow = db
+  const unreadRow = await db
     .select({ count: sql<number>`count(*)` })
     .from(notifications)
     .where(
@@ -152,12 +152,12 @@ export function listNotifications(input: {
   }
 }
 
-export function markNotificationRead(input: {
+export async function markNotificationRead(input: {
   id: string
   userId: string
   orgId: string
-}): NotificationRecord | null {
-  const existing = db
+}): Promise<NotificationRecord | null> {
+  const existing = await db
     .select()
     .from(notifications)
     .where(
@@ -172,7 +172,7 @@ export function markNotificationRead(input: {
   if (!existing) return null
 
   if (!existing.read) {
-    db.update(notifications)
+    await db.update(notifications)
       .set({ read: true })
       .where(eq(notifications.id, input.id))
       .run()
@@ -181,8 +181,8 @@ export function markNotificationRead(input: {
   return serializeNotification({ ...existing, read: true })
 }
 
-export function markAllNotificationsRead(input: { userId: string; orgId: string }): string[] {
-  const unread = db
+export async function markAllNotificationsRead(input: { userId: string; orgId: string }): Promise<string[]> {
+  const unread = await db
     .select({ id: notifications.id })
     .from(notifications)
     .where(
@@ -196,7 +196,7 @@ export function markAllNotificationsRead(input: { userId: string; orgId: string 
 
   if (unread.length === 0) return []
 
-  db.update(notifications)
+  await db.update(notifications)
     .set({ read: true })
     .where(
       and(

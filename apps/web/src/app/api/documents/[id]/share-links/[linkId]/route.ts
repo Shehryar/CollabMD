@@ -24,7 +24,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  db.delete(shareLinks)
+  await db.delete(shareLinks)
     .where(and(eq(shareLinks.id, linkId), eq(shareLinks.documentId, docId)))
     .run()
 

@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const membership = db
+  const membership = await db
     .select({ id: members.id })
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     Math.max(1, parsePositiveInt(request.nextUrl.searchParams.get('limit'), DEFAULT_PAGE_SIZE)),
   )
   const offset = parsePositiveInt(request.nextUrl.searchParams.get('offset'), 0)
-  const result = listNotifications({
+  const result = await listNotifications({
     userId: session.user.id,
     orgId,
     limit,

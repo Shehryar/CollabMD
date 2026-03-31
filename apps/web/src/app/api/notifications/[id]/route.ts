@@ -17,7 +17,7 @@ export async function PATCH(_request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const membership = db
+  const membership = await db
     .select({ id: members.id })
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -27,7 +27,7 @@ export async function PATCH(_request: Request, { params }: RouteParams) {
   }
 
   const { id } = await params
-  const notification = markNotificationRead({
+  const notification = await markNotificationRead({
     id,
     userId: session.user.id,
     orgId,

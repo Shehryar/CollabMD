@@ -259,17 +259,18 @@ function hasRecalcEffect(update: ViewUpdate): boolean {
 
 export const commentDecorationsTheme = EditorView.theme({
   '.cm-comment-highlight': {
-    backgroundColor: '#fef9c3',
-    borderRadius: '2px',
+    backgroundColor: 'rgba(250, 204, 21, 0.34)',
+    borderRadius: '3px',
+    boxShadow: 'inset 0 -1px 0 rgba(217, 119, 6, 0.25)',
     cursor: 'pointer',
   },
   '.cm-comment-highlight-resolved': {
-    backgroundColor: '#fef3c7',
-    opacity: 0.55,
+    backgroundColor: 'rgba(253, 224, 71, 0.18)',
+    opacity: 0.75,
   },
   '.cm-comment-highlight-active': {
-    backgroundColor: '#fde68a',
-    boxShadow: 'inset 0 0 0 1px #f59e0b66',
+    backgroundColor: 'rgba(251, 191, 36, 0.46)',
+    boxShadow: 'inset 0 0 0 1px rgba(217, 119, 6, 0.5)',
   },
   '.cm-suggestion-original': {
     color: '#dc2626',

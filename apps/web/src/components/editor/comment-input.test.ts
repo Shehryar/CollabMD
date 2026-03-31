@@ -119,6 +119,31 @@ describe('computePopoverPosition', () => {
     })
   })
 
+  describe('right-margin anchoring', () => {
+    it('uses preferredLeft and vertically centers when margin anchoring is requested', () => {
+      const result = computePopoverPosition(
+        { left: 400, top: 320, preferredLeft: 860 },
+        VIEWPORT,
+        200,
+      )
+      expect(result.left).toBe(860)
+      expect(result.top).toBe(220)
+      expect(result.anchoredToMargin).toBe(true)
+      expect(result.flipped).toBe(false)
+    })
+
+    it('clamps a margin-anchored popover into the viewport', () => {
+      const result = computePopoverPosition(
+        { left: 100, top: 790, preferredLeft: 1200 },
+        VIEWPORT,
+        240,
+      )
+      expect(result.left + POPOVER_WIDTH + VIEWPORT_PADDING).toBeLessThanOrEqual(VIEWPORT.width)
+      expect(result.top).toBeLessThanOrEqual(VIEWPORT.height - 240 - VIEWPORT_PADDING)
+      expect(result.anchoredToMargin).toBe(true)
+    })
+  })
+
   describe('edge cases', () => {
     it('uses estimated height when popoverHeight is undefined', () => {
       const withEstimate = computePopoverPosition({ left: 640, top: 300 }, VIEWPORT)

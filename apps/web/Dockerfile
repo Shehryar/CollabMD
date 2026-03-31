@@ -30,6 +30,9 @@ ENV DOCKER_BUILD=1
 # Dummy secrets for Next.js build-time page data collection (not used at runtime)
 ENV BETTER_AUTH_SECRET=build-time-placeholder
 ENV BETTER_AUTH_URL=http://localhost:3000
+# NEXT_PUBLIC_* vars are baked into the client bundle at build time
+ARG NEXT_PUBLIC_SYNC_URL=wss://collabmd.dev/sync
+ENV NEXT_PUBLIC_SYNC_URL=$NEXT_PUBLIC_SYNC_URL
 
 RUN pnpm --filter @collabmd/shared build && \
     pnpm --filter @collabmd/db build && \
@@ -46,6 +49,16 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+
+# @collabmd/db dynamically loads postgres + drizzle-orm/postgres-js via createRequire
+# which Next.js standalone tracer can't follow.
+# Install into a separate directory then copy to avoid workspace:* conflicts in package.json
+RUN cd /tmp && npm init -y > /dev/null 2>&1 && npm install postgres drizzle-orm && \
+    cp -r /tmp/node_modules/postgres /app/node_modules/postgres && \
+    cp -r /tmp/node_modules/drizzle-orm /app/node_modules/drizzle-orm && \
+    rm -rf /tmp/node_modules /tmp/package.json /tmp/package-lock.json
+COPY --from=builder /app/packages/db/dist ./packages/db/dist
+COPY --from=builder /app/packages/db/package.json ./packages/db/package.json
 
 EXPOSE 3000
 ENV PORT=3000

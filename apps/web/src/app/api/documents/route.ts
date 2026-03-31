@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'title and org id are required' }, { status: 400 })
   }
 
-  const membership = db
+  const membership = await db
     .select()
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (folderId) {
-    const folder = db.select().from(folders).where(eq(folders.id, folderId)).get()
+    const folder = await db.select().from(folders).where(eq(folders.id, folderId)).get()
     if (!folder) {
       return NextResponse.json({ error: 'folder not found' }, { status: 404 })
     }
@@ -95,9 +95,9 @@ export async function POST(request: NextRequest) {
   }
 
   const id = crypto.randomUUID()
-  const now = new Date()
+  const now = Date.now()
 
-  const doc = db
+  const doc = await db
     .insert(documents)
     .values({
       id,
@@ -121,13 +121,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Apply org-level default document permissions
-    const org = db.select().from(organizations).where(eq(organizations.id, orgId)).get()
+    const org = await db.select().from(organizations).where(eq(organizations.id, orgId)).get()
     if (org?.metadata) {
       try {
         const meta = JSON.parse(org.metadata)
         const defaultPerm = meta.defaultDocPermission as string | undefined
         if (defaultPerm && defaultPerm !== 'none') {
-          const orgMembers = db
+          const orgMembers = await db
             .select()
             .from(members)
             .where(eq(members.organizationId, orgId))
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     try {
-      db.delete(documents).where(eq(documents.id, id)).run()
+      await db.delete(documents).where(eq(documents.id, id)).run()
     } catch {
       // best effort cleanup
     }
@@ -217,7 +217,7 @@ export async function GET(request: NextRequest) {
       conditions.push(inArray(documents.id, ftsDocIds))
     }
 
-    const docs = db
+    const docs = await db
       .select()
       .from(documents)
       .where(and(...conditions))
@@ -233,7 +233,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(docsWithSnippets)
   }
 
-  const docs = db
+  const docs = await db
     .select()
     .from(documents)
     .where(and(...conditions))

@@ -183,10 +183,15 @@ function initPostgres(): { db: DbInstance; raw: AnyRawClient } {
   const { drizzle } = require('drizzle-orm/postgres-js')
   const pgSchema = require('./schema-pg.js')
 
-  const sql = pg(process.env.DATABASE_URL!, {
+  const url = process.env.DATABASE_URL!
+  const isPooler = url.includes('pooler.supabase.com')
+  const sql = pg(url, {
     max: 10,
     idle_timeout: 20,
     connect_timeout: 10,
+    // Supabase pooler (transaction mode) doesn't support prepared statements
+    prepare: isPooler ? false : undefined,
+    ssl: url.includes('sslmode=require') || url.includes('supabase.co') ? 'require' : undefined,
   })
 
   return { db: drizzle(sql, { schema: pgSchema }), raw: sql }
@@ -201,13 +206,64 @@ export function getDb(): DbInstance {
   return dbInstance
 }
 
+// ─── SQLite compat layer for Postgres mode ───
+// Drizzle's postgres-js driver doesn't have .get() or .all() methods
+// (those are SQLite-only). This proxy adds them to query builder chains
+// so all existing code works unchanged on both dialects.
+
+function wrapWithSqliteCompat(obj: AnyRawClient): AnyRawClient {
+  if (obj === null || typeof obj !== 'object') return obj
+  // Don't wrap native Promises (returned by .get()/.all()) or Arrays (resolved results)
+  if (obj instanceof Promise || Array.isArray(obj)) return obj
+  return new Proxy(obj, {
+    get(target, prop, receiver) {
+      // .get() → resolve to first row (like SQLite's synchronous .get())
+      if (prop === 'get' && typeof target.get !== 'function' && typeof target.then === 'function') {
+        return () => target.then((rows: AnyRawClient[]) => rows[0])
+      }
+      // .all() → resolve to all rows
+      if (prop === 'all' && typeof target.all !== 'function' && typeof target.then === 'function') {
+        return () => target.then((rows: AnyRawClient[]) => rows)
+      }
+      // .run() → execute and discard result (like SQLite's synchronous .run())
+      if (prop === 'run' && typeof target.run !== 'function' && typeof target.then === 'function') {
+        return () => target.then(() => undefined)
+      }
+      const value = Reflect.get(target, prop, receiver)
+      if (typeof value === 'function') {
+        return (...args: AnyRawClient[]) => {
+          const result = value.apply(target, args)
+          // Wrap chained builder returns (select → from → where → get)
+          if (result !== null && typeof result === 'object') {
+            return wrapWithSqliteCompat(result)
+          }
+          return result
+        }
+      }
+      return value
+    },
+  })
+}
+
 export const db: DbInstance = new Proxy(
   {} as DbInstance,
   {
     get(_target, prop, receiver) {
       const instance = getDb()
       const value = Reflect.get(instance, prop, receiver)
-      return typeof value === 'function' ? value.bind(instance) : value
+      if (typeof value === 'function') {
+        const bound = value.bind(instance)
+        if (!isPostgres) return bound
+        // In Postgres mode, wrap return values to add .get()/.all() compat
+        return (...args: AnyRawClient[]) => {
+          const result = bound(...args)
+          if (result !== null && typeof result === 'object') {
+            return wrapWithSqliteCompat(result)
+          }
+          return result
+        }
+      }
+      return value
     },
   },
 )

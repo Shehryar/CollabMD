@@ -3,7 +3,7 @@ import {
   text,
   integer,
   boolean,
-  timestamp,
+  bigint,
   index,
   uniqueIndex,
   customType,
@@ -24,8 +24,8 @@ export const users = pgTable('users', {
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').notNull().default(false),
   image: text('image'),
-  createdAt: timestamp('created_at').notNull(),
-  updatedAt: timestamp('updated_at').notNull(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
 })
 
 export const sessions = pgTable(
@@ -36,14 +36,14 @@ export const sessions = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     token: text('token').notNull().unique(),
-    expiresAt: timestamp('expires_at').notNull(),
+    expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
     activeOrganizationId: text('active_organization_id').references(() => organizations.id, {
       onDelete: 'set null',
     }),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     userIdIdx: index('sessions_user_id_idx').on(table.userId),
@@ -62,13 +62,13 @@ export const accounts = pgTable(
     providerId: text('provider_id').notNull(),
     accessToken: text('access_token'),
     refreshToken: text('refresh_token'),
-    accessTokenExpiresAt: timestamp('access_token_expires_at'),
-    refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+    accessTokenExpiresAt: bigint('access_token_expires_at', { mode: 'number' }),
+    refreshTokenExpiresAt: bigint('refresh_token_expires_at', { mode: 'number' }),
     scope: text('scope'),
     idToken: text('id_token'),
     password: text('password'),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     userIdIdx: index('accounts_user_id_idx').on(table.userId),
@@ -79,9 +79,9 @@ export const verifications = pgTable('verifications', {
   id: text('id').primaryKey(),
   identifier: text('identifier').notNull(),
   value: text('value').notNull(),
-  expiresAt: timestamp('expires_at').notNull(),
-  createdAt: timestamp('created_at'),
-  updatedAt: timestamp('updated_at'),
+  expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
+  createdAt: bigint('created_at', { mode: 'number' }),
+  updatedAt: bigint('updated_at', { mode: 'number' }),
 })
 
 // ─── Better Auth org plugin tables ───
@@ -92,7 +92,7 @@ export const organizations = pgTable('organizations', {
   slug: text('slug').unique(),
   logo: text('logo'),
   metadata: text('metadata'),
-  createdAt: timestamp('created_at').notNull(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 })
 
 export const members = pgTable(
@@ -106,7 +106,7 @@ export const members = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     role: text('role').notNull().default('member'),
-    createdAt: timestamp('created_at').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     organizationIdIdx: index('members_org_id_idx').on(table.organizationId),
@@ -128,8 +128,8 @@ export const invitations = pgTable(
     inviterId: text('inviter_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    expiresAt: timestamp('expires_at').notNull(),
-    createdAt: timestamp('created_at').notNull(),
+    expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     organizationIdIdx: index('invitations_org_id_idx').on(table.organizationId),
@@ -143,7 +143,7 @@ export const jwks = pgTable('jwks', {
   id: text('id').primaryKey(),
   publicKey: text('public_key').notNull(),
   privateKey: text('private_key').notNull(),
-  createdAt: timestamp('created_at').notNull(),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 })
 
 // ─── CollabMD application tables ───
@@ -162,7 +162,7 @@ export const folders = pgTable(
     createdBy: text('created_by')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     orgIdIdx: index('folders_org_id_idx').on(table.orgId),
@@ -187,9 +187,9 @@ export const documents = pgTable(
     isPublic: boolean('is_public').notNull().default(false),
     position: integer('position').notNull().default(0),
     agentEditable: boolean('agent_editable').notNull().default(true),
-    deletedAt: timestamp('deleted_at'),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
+    deletedAt: bigint('deleted_at', { mode: 'number' }),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     orgIdIdx: index('documents_org_id_idx').on(table.orgId),
@@ -212,7 +212,7 @@ export const documentSnapshots = pgTable(
       .notNull()
       .references(() => documents.id, { onDelete: 'cascade' }),
     snapshot: bytea('snapshot').notNull(),
-    createdAt: timestamp('created_at').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
     createdBy: text('created_by').references(() => users.id),
     isAgentEdit: boolean('is_agent_edit').notNull().default(false),
     label: text('label'),
@@ -233,11 +233,11 @@ export const shareLinks = pgTable(
     token: text('token').notNull().unique(),
     permission: text('permission').notNull().default('viewer'),
     passwordHash: text('password_hash'),
-    expiresAt: timestamp('expires_at'),
+    expiresAt: bigint('expires_at', { mode: 'number' }),
     createdBy: text('created_by')
       .notNull()
       .references(() => users.id),
-    createdAt: timestamp('created_at').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     documentIdIdx: index('share_links_document_id_idx').on(table.documentId),
@@ -258,7 +258,7 @@ export const webhooks = pgTable(
     createdBy: text('created_by')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
     active: boolean('active').notNull().default(true),
   },
   (table) => ({
@@ -280,8 +280,8 @@ export const webhookDeliveries = pgTable(
     statusCode: integer('status_code'),
     responseBody: text('response_body'),
     attemptCount: integer('attempt_count').notNull().default(1),
-    lastAttemptAt: timestamp('last_attempt_at').notNull(),
-    createdAt: timestamp('created_at').notNull(),
+    lastAttemptAt: bigint('last_attempt_at', { mode: 'number' }).notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     webhookIdIdx: index('webhook_deliveries_webhook_id_idx').on(table.webhookId),
@@ -304,9 +304,9 @@ export const agentKeys = pgTable(
     createdBy: text('created_by')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull(),
-    lastUsedAt: timestamp('last_used_at'),
-    revokedAt: timestamp('revoked_at'),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    lastUsedAt: bigint('last_used_at', { mode: 'number' }),
+    revokedAt: bigint('revoked_at', { mode: 'number' }),
   },
   (table) => ({
     orgIdIdx: index('agent_keys_org_id_idx').on(table.orgId),
@@ -322,8 +322,8 @@ export const userNotificationPreferences = pgTable(
       .primaryKey()
       .references(() => users.id, { onDelete: 'cascade' }),
     emailNotifications: text('email_notifications').notNull().default('all'),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     emailNotificationsIdx: index('user_notification_preferences_email_notifications_idx').on(
@@ -348,7 +348,7 @@ export const notifications = pgTable(
     resourceId: text('resource_id').notNull(),
     resourceType: text('resource_type').notNull(),
     read: boolean('read').notNull().default(false),
-    createdAt: timestamp('created_at').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     userIdIdx: index('notifications_user_id_idx').on(table.userId),

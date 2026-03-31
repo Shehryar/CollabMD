@@ -30,7 +30,7 @@ async function validateFolderForDocument(
   docOrgId: string,
   folderId: string,
 ): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
-  const folder = db.select().from(folders).where(eq(folders.id, folderId)).get()
+  const folder = await db.select().from(folders).where(eq(folders.id, folderId)).get()
   if (!folder) {
     return { ok: false, status: 404, error: 'folder not found' }
   }
@@ -75,7 +75,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  const doc = db
+  const doc = await db
     .select()
     .from(documents)
     .where(and(eq(documents.id, id), isNull(documents.deletedAt)))
@@ -86,7 +86,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   let orgAgentPolicy: AgentPolicy = 'enabled'
-  const org = db
+  const org = await db
     .select({ metadata: organizations.metadata })
     .from(organizations)
     .where(eq(organizations.id, doc.orgId))
@@ -120,7 +120,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const existing = db
+  const existing = await db
     .select()
     .from(documents)
     .where(and(eq(documents.id, id), isNull(documents.deletedAt)))
@@ -156,13 +156,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
   }
 
-  const updates: Record<string, unknown> = { updatedAt: new Date() }
+  const updates: Record<string, unknown> = { updatedAt: Date.now() }
   if (title !== undefined) updates.title = title
   if (folderId !== undefined) updates.folderId = folderId
   if (agentEditable !== undefined) updates.agentEditable = agentEditable
   if (position !== undefined) updates.position = position
 
-  const updated = db.update(documents).set(updates).where(eq(documents.id, id)).returning().get()
+  const updated = await db.update(documents).set(updates).where(eq(documents.id, id)).returning().get()
 
   if (!updated) {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
@@ -204,13 +204,13 @@ export async function DELETE(
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const doc = db.select().from(documents).where(eq(documents.id, id)).get()
+  const doc = await db.select().from(documents).where(eq(documents.id, id)).get()
   if (!doc) {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
 
   // Soft-delete and revoke FGA tuples to block further sync/read access while in trash.
-  db.update(documents).set({ deletedAt: new Date() }).where(eq(documents.id, id)).run()
+  await db.update(documents).set({ deletedAt: Date.now() }).where(eq(documents.id, id)).run()
 
   const tuples = await readTuples(`document:${id}`)
   for (const t of tuples) {

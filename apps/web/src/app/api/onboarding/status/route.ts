@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'no active organization' }, { status: 400 })
   }
 
-  const membership = db
+  const membership = await db
     .select({ id: members.id })
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'not a member of this organization' }, { status: 403 })
   }
 
-  const org = db
+  const org = await db
     .select({ id: organizations.id, name: organizations.name })
     .from(organizations)
     .where(eq(organizations.id, orgId))
@@ -44,19 +44,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'organization not found' }, { status: 404 })
   }
 
-  const docCount = db
+  const docCountRow = await db
     .select({ count: count() })
     .from(documents)
     .where(and(eq(documents.orgId, orgId), isNull(documents.deletedAt)))
-    .get()?.count ?? 0
+    .get()
+  const docCount = docCountRow?.count ?? 0
 
-  const memberCount = db
+  const memberCountRow = await db
     .select({ count: count() })
     .from(members)
     .where(eq(members.organizationId, orgId))
-    .get()?.count ?? 0
+    .get()
+  const memberCount = memberCountRow?.count ?? 0
 
-  const daemonSnapshot = db
+  const daemonSnapshot = await db
     .select({ id: documentSnapshots.id })
     .from(documentSnapshots)
     .innerJoin(documents, eq(documentSnapshots.documentId, documents.id))

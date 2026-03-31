@@ -37,8 +37,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'bad request' }, { status: 400 })
   }
 
-  const targetUser = db.select().from(users).where(eq(users.email, email)).get()
-  const document = db
+  const targetUser = await db.select().from(users).where(eq(users.email, email)).get()
+  const document = await db
     .select({ title: documents.title, orgId: documents.orgId })
     .from(documents)
     .where(eq(documents.id, docId))
@@ -97,9 +97,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   const userRows =
     uniqueUserIds.length > 0
-      ? uniqueUserIds
-          .map((uid) => db.select().from(users).where(eq(users.id, uid)).get())
-          .filter(Boolean)
+      ? (await Promise.all(
+          uniqueUserIds.map((uid) => db.select().from(users).where(eq(users.id, uid)).get()),
+        )).filter(Boolean)
       : []
 
   const userMap = new Map(userRows.map((u) => [u!.id, u!]))

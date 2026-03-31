@@ -56,12 +56,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     passwordHash = `${salt}:${hash.toString('hex')}`
   }
 
-  const now = new Date()
+  const now = Date.now()
   const expiresAt = expiresInDays
-    ? new Date(now.getTime() + expiresInDays * 24 * 60 * 60 * 1000)
+    ? now + expiresInDays * 24 * 60 * 60 * 1000
     : null
 
-  db.insert(shareLinks)
+  await db.insert(shareLinks)
     .values({
       id,
       documentId: docId,
@@ -79,8 +79,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       id,
       token,
       permission,
-      expiresAt: expiresAt?.toISOString() ?? null,
-      createdAt: now.toISOString(),
+      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+      createdAt: new Date(now).toISOString(),
     },
     { status: 201 },
   )
@@ -100,16 +100,16 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const links = db.select().from(shareLinks).where(eq(shareLinks.documentId, docId)).all()
+  const links = await db.select().from(shareLinks).where(eq(shareLinks.documentId, docId)).all()
 
   const result = links.map((link) => ({
     id: link.id,
     token: link.token,
     permission: link.permission,
     hasPassword: link.passwordHash !== null,
-    expiresAt: link.expiresAt?.toISOString() ?? null,
+    expiresAt: link.expiresAt ? new Date(link.expiresAt).toISOString() : null,
     createdBy: link.createdBy,
-    createdAt: link.createdAt.toISOString(),
+    createdAt: new Date(link.createdAt).toISOString(),
   }))
 
   return NextResponse.json(result)

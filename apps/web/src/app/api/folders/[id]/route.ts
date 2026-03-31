@@ -35,7 +35,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: 'name, parentId, or position is required' }, { status: 400 })
   }
 
-  const existing = db.select().from(folders).where(eq(folders.id, id)).get()
+  const existing = await db.select().from(folders).where(eq(folders.id, id)).get()
   if (!existing) {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
@@ -49,7 +49,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'cannot move folder into itself' }, { status: 400 })
     }
     if (parentId !== null) {
-      const target = db.select().from(folders).where(eq(folders.id, parentId)).get()
+      const target = await db.select().from(folders).where(eq(folders.id, parentId)).get()
       if (!target) {
         return NextResponse.json({ error: 'target parent folder not found' }, { status: 404 })
       }
@@ -68,7 +68,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             { status: 400 },
           )
         }
-        const ancestor = db.select().from(folders).where(eq(folders.id, cursor)).get()
+        const ancestor = await db.select().from(folders).where(eq(folders.id, cursor)).get()
         cursor = ancestor?.parentId ?? null
       }
     }
@@ -87,7 +87,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   ) as string | null
   let newPath: string
   if (effectiveParentId) {
-    const parent = db.select().from(folders).where(eq(folders.id, effectiveParentId)).get()
+    const parent = await db.select().from(folders).where(eq(folders.id, effectiveParentId)).get()
     newPath = parent ? `${parent.path}/${effectiveName}` : `/${effectiveName}`
   } else {
     newPath = `/${effectiveName}`
@@ -96,11 +96,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (name) updates.name = name
   updates.path = newPath
 
-  const updated = db.update(folders).set(updates).where(eq(folders.id, id)).returning().get()
+  const updated = await db.update(folders).set(updates).where(eq(folders.id, id)).returning().get()
 
   // Keep descendant paths in sync when path changes.
   if (newPath !== existing.path) {
-    const descendants = db
+    const descendants = await db
       .select()
       .from(folders)
       .where(and(eq(folders.orgId, existing.orgId), like(folders.path, `${existing.path}/%`)))
@@ -108,7 +108,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     for (const child of descendants) {
       const nextPath = child.path.replace(existing.path, newPath)
-      db.update(folders).set({ path: nextPath }).where(eq(folders.id, child.id)).run()
+      await db.update(folders).set({ path: nextPath }).where(eq(folders.id, child.id)).run()
     }
   }
 
@@ -136,8 +136,8 @@ export async function DELETE(
   }
 
   // Check folder is empty: no docs and no child folders
-  const childDoc = db.select().from(documents).where(eq(documents.folderId, id)).get()
-  const childFolder = db.select().from(folders).where(eq(folders.parentId, id)).get()
+  const childDoc = await db.select().from(documents).where(eq(documents.folderId, id)).get()
+  const childFolder = await db.select().from(folders).where(eq(folders.parentId, id)).get()
 
   if (childDoc || childFolder) {
     return NextResponse.json({ error: 'folder not empty' }, { status: 409 })
@@ -149,7 +149,7 @@ export async function DELETE(
     await deleteTuple(t.user, t.relation, t.object)
   }
 
-  db.delete(folders).where(eq(folders.id, id)).run()
+  await db.delete(folders).where(eq(folders.id, id)).run()
 
   return NextResponse.json({ ok: true })
 }

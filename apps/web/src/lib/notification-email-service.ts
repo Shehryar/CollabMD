@@ -4,45 +4,37 @@ import {
   type EmailNotificationPreference,
 } from '@collabmd/shared'
 
-const DEFAULT_FROM = 'CollabMD <onboarding@resend.dev>'
-
 function normalizeBaseUrl(baseUrl?: string): string {
   return (process.env.BETTER_AUTH_URL ?? baseUrl ?? 'http://localhost:3000').replace(/\/+$/, '')
 }
 
-async function sendEmail(input: {
-  to: string
-  subject: string
-  text: string
-  html: string
-}): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY
+async function sendLoopsTransactional(
+  transactionalId: string,
+  email: string,
+  dataVariables: Record<string, string>,
+): Promise<void> {
+  const apiKey = process.env.LOOPS_API_KEY
   if (!apiKey) {
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`\n=== EMAIL ===\nTo: ${input.to}\nSubject: ${input.subject}\n\n${input.text}\n=============\n`)
+      console.log(
+        `\n=== EMAIL (no LOOPS_API_KEY) ===\nTo: ${email}\nTemplate: ${transactionalId}\nVars: ${JSON.stringify(dataVariables)}\n=============\n`,
+      )
     }
     return
   }
 
-  const res = await fetch('https://api.resend.com/emails', {
+  const res = await fetch('https://app.loops.so/api/v1/transactional', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      from: process.env.RESEND_FROM_EMAIL ?? DEFAULT_FROM,
-      to: [input.to],
-      subject: input.subject,
-      text: input.text,
-      html: input.html,
-    }),
-    cache: 'no-store',
+    body: JSON.stringify({ transactionalId, email, dataVariables }),
   })
 
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    console.error(`[email] Failed to send notification email (${res.status}): ${body}`)
+    console.error(`[email] Loops transactional failed (${res.status}): ${body}`)
   }
 }
 
@@ -57,24 +49,37 @@ export async function sendShareInviteEmail(input: {
 }): Promise<void> {
   if (!shouldSendNotificationEmail(input.preference, 'share_invite')) return
 
+  const transactionalId = process.env.LOOPS_SHARE_INVITE_TRANSACTIONAL_ID
+  if (!transactionalId) {
+    // Fall back to console log in dev
+    const baseUrl = normalizeBaseUrl(input.baseUrl)
+    const email = buildShareInviteEmail({
+      inviterName: input.inviterName,
+      resourceName: input.resourceName,
+      resourceType: input.resourceType,
+      resourceUrl:
+        input.resourceType === 'document'
+          ? `${baseUrl}/doc/${input.resourceId}`
+          : `${baseUrl}/?folder=${encodeURIComponent(input.resourceId)}`,
+      preferencesUrl: `${baseUrl}/settings/notifications`,
+    })
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`\n=== EMAIL ===\nTo: ${input.to}\nSubject: ${email.subject}\n\n${email.text}\n=============\n`)
+    }
+    return
+  }
+
   const baseUrl = normalizeBaseUrl(input.baseUrl)
   const resourceUrl =
     input.resourceType === 'document'
       ? `${baseUrl}/doc/${input.resourceId}`
       : `${baseUrl}/?folder=${encodeURIComponent(input.resourceId)}`
 
-  const email = buildShareInviteEmail({
+  await sendLoopsTransactional(transactionalId, input.to, {
     inviterName: input.inviterName,
     resourceName: input.resourceName,
     resourceType: input.resourceType,
     resourceUrl,
     preferencesUrl: `${baseUrl}/settings/notifications`,
-  })
-
-  await sendEmail({
-    to: input.to,
-    subject: email.subject,
-    text: email.text,
-    html: email.html,
   })
 }

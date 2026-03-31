@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'snapshotId is required' }, { status: 400 })
   }
 
-  const targetSnapshot = db
+  const targetSnapshot = await db
     .select({
       id: documentSnapshots.id,
       snapshot: documentSnapshots.snapshot,
@@ -62,12 +62,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const currentStateBuffer = Buffer.from(await currentStateRes.arrayBuffer())
-  const targetTimestamp = targetSnapshot.createdAt.toISOString()
+  const targetTimestamp = new Date(targetSnapshot.createdAt).toISOString()
   const beforeRevertLabel = `Before revert to ${targetTimestamp}`
   const revertedLabel = `Reverted to ${targetTimestamp}`
-  const now = new Date()
+  const now = Date.now()
 
-  db.insert(documentSnapshots)
+  await db.insert(documentSnapshots)
     .values({
       id: crypto.randomUUID(),
       documentId: docId,
@@ -91,12 +91,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'failed to replace document state' }, { status: 502 })
   }
 
-  db.insert(documentSnapshots)
+  await db.insert(documentSnapshots)
     .values({
       id: crypto.randomUUID(),
       documentId: docId,
       snapshot: targetSnapshot.snapshot,
-      createdAt: new Date(),
+      createdAt: Date.now(),
       createdBy: session.user.id,
       isAgentEdit: false,
       label: revertedLabel,

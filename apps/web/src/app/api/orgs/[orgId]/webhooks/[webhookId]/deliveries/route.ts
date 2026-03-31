@@ -9,7 +9,7 @@ async function requireOrgAdmin(orgId: string): Promise<true | NextResponse> {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  const membership = db
+  const membership = await db
     .select()
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -44,7 +44,7 @@ export async function GET(
   const authz = await requireOrgAdmin(orgId)
   if (authz !== true) return authz
 
-  const webhook = db
+  const webhook = await db
     .select()
     .from(webhooks)
     .where(and(eq(webhooks.id, webhookId), eq(webhooks.orgId, orgId)))
@@ -53,7 +53,7 @@ export async function GET(
     return NextResponse.json({ error: 'webhook not found' }, { status: 404 })
   }
 
-  const deliveries = db
+  const deliveries = await db
     .select()
     .from(webhookDeliveries)
     .where(eq(webhookDeliveries.webhookId, webhookId))
@@ -70,8 +70,8 @@ export async function GET(
       statusCode: delivery.statusCode,
       responseBody: delivery.responseBody,
       attemptCount: delivery.attemptCount,
-      lastAttemptAt: delivery.lastAttemptAt.toISOString(),
-      createdAt: delivery.createdAt.toISOString(),
+      lastAttemptAt: new Date(delivery.lastAttemptAt).toISOString(),
+      createdAt: new Date(delivery.createdAt).toISOString(),
     })),
   )
 }

@@ -156,6 +156,30 @@ describe('markdown preview mermaid rendering', () => {
   })
 })
 
+describe('markdown preview table rendering', () => {
+  it('renders GFM tables as HTML tables in preview mode', () => {
+    const doc = ['| Field | Type | Notes |', '| --- | --- | --- |', '| id | uuid | primary key |', '| title | text | required |', '', 'After'].join('\n')
+    createView(doc, doc.length)
+
+    const table = view?.dom.querySelector<HTMLTableElement>('.cm-md-table')
+    const headers = Array.from(table?.querySelectorAll('th') ?? []).map((node) => node.textContent)
+    const firstRow = Array.from(table?.querySelectorAll('tbody tr:first-child td') ?? []).map((node) => node.textContent)
+
+    expect(table).not.toBeNull()
+    expect(headers).toEqual(['Field', 'Type', 'Notes'])
+    expect(firstRow).toEqual(['id', 'uuid', 'primary key'])
+    expect(view?.dom.textContent).not.toContain('| Field | Type | Notes |')
+  })
+
+  it('shows raw table markdown while the cursor is inside the table', () => {
+    const doc = ['| Field | Type |', '| --- | --- |', '| id | uuid |'].join('\n')
+    createView(doc, 5)
+
+    expect(view?.dom.querySelector('.cm-md-table')).toBeNull()
+    expect(view?.dom.textContent).toContain('| Field | Type |')
+  })
+})
+
 describe('markdown preview list rendering', () => {
   it('renders bullet list items with a single bullet marker', () => {
     const doc = '- Item one\n- Item two\n\n'

@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ cliAuthenticated, daemonConnected: false })
   }
 
-  const membership = db
+  const membership = await db
     .select({ id: members.id })
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
 
   const connectedDoc =
     connectedDocIds.length > 0
-      ? db
+      ? await db
           .select({ id: documents.id })
           .from(documents)
           .where(

@@ -19,7 +19,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const snapshot = db
+  const snapshot = await db
     .select({
       id: documentSnapshots.id,
       snapshot: documentSnapshots.snapshot,
@@ -45,7 +45,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   return NextResponse.json({
     id: snapshot.id,
-    createdAt: snapshot.createdAt.toISOString(),
+    createdAt: new Date(snapshot.createdAt).toISOString(),
     createdBy: snapshot.createdBy,
     createdByName: snapshot.createdByName,
     isAgentEdit: snapshot.isAgentEdit,

@@ -8,24 +8,51 @@ export interface PopoverPosition {
   top: number
   flipped: boolean
   arrowLeft: number
+  anchoredToMargin: boolean
 }
 
 /**
  * Compute a viewport-clamped position for the comment popover.
  *
+ * Default behavior:
  * - Horizontally centers on `anchor.left`, clamped so the popover never
  *   overflows left or right viewport edges.
  * - Prefers positioning below the anchor; flips above if there is
  *   insufficient space below.
  * - Returns an `arrowLeft` offset (relative to the popover) that
  *   points back at the original anchor.
+ *
+ * Margin-anchored behavior:
+ * - When `anchor.preferredLeft` is provided, the popover hugs that
+ *   right-margin X position and vertically centers on `anchor.top`.
+ * - This is used for the comment composer so it behaves more like a
+ *   Google Docs margin note than a tooltip under the selection.
  */
 export function computePopoverPosition(
-  anchor: { left: number; top: number },
+  anchor: { left: number; top: number; preferredLeft?: number },
   viewport: { width: number; height: number },
   popoverHeight?: number,
 ): PopoverPosition {
   const height = popoverHeight ?? POPOVER_ESTIMATED_HEIGHT
+
+  if (typeof anchor.preferredLeft === 'number') {
+    const left = Math.max(
+      VIEWPORT_PADDING,
+      Math.min(anchor.preferredLeft, viewport.width - POPOVER_WIDTH - VIEWPORT_PADDING),
+    )
+    const top = Math.max(
+      VIEWPORT_PADDING,
+      Math.min(anchor.top - height / 2, viewport.height - height - VIEWPORT_PADDING),
+    )
+
+    return {
+      left,
+      top,
+      flipped: false,
+      arrowLeft: ARROW_SIZE + 4,
+      anchoredToMargin: true,
+    }
+  }
 
   // Horizontal: center the popover on the anchor, then clamp to viewport
   const idealLeft = anchor.left - POPOVER_WIDTH / 2
@@ -46,5 +73,5 @@ export function computePopoverPosition(
     ? Math.max(VIEWPORT_PADDING, anchor.top - height - ARROW_SIZE - 8)
     : anchor.top + ARROW_SIZE
 
-  return { left, top, flipped, arrowLeft }
+  return { left, top, flipped, arrowLeft, anchoredToMargin: false }
 }

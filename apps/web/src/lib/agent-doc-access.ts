@@ -62,7 +62,7 @@ export async function authorizeAgentForDocument(
     }
   }
 
-  const document = db
+  const document = await db
     .select({
       id: documents.id,
       orgId: documents.orgId,
@@ -81,7 +81,7 @@ export async function authorizeAgentForDocument(
     return { error: NextResponse.json({ error: 'forbidden' }, { status: 403 }) }
   }
 
-  const org = db.select().from(organizations).where(eq(organizations.id, document.orgId)).get()
+  const org = await db.select().from(organizations).where(eq(organizations.id, document.orgId)).get()
   let agentPolicy = 'enabled'
   if (org?.metadata) {
     try {

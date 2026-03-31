@@ -100,7 +100,7 @@ export async function setUserEmailNotificationPreference(
   userId: string,
   preference: EmailNotificationPreference,
 ): Promise<EmailNotificationPreference> {
-  const now = new Date()
+  const now = Date.now()
 
   await db
     .insert(userNotificationPreferences)

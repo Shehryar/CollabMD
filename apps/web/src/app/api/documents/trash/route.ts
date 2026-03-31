@@ -9,7 +9,7 @@ export async function GET() {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  const trashed = db
+  const trashed = await db
     .select()
     .from(documents)
     .where(and(eq(documents.ownerId, session.user.id), isNotNull(documents.deletedAt)))

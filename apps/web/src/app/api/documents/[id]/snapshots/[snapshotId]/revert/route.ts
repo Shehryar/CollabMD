@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const snapshot = db
+  const snapshot = await db
     .select({
       id: documentSnapshots.id,
       snapshot: documentSnapshots.snapshot,
@@ -51,15 +51,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'failed to replace document state' }, { status: 502 })
   }
 
-  db.insert(documentSnapshots)
+  await db.insert(documentSnapshots)
     .values({
       id: crypto.randomUUID(),
       documentId: docId,
       snapshot: snapshot.snapshot,
-      createdAt: new Date(),
+      createdAt: Date.now(),
       createdBy: session.user.id,
       isAgentEdit: false,
-      label: `Reverted to ${snapshot.createdAt.toISOString()}`,
+      label: `Reverted to ${new Date(snapshot.createdAt).toISOString()}`,
     })
     .run()
 

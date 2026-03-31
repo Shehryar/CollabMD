@@ -28,13 +28,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const { token } = await params
 
-  const link = db.select().from(shareLinks).where(eq(shareLinks.token, token)).get()
+  const link = await db.select().from(shareLinks).where(eq(shareLinks.token, token)).get()
 
   if (!link) {
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
 
-  if (link.expiresAt && link.expiresAt < new Date()) {
+  if (link.expiresAt && link.expiresAt < Date.now()) {
     return NextResponse.json({ error: 'expired' }, { status: 410 })
   }
 

@@ -56,7 +56,7 @@ export async function authenticateAgentKey(request: NextRequest): Promise<
   }
 
   const hash = crypto.createHash('sha256').update(rawKey).digest('hex')
-  const key = db
+  const key = await db
     .select()
     .from(agentKeys)
     .where(and(eq(agentKeys.keyHash, hash), isNull(agentKeys.revokedAt)))
@@ -68,7 +68,7 @@ export async function authenticateAgentKey(request: NextRequest): Promise<
     }
   }
 
-  db.update(agentKeys).set({ lastUsedAt: new Date() }).where(eq(agentKeys.id, key.id)).run()
+  await db.update(agentKeys).set({ lastUsedAt: Date.now() }).where(eq(agentKeys.id, key.id)).run()
 
   return {
     context: {

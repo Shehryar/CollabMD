@@ -45,9 +45,46 @@ export const auth = betterAuth({
       creatorRole: 'owner',
     }),
     magicLink({
-      sendMagicLink: async ({ email, url }) => {
+      disableSignUp: false,
+      sendMagicLink: async ({ email, url: rawUrl }) => {
+        // Deduplicate callbackURL params — Better Auth can add it twice
+        const parsed = new URL(rawUrl)
+        const cbValues = parsed.searchParams.getAll('callbackURL')
+        if (cbValues.length > 1) {
+          parsed.searchParams.delete('callbackURL')
+          parsed.searchParams.set('callbackURL', cbValues[0])
+        }
+        const url = parsed.toString()
+        console.log(`[magic-link] rawUrl: ${rawUrl}`)
+        console.log(`[magic-link] cleaned url: ${url}`)
         if (process.env.NODE_ENV === 'development') {
           console.log(`\n=== MAGIC LINK ===\nTo: ${email}\n${url}\n==================\n`)
+          return
+        }
+
+        const apiKey = process.env.LOOPS_API_KEY
+        const transactionalId = process.env.LOOPS_MAGIC_LINK_TRANSACTIONAL_ID
+        if (!apiKey || !transactionalId) {
+          console.error('Missing LOOPS_API_KEY or LOOPS_MAGIC_LINK_TRANSACTIONAL_ID')
+          return
+        }
+
+        const res = await fetch('https://app.loops.so/api/v1/transactional', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            transactionalId,
+            email,
+            dataVariables: { magicLinkUrl: url },
+          }),
+        })
+
+        if (!res.ok) {
+          const body = await res.text()
+          console.error(`Loops magic link email failed: ${res.status} ${body}`)
         }
       },
     }),

@@ -19,9 +19,9 @@ export async function hardDeleteDocument(docId: string) {
   }
 
   // 3. Delete DB rows in a single transaction.
-  db.transaction((tx) => {
-    tx.delete(shareLinks).where(eq(shareLinks.documentId, docId)).run()
-    tx.delete(documentSnapshots).where(eq(documentSnapshots.documentId, docId)).run()
-    tx.delete(documents).where(eq(documents.id, docId)).run()
+  await db.transaction(async (tx) => {
+    await tx.delete(shareLinks).where(eq(shareLinks.documentId, docId)).run()
+    await tx.delete(documentSnapshots).where(eq(documentSnapshots.documentId, docId)).run()
+    await tx.delete(documents).where(eq(documents.id, docId)).run()
   })
 }

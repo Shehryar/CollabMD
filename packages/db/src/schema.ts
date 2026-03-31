@@ -148,7 +148,7 @@ export const folders = sqliteTable(
     createdBy: text('created_by')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     orgIdIdx: index('folders_org_id_idx').on(table.orgId),
@@ -173,9 +173,9 @@ export const documents = sqliteTable(
     isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
     position: integer('position').notNull().default(0),
     agentEditable: integer('agent_editable', { mode: 'boolean' }).notNull().default(true),
-    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+    deletedAt: integer('deleted_at', { mode: 'number' }),
+    createdAt: integer('created_at', { mode: 'number' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     orgIdIdx: index('documents_org_id_idx').on(table.orgId),
@@ -198,7 +198,7 @@ export const documentSnapshots = sqliteTable(
       .notNull()
       .references(() => documents.id, { onDelete: 'cascade' }),
     snapshot: blob('snapshot', { mode: 'buffer' }).notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'number' }).notNull(),
     createdBy: text('created_by').references(() => users.id),
     isAgentEdit: integer('is_agent_edit', { mode: 'boolean' }).notNull().default(false),
     label: text('label'),
@@ -219,11 +219,11 @@ export const shareLinks = sqliteTable(
     token: text('token').notNull().unique(),
     permission: text('permission').notNull().default('viewer'),
     passwordHash: text('password_hash'),
-    expiresAt: integer('expires_at', { mode: 'timestamp' }),
+    expiresAt: integer('expires_at', { mode: 'number' }),
     createdBy: text('created_by')
       .notNull()
       .references(() => users.id),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     documentIdIdx: index('share_links_document_id_idx').on(table.documentId),
@@ -244,7 +244,7 @@ export const webhooks = sqliteTable(
     createdBy: text('created_by')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'number' }).notNull(),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
   },
   (table) => ({
@@ -266,8 +266,8 @@ export const webhookDeliveries = sqliteTable(
     statusCode: integer('status_code'),
     responseBody: text('response_body'),
     attemptCount: integer('attempt_count').notNull().default(1),
-    lastAttemptAt: integer('last_attempt_at', { mode: 'timestamp' }).notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    lastAttemptAt: integer('last_attempt_at', { mode: 'number' }).notNull(),
+    createdAt: integer('created_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     webhookIdIdx: index('webhook_deliveries_webhook_id_idx').on(table.webhookId),
@@ -290,9 +290,9 @@ export const agentKeys = sqliteTable(
     createdBy: text('created_by')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-    lastUsedAt: integer('last_used_at', { mode: 'timestamp' }),
-    revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'number' }).notNull(),
+    lastUsedAt: integer('last_used_at', { mode: 'number' }),
+    revokedAt: integer('revoked_at', { mode: 'number' }),
   },
   (table) => ({
     orgIdIdx: index('agent_keys_org_id_idx').on(table.orgId),
@@ -308,8 +308,8 @@ export const userNotificationPreferences = sqliteTable(
       .primaryKey()
       .references(() => users.id, { onDelete: 'cascade' }),
     emailNotifications: text('email_notifications').notNull().default('all'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'number' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     emailNotificationsIdx: index('user_notification_preferences_email_notifications_idx').on(
@@ -334,7 +334,7 @@ export const notifications = sqliteTable(
     resourceId: text('resource_id').notNull(),
     resourceType: text('resource_type').notNull(),
     read: integer('read', { mode: 'boolean' }).notNull().default(false),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'number' }).notNull(),
   },
   (table) => ({
     userIdIdx: index('notifications_user_id_idx').on(table.userId),

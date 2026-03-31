@@ -762,6 +762,7 @@ export function createSyncServer(config?: SyncServerConfig) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 })
 
   server.on('upgrade', async (req, socket, head) => {
+    const upgradeStart = Date.now()
     try {
       const url = new URL(req.url!, 'http://localhost')
       const roomName = decodeURIComponent(url.pathname.slice(1) || 'default')
@@ -845,10 +846,16 @@ export function createSyncServer(config?: SyncServerConfig) {
         }
       }
 
+      const authDone = Date.now()
       const room = getRoom(roomName)
       await hydrateRoom(room)
+      const hydrateDone = Date.now()
 
       wss.handleUpgrade(req, socket, head, (ws) => {
+        const upgradeDone = Date.now()
+        console.log(
+          `[sync] connected room=${roomName} source=${source} auth=${authDone - upgradeStart}ms hydrate=${hydrateDone - authDone}ms upgrade=${upgradeDone - hydrateDone}ms total=${upgradeDone - upgradeStart}ms`,
+        )
         // Store connection metadata
         connMeta.set(ws, { source, userId: userId ?? undefined, canEdit })
 
@@ -879,7 +886,7 @@ export function createSyncServer(config?: SyncServerConfig) {
         setupConnection(ws, room)
       })
     } catch (err) {
-      console.error('[sync-server] WebSocket upgrade error:', err)
+      console.error(`[sync] upgrade error after ${Date.now() - upgradeStart}ms:`, err)
       socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n')
       socket.destroy()
     }

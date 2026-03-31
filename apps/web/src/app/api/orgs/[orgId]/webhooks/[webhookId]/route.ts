@@ -15,7 +15,7 @@ async function requireOrgAdmin(orgId: string): Promise<
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  const membership = db
+  const membership = await db
     .select()
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -47,7 +47,7 @@ export async function DELETE(
   })
   if (rateLimitError) return rateLimitError
 
-  const existing = db
+  const existing = await db
     .select()
     .from(webhooks)
     .where(and(eq(webhooks.id, webhookId), eq(webhooks.orgId, orgId)))
@@ -56,6 +56,6 @@ export async function DELETE(
     return NextResponse.json({ error: 'webhook not found' }, { status: 404 })
   }
 
-  db.delete(webhooks).where(eq(webhooks.id, webhookId)).run()
+  await db.delete(webhooks).where(eq(webhooks.id, webhookId)).run()
   return NextResponse.json({ ok: true })
 }

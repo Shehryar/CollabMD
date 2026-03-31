@@ -4,10 +4,21 @@ import model from './model.json'
 
 let fgaClient: OpenFgaClient | null = null
 let resolvedStoreId: string | null = null
+let initPromise: Promise<OpenFgaClient> | null = null
 
 export async function getFgaClient(): Promise<OpenFgaClient> {
   if (fgaClient) return fgaClient
+  // Prevent concurrent callers from creating duplicate stores
+  if (initPromise) return initPromise
+  initPromise = initFgaClient()
+  try {
+    return await initPromise
+  } finally {
+    initPromise = null
+  }
+}
 
+async function initFgaClient(): Promise<OpenFgaClient> {
   const apiUrl = process.env.OPENFGA_URL ?? defaultConfig.permissions.url
 
   const tempClient = new OpenFgaClient({ apiUrl })
@@ -21,13 +32,29 @@ export async function getFgaClient(): Promise<OpenFgaClient> {
     resolvedStoreId = created.id!
   }
 
-  fgaClient = new OpenFgaClient({ apiUrl, storeId: resolvedStoreId })
-  return fgaClient
+  const client = new OpenFgaClient({ apiUrl, storeId: resolvedStoreId })
+
+  // Ensure the auth model exists — in dev this is done by scripts/dev.ts,
+  // but in production the first caller must seed it.
+  const { authorization_models } = await client.readAuthorizationModels({ pageSize: 1 })
+  if (!authorization_models || authorization_models.length === 0) {
+    const { authorization_model_id } = await client.writeAuthorizationModel(
+      model as unknown as WriteAuthorizationModelRequest,
+    )
+    client.authorizationModelId = authorization_model_id!
+    console.log(`[fga] Auto-wrote auth model: ${authorization_model_id}`)
+  } else {
+    client.authorizationModelId = authorization_models[0].id!
+  }
+
+  fgaClient = client
+  return client
 }
 
 export function resetFgaClient(): void {
   fgaClient = null
   resolvedStoreId = null
+  initPromise = null
 }
 
 export async function writeAuthModel(): Promise<string> {

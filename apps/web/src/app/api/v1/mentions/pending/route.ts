@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
     conditions.push(eq(documents.id, documentIdFilter))
   }
 
-  const rows = db
+  const rows = await db
     .select({
       id: documents.id,
       title: documents.title,

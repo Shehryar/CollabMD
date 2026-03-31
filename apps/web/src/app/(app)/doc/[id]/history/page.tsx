@@ -128,6 +128,7 @@ function ReadonlyEditor({ text }: { text: string }) {
           highlightActiveLineGutter(),
           highlightActiveLine(),
           drawSelection(),
+          EditorView.lineWrapping,
           indentOnInput(),
           bracketMatching(),
           closeBrackets(),

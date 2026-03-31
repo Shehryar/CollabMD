@@ -18,7 +18,7 @@ export async function DELETE(
   if (rateLimitError) return rateLimitError
 
   const { id } = await params
-  const doc = db.select().from(documents).where(eq(documents.id, id)).get()
+  const doc = await db.select().from(documents).where(eq(documents.id, id)).get()
 
   if (!doc) {
     return NextResponse.json({ error: 'not found' }, { status: 404 })

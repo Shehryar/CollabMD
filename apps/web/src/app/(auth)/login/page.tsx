@@ -34,7 +34,7 @@ function LoginForm() {
     setLoading(true)
     setError('')
     try {
-      await signIn.magicLink({ email, callbackURL })
+      await signIn.magicLink({ email, callbackURL: callbackURL || '/' })
       setSent(true)
     } catch {
       setError('Failed to send magic link. Please try again.')

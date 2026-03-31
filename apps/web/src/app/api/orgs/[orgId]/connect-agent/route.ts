@@ -49,7 +49,7 @@ async function requireOrgAdmin(orgId: string): Promise<
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  const membership = db
+  const membership = await db
     .select()
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -113,9 +113,9 @@ export async function POST(
   // 1. Create API key
   const rawKey = createRawAgentKey()
   const keyId = crypto.randomUUID()
-  const createdAt = new Date()
+  const createdAt = Date.now()
 
-  db.insert(agentKeys)
+  await db.insert(agentKeys)
     .values({
       id: keyId,
       keyHash: hashKey(rawKey),
@@ -136,7 +136,7 @@ export async function POST(
     const secret = `whsec_${crypto.randomBytes(24).toString('hex')}`
     const encryptedSecret = encryptWebhookSecret(secret)
 
-    db.insert(webhooks)
+    await db.insert(webhooks)
       .values({
         id: crypto.randomUUID(),
         orgId,
@@ -153,7 +153,7 @@ export async function POST(
   }
 
   // 3. Update agent registry in org metadata
-  const org = db.select().from(organizations).where(eq(organizations.id, orgId)).get()
+  const org = await db.select().from(organizations).where(eq(organizations.id, orgId)).get()
   let existingMetadata: Record<string, unknown> = {}
   try {
     existingMetadata = org?.metadata ? JSON.parse(org.metadata) : {}
@@ -165,7 +165,7 @@ export async function POST(
   existingAgents.push({ name, description, enabled: true })
   existingMetadata.agents = existingAgents
 
-  db.update(organizations)
+  await db.update(organizations)
     .set({ metadata: JSON.stringify(existingMetadata) })
     .where(eq(organizations.id, orgId))
     .run()

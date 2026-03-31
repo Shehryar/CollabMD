@@ -15,7 +15,7 @@ export async function POST() {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const membership = db
+  const membership = await db
     .select({ id: members.id })
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -24,7 +24,7 @@ export async function POST() {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const ids = markAllNotificationsRead({
+  const ids = await markAllNotificationsRead({
     userId: session.user.id,
     orgId,
   })

@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'name and org id are required' }, { status: 400 })
   }
 
-  const membership = db
+  const membership = await db
     .select()
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   let path = `/${name}`
 
   if (parentId) {
-    const parent = db.select().from(folders).where(eq(folders.id, parentId)).get()
+    const parent = await db.select().from(folders).where(eq(folders.id, parentId)).get()
     if (!parent) {
       return NextResponse.json({ error: 'parent folder not found' }, { status: 404 })
     }
@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
   }
 
   const id = crypto.randomUUID()
-  const now = new Date()
+  const now = Date.now()
 
-  const folder = db
+  const folder = await db
     .insert(folders)
     .values({
       id,
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json([])
   }
 
-  const result = db
+  const result = await db
     .select()
     .from(folders)
     .where(and(inArray(folders.id, folderIds), eq(folders.orgId, orgId)))

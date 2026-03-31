@@ -38,6 +38,7 @@ import { formattingKeymap } from './formatting-commands'
 import FormattingToolbar from './formatting-toolbar'
 import CommentPanel from './comment-panel'
 import CommentInput from './comment-input'
+import { POPOVER_WIDTH } from './comment-popover-position'
 import { createCommentDecorations, setActiveComment } from './comment-decorations'
 import { conflictPlugin, conflictTheme } from './conflict-decorations'
 import { useComments } from './use-comments'
@@ -55,7 +56,7 @@ import { useCommentPositions } from './use-comment-positions'
 
 const pendingCommentMark = Decoration.mark({ class: 'cm-pending-comment' })
 const setPendingCommentRange = StateEffect.define<{ from: number; to: number } | null>()
-const selectionHighlightColor = 'rgba(194, 104, 43, 0.22)'
+const selectionHighlightColor = 'rgba(194, 104, 43, 0.34)'
 
 const pendingCommentField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
@@ -126,6 +127,8 @@ interface SelectionAnchor {
   to: number
   buttonLeft: number
   buttonTop: number
+  popoverLeft: number
+  popoverTop: number
 }
 
 interface CollabEditorProps {
@@ -158,19 +161,35 @@ function getSelectionAnchor(view: EditorView, from: number, to: number): Selecti
   const end = view.coordsAtPos(to)
   if (!start || !end) return null
 
-  const center = (Math.min(start.left, end.left) + Math.max(start.right, end.right)) / 2
-  const bottom = Math.max(start.bottom, end.bottom)
+  const editorRect = view.dom.getBoundingClientRect()
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  const selectionMidY = (Math.min(start.top, end.top) + Math.max(start.bottom, end.bottom)) / 2
 
   const buttonWidth = 100
-  const viewportWidth = window.innerWidth
+  const buttonHeight = 28
+  const rightMarginGap = 16
 
-  const buttonLeft = clamp(center - buttonWidth / 2, 12, viewportWidth - buttonWidth - 12)
+  const buttonLeft = clamp(
+    editorRect.right - buttonWidth - rightMarginGap,
+    12,
+    viewportWidth - buttonWidth - 12,
+  )
+  const popoverLeft = clamp(
+    editorRect.right - POPOVER_WIDTH - rightMarginGap,
+    12,
+    viewportWidth - POPOVER_WIDTH - 12,
+  )
+  const centeredButtonTop = selectionMidY - buttonHeight / 2
+  const buttonTop = clamp(centeredButtonTop, 12, viewportHeight - buttonHeight - 12)
 
   return {
     from,
     to,
     buttonLeft,
-    buttonTop: bottom + 8,
+    buttonTop,
+    popoverLeft,
+    popoverTop: selectionMidY,
   }
 }
 
@@ -181,7 +200,9 @@ function sameAnchor(a: SelectionAnchor | null, b: SelectionAnchor | null): boole
     a.from === b.from &&
     a.to === b.to &&
     Math.abs(a.buttonLeft - b.buttonLeft) < 1 &&
-    Math.abs(a.buttonTop - b.buttonTop) < 1
+    Math.abs(a.buttonTop - b.buttonTop) < 1 &&
+    Math.abs(a.popoverLeft - b.popoverLeft) < 1 &&
+    Math.abs(a.popoverTop - b.popoverTop) < 1
   )
 }
 
@@ -406,6 +427,7 @@ export default function CollabEditor({
         highlightActiveLine(),
         drawSelection(),
         rectangularSelection(),
+        EditorView.lineWrapping,
         indentOnInput(),
         bracketMatching(),
         closeBrackets(),
@@ -664,8 +686,9 @@ export default function CollabEditor({
               position={
                 selectionAnchor
                   ? {
-                      left: selectionAnchor.buttonLeft,
-                      top: selectionAnchor.buttonTop,
+                      left: selectionAnchor.popoverLeft,
+                      top: selectionAnchor.popoverTop,
+                      preferredLeft: selectionAnchor.popoverLeft,
                     }
                   : null
               }

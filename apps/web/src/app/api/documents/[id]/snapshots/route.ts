@@ -12,7 +12,7 @@ type RouteParams = { params: Promise<{ id: string }> }
 
 function toSnapshotResponse(row: {
   id: string
-  createdAt: Date
+  createdAt: number
   createdBy: string | null
   createdByName: string | null
   isAgentEdit: boolean
@@ -20,7 +20,7 @@ function toSnapshotResponse(row: {
 }) {
   return {
     id: row.id,
-    createdAt: row.createdAt.toISOString(),
+    createdAt: new Date(row.createdAt).toISOString(),
     createdBy: row.createdBy,
     createdByName: row.createdByName,
     isAgentEdit: row.isAgentEdit,
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const rawLimit = Number.parseInt(request.nextUrl.searchParams.get('limit') ?? '50', 10)
   const limit = Number.isNaN(rawLimit) ? 50 : Math.max(1, Math.min(rawLimit, 200))
 
-  const rows = db
+  const rows = await db
     .select({
       id: documentSnapshots.id,
       createdAt: documentSnapshots.createdAt,
@@ -100,10 +100,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const label = body.label?.trim() ? body.label.trim() : null
-  const createdAt = new Date()
+  const createdAt = Date.now()
   const id = crypto.randomUUID()
 
-  db.insert(documentSnapshots)
+  await db.insert(documentSnapshots)
     .values({
       id,
       documentId: docId,
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   return NextResponse.json(
     {
       id,
-      createdAt: createdAt.toISOString(),
+      createdAt: new Date(createdAt).toISOString(),
       createdBy: session.user.id,
       createdByName: session.user.name ?? session.user.email,
       isAgentEdit: false,

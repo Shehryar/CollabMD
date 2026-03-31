@@ -17,9 +17,7 @@ services:
         condition: service_healthy
 
   web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
+    image: ghcr.io/shehryar/collabmd-web:latest
     restart: unless-stopped
     expose:
       - "3000"
@@ -31,7 +29,9 @@ services:
       - SYNC_SERVER_INTERNAL_URL=http://sync-server:4444
       - DATABASE_URL=${DATABASE_URL}
       - OPENFGA_URL=http://openfga:8080
-      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - LOOPS_API_KEY=${LOOPS_API_KEY:-}
+      - LOOPS_MAGIC_LINK_TRANSACTIONAL_ID=${LOOPS_MAGIC_LINK_TRANSACTIONAL_ID:-}
+      - LOOPS_SHARE_INVITE_TRANSACTIONAL_ID=${LOOPS_SHARE_INVITE_TRANSACTIONAL_ID:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
       interval: 10s
@@ -41,13 +41,11 @@ services:
     depends_on:
       sync-server:
         condition: service_healthy
-      openfga:
+      openfga-healthcheck:
         condition: service_healthy
 
   sync-server:
-    build:
-      context: .
-      dockerfile: apps/sync-server/Dockerfile
+    image: ghcr.io/shehryar/collabmd-sync-server:latest
     restart: unless-stopped
     expose:
       - "4444"
@@ -57,12 +55,38 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - BETTER_AUTH_URL=http://web:3000
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - OPENFGA_URL=http://openfga:8080
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:4444/health"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  openfga-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=openfga
+      - POSTGRES_PASSWORD=openfga
+      - POSTGRES_DB=openfga
+    volumes:
+      - openfga-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openfga -d openfga"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  openfga-migrate:
+    image: openfga/openfga:latest
+    command: migrate
+    environment:
+      - OPENFGA_DATASTORE_ENGINE=postgres
+      - OPENFGA_DATASTORE_URI=postgres://openfga:openfga@openfga-db:5432/openfga?sslmode=disable
+    depends_on:
+      openfga-db:
+        condition: service_healthy
 
   openfga:
     image: openfga/openfga:latest
@@ -73,15 +97,27 @@ services:
       - "8081"
     environment:
       - OPENFGA_DATASTORE_ENGINE=postgres
-      - OPENFGA_DATASTORE_URI=${OPENFGA_DATASTORE_URI:-${DATABASE_URL}}
+      - OPENFGA_DATASTORE_URI=postgres://openfga:openfga@openfga-db:5432/openfga?sslmode=disable
       - OPENFGA_PLAYGROUND_ENABLED=false
+    depends_on:
+      openfga-db:
+        condition: service_healthy
+      openfga-migrate:
+        condition: service_completed_successfully
+
+  openfga-healthcheck:
+    image: curlimages/curl:latest
+    depends_on:
+      - openfga
+    entrypoint: ["sh", "-c", "while true; do sleep 30; done"]
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
+      test: ["CMD", "curl", "-sf", "http://openfga:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
 volumes:
   caddy-data:
   caddy-config:
+  openfga-data:

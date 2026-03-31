@@ -43,7 +43,7 @@ async function requireOrgAdmin(orgId: string): Promise<
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  const membership = db
+  const membership = await db
     .select()
     .from(members)
     .where(and(eq(members.organizationId, orgId), eq(members.userId, session.user.id)))
@@ -78,7 +78,7 @@ export async function GET(
   const authz = await requireOrgAdmin(orgId)
   if (authz instanceof NextResponse) return authz
 
-  const keys = db
+  const keys = await db
     .select()
     .from(agentKeys)
     .where(and(eq(agentKeys.orgId, orgId), isNull(agentKeys.revokedAt)))
@@ -92,9 +92,9 @@ export async function GET(
       name: key.name,
       scopes: parseStoredScopes(key.scopes),
       createdBy: key.createdBy,
-      createdAt: key.createdAt.toISOString(),
-      lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
-      revokedAt: key.revokedAt?.toISOString() ?? null,
+      createdAt: new Date(key.createdAt).toISOString(),
+      lastUsedAt: key.lastUsedAt ? new Date(key.lastUsedAt).toISOString() : null,
+      revokedAt: key.revokedAt ? new Date(key.revokedAt).toISOString() : null,
     })),
   )
 }
@@ -126,10 +126,10 @@ export async function POST(
 
   const scopes = parseScopes(body.scopes)
   const rawKey = createRawAgentKey()
-  const createdAt = new Date()
+  const createdAt = Date.now()
   const keyId = crypto.randomUUID()
 
-  db.insert(agentKeys)
+  await db.insert(agentKeys)
     .values({
       id: keyId,
       keyHash: hashKey(rawKey),
@@ -151,7 +151,7 @@ export async function POST(
       key: rawKey,
       keyPrefix: rawKey.slice(0, 11),
       scopes,
-      createdAt: createdAt.toISOString(),
+      createdAt: new Date(createdAt).toISOString(),
     },
     { status: 201 },
   )
