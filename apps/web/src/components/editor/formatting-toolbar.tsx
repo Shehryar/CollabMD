@@ -186,7 +186,7 @@ export default function FormattingToolbar({
 
   return (
     <div
-      className="flex items-center gap-[2px] border-b px-5 py-2"
+      className="flex flex-wrap items-center gap-[6px] border-b px-5 py-2"
       role="toolbar"
       aria-label="formatting toolbar"
       style={{
@@ -420,7 +420,34 @@ export default function FormattingToolbar({
         }}
       />
 
-      <div className="flex-1" />
+      <div className="ml-2 flex items-center gap-2">
+        <label
+          className="hidden font-mono text-[10px] uppercase tracking-wide md:block"
+          style={{ color: 'var(--editor-muted)' }}
+        >
+          Theme
+        </label>
+        <select
+          value={appearance}
+          onChange={(event) => onAppearanceChange(event.target.value as EditorAppearanceId)}
+          className="rounded border px-2 py-1 font-mono text-[11px] outline-none"
+          style={{
+            borderColor: 'var(--editor-border)',
+            backgroundColor: 'var(--editor-panel-bg-subtle)',
+            color: 'var(--editor-text)',
+          }}
+          aria-label="Editor theme"
+          title={`Editor theme: ${getEditorAppearance(appearance).label}`}
+        >
+          {editorAppearances.map((theme) => (
+            <option key={theme.id} value={theme.id}>
+              {theme.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="min-w-2 flex-1" />
 
       <div
         className="flex items-center gap-0 rounded border p-0.5"
@@ -483,32 +510,6 @@ export default function FormattingToolbar({
         }}
       />
 
-      <div className="ml-3 flex items-center gap-2">
-        <label
-          className="font-mono text-[10px] uppercase tracking-wide"
-          style={{ color: 'var(--editor-muted)' }}
-        >
-          Theme
-        </label>
-        <select
-          value={appearance}
-          onChange={(event) => onAppearanceChange(event.target.value as EditorAppearanceId)}
-          className="rounded border px-2 py-1 font-mono text-[11px] outline-none"
-          style={{
-            borderColor: 'var(--editor-border)',
-            backgroundColor: 'var(--editor-panel-bg-subtle)',
-            color: 'var(--editor-text)',
-          }}
-          aria-label="Editor theme"
-          title={`Editor theme: ${getEditorAppearance(appearance).label}`}
-        >
-          {editorAppearances.map((theme) => (
-            <option key={theme.id} value={theme.id}>
-              {theme.label}
-            </option>
-          ))}
-        </select>
-      </div>
     </div>
   )
 }
