@@ -236,36 +236,36 @@ export const conflictPlugin: Extension = ViewPlugin.fromClass(
 )
 
 export const conflictTheme = EditorView.theme({
-  '.cm-conflict-current': { backgroundColor: 'rgba(34, 197, 94, 0.08)' },
-  '.cm-conflict-incoming': { backgroundColor: 'rgba(59, 130, 246, 0.08)' },
+  '.cm-conflict-current': { backgroundColor: 'var(--editor-conflict-current)' },
+  '.cm-conflict-incoming': { backgroundColor: 'var(--editor-conflict-incoming)' },
   '.cm-conflict-marker': {
-    backgroundColor: '#f3f4f6',
-    color: '#9ca3af',
+    backgroundColor: 'var(--editor-conflict-marker-bg)',
+    color: 'var(--editor-conflict-marker-text)',
     fontFamily: 'monospace',
     fontSize: '0.85em',
   },
   '.cm-conflict-current-header::after': {
     content: '" Current"',
-    color: '#6b7280',
+    color: 'var(--editor-muted)',
   },
   '.cm-conflict-incoming-header::after': {
     content: '" Incoming"',
-    color: '#6b7280',
+    color: 'var(--editor-muted)',
   },
   '.cm-conflict-actions': {
     display: 'flex',
     gap: '8px',
     padding: '4px 0',
     fontSize: '12px',
-    fontFamily: 'var(--font-jetbrains-mono), monospace',
+    fontFamily: 'var(--font-mono), monospace',
   },
   '.cm-conflict-btn': {
     cursor: 'pointer',
     padding: '2px 8px',
     borderRadius: '3px',
-    border: '1px solid #e5e7eb',
-    backgroundColor: '#fff',
-    color: '#374151',
-    '&:hover': { backgroundColor: '#f9fafb' },
+    border: '1px solid var(--editor-conflict-btn-border)',
+    backgroundColor: 'var(--editor-conflict-btn-bg)',
+    color: 'var(--editor-conflict-btn-text)',
+    '&:hover': { backgroundColor: 'var(--editor-conflict-btn-hover)' },
   },
 })

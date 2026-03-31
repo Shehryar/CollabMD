@@ -13,16 +13,11 @@ import {
   rectangularSelection,
   type DecorationSet,
 } from '@codemirror/view'
-import { EditorState, RangeSet, StateEffect, StateField } from '@codemirror/state'
+import { Compartment, EditorState, RangeSet, StateEffect, StateField } from '@codemirror/state'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
-import {
-  syntaxHighlighting,
-  defaultHighlightStyle,
-  bracketMatching,
-  indentOnInput,
-} from '@codemirror/language'
+import { bracketMatching, indentOnInput } from '@codemirror/language'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { yCollab } from 'y-codemirror.next'
@@ -35,6 +30,14 @@ import {
   togglePreviewEffect,
 } from './markdown-preview'
 import { formattingKeymap } from './formatting-commands'
+import {
+  defaultEditorAppearanceId,
+  getEditorAppearance,
+  getEditorAppearanceStyle,
+  getEditorAppearanceSyntaxExtension,
+  isEditorAppearanceId,
+  type EditorAppearanceId,
+} from './editor-appearance'
 import FormattingToolbar from './formatting-toolbar'
 import CommentPanel from './comment-panel'
 import CommentInput from './comment-input'
@@ -56,7 +59,8 @@ import { useCommentPositions } from './use-comment-positions'
 
 const pendingCommentMark = Decoration.mark({ class: 'cm-pending-comment' })
 const setPendingCommentRange = StateEffect.define<{ from: number; to: number } | null>()
-const selectionHighlightColor = 'rgba(194, 104, 43, 0.34)'
+const appearanceCompartment = new Compartment()
+const EDITOR_APPEARANCE_STORAGE_KEY = 'collabmd.editorAppearance'
 
 const pendingCommentField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
@@ -77,6 +81,8 @@ const editorTheme = EditorView.theme({
   '&': {
     height: '100%',
     fontSize: '15px',
+    backgroundColor: 'var(--editor-bg)',
+    color: 'var(--editor-text)',
   },
   '.cm-scroller': {
     fontFamily: 'var(--font-mono), "JetBrains Mono", "Fira Code", "SF Mono", Menlo, monospace',
@@ -87,26 +93,31 @@ const editorTheme = EditorView.theme({
     fontFamily: 'var(--font-sans), "Plus Jakarta Sans", system-ui, sans-serif',
     fontSize: '15px',
     lineHeight: '1.7',
+    color: 'var(--editor-text)',
+    caretColor: 'var(--editor-cursor)',
+  },
+  '.cm-line': {
+    color: 'var(--editor-text)',
   },
   '.cm-gutters': {
-    backgroundColor: 'transparent',
+    backgroundColor: 'var(--editor-bg)',
     borderRight: 'none',
-    color: '#999',
+    color: 'var(--editor-gutter)',
   },
   '.cm-activeLineGutter': {
     backgroundColor: 'transparent',
-    color: '#bbb',
+    color: 'var(--editor-gutter-active)',
   },
   '.cm-activeLine': {
-    backgroundColor: '#f7f7f5',
+    backgroundColor: 'var(--editor-active-line)',
   },
   '.cm-cursor': {
-    borderLeftColor: '#111',
+    borderLeftColor: 'var(--editor-cursor)',
     borderLeftWidth: '2px',
   },
   '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection':
     {
-      backgroundColor: selectionHighlightColor,
+      backgroundColor: 'var(--editor-selection)',
     },
   '.cm-ySelectionInfo': {
     fontSize: '11px',
@@ -116,8 +127,8 @@ const editorTheme = EditorView.theme({
     opacity: '1',
   },
   '.cm-pending-comment': {
-    backgroundColor: 'rgba(251, 191, 36, 0.25)',
-    borderBottom: '2px solid rgba(251, 191, 36, 0.6)',
+    backgroundColor: 'var(--editor-comment-pending-bg)',
+    borderBottom: '2px solid var(--editor-comment-pending-border)',
     borderRadius: '2px',
   },
 })
@@ -239,6 +250,7 @@ export default function CollabEditor({
   const [view, setView] = useState<EditorView | null>(null)
   const [previewMode, setPreviewMode] = useState(true)
   const [editorMode, setEditorMode] = useState<EditorMode>(defaultMode)
+  const [appearanceId, setAppearanceId] = useState<EditorAppearanceId>(defaultEditorAppearanceId)
   const [selectionAnchor, setSelectionAnchor] = useState<SelectionAnchor | null>(null)
   const [stableAnchor, setStableAnchor] = useState<SelectionAnchor | null>(null)
   const stableTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -250,6 +262,9 @@ export default function CollabEditor({
 
   const commentInputOpenRef = useRef(commentInputOpen)
   const openCommentFromSelectionRef = useRef<(view: EditorView) => boolean>(() => false)
+
+  const appearance = useMemo(() => getEditorAppearance(appearanceId), [appearanceId])
+  const appearanceStyle = useMemo(() => getEditorAppearanceStyle(appearance), [appearance])
 
   const author = useMemo(
     () => ({
@@ -309,6 +324,19 @@ export default function CollabEditor({
   useEffect(() => {
     commentInputOpenRef.current = commentInputOpen
   }, [commentInputOpen])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = window.localStorage.getItem(EDITOR_APPEARANCE_STORAGE_KEY)
+    if (stored && isEditorAppearanceId(stored)) {
+      setAppearanceId(stored)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(EDITOR_APPEARANCE_STORAGE_KEY, appearanceId)
+  }, [appearanceId])
 
   useEffect(() => {
     const previousCount = previousCommentCountRef.current
@@ -432,7 +460,7 @@ export default function CollabEditor({
         bracketMatching(),
         closeBrackets(),
         highlightSelectionMatches(),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        appearanceCompartment.of(getEditorAppearanceSyntaxExtension(appearance)),
         history(),
         EditorState.allowMultipleSelections.of(true),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
@@ -512,6 +540,14 @@ export default function CollabEditor({
       setCommentInputOpen(false)
     }
   }, [defaultMode, commentable, updateSelectionAnchor, yjs, createSuggestion])
+
+  useEffect(() => {
+    const editorView = viewRef.current
+    if (!editorView) return
+    editorView.dispatch({
+      effects: appearanceCompartment.reconfigure(getEditorAppearanceSyntaxExtension(appearance)),
+    })
+  }, [appearance])
 
   // Show/hide pending comment highlight when comment input opens/closes
   useEffect(() => {
@@ -638,7 +674,7 @@ export default function CollabEditor({
   const showToolbar = editable || commentable
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" style={appearanceStyle}>
       {showToolbar && (
         <FormattingToolbar
           view={view}
@@ -647,10 +683,19 @@ export default function CollabEditor({
           editorMode={editorMode}
           onModeChange={handleModeChange}
           availableModes={availableModes}
+          appearance={appearanceId}
+          onAppearanceChange={setAppearanceId}
         />
       )}
       {!showToolbar && (
-        <div className="border-b border-border bg-bg-subtle px-5 py-2 text-center font-mono text-xs text-fg-muted">
+        <div
+          className="border-b px-5 py-2 text-center font-mono text-xs"
+          style={{
+            borderColor: 'var(--editor-border)',
+            backgroundColor: 'var(--editor-panel-bg-subtle)',
+            color: 'var(--editor-muted)',
+          }}
+        >
           You have view-only access to this document
         </div>
       )}
@@ -673,7 +718,12 @@ export default function CollabEditor({
                   if (!editorView) return
                   openCommentFromSelection(editorView)
                 }}
-                className="rounded border border-accent bg-accent px-2.5 py-1 font-mono text-[11px] text-accent-text shadow-sm"
+                className="rounded border px-2.5 py-1 font-mono text-[11px] shadow-sm"
+                style={{
+                  borderColor: 'var(--editor-border)',
+                  backgroundColor: 'var(--editor-panel-bg-subtle)',
+                  color: 'var(--editor-text)',
+                }}
               >
                 Comment
               </button>
@@ -702,7 +752,12 @@ export default function CollabEditor({
             <button
               type="button"
               onClick={() => setPanelOpen(true)}
-              className="absolute right-3 top-3 z-20 rounded border border-border bg-bg px-2.5 py-1 font-mono text-[11px] text-fg-secondary shadow-sm hover:bg-bg-subtle"
+              className="absolute right-3 top-3 z-20 rounded border px-2.5 py-1 font-mono text-[11px] shadow-sm"
+              style={{
+                borderColor: 'var(--editor-border)',
+                backgroundColor: 'var(--editor-panel-bg)',
+                color: 'var(--editor-muted)',
+              }}
             >
               Discussions ({discussionCount}) · Comments ({regularCommentCount}
               {suggestionCount > 0 ? ` +${suggestionCount} suggestions` : ''})

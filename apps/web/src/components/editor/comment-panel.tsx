@@ -523,8 +523,18 @@ export default function CommentPanel({
   }
 
   return (
-    <aside className="flex h-full w-[320px] shrink-0 flex-col border-l border-border bg-bg-subtle">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
+    <aside
+      className="flex h-full w-[320px] shrink-0 flex-col border-l"
+      style={{
+        borderColor: 'var(--editor-border)',
+        backgroundColor: 'var(--editor-panel-bg-subtle)',
+        color: 'var(--editor-text)',
+      }}
+    >
+      <div
+        className="flex items-center justify-between border-b px-3 py-2.5"
+        style={{ borderColor: 'var(--editor-border)' }}
+      >
         <div>
           <h2 className="font-mono text-[12px] font-semibold text-fg">
             {tab === 'comments' ? 'Comments' : 'Discussions'}
@@ -541,7 +551,10 @@ export default function CommentPanel({
           Hide
         </button>
       </div>
-      <div className="flex items-center gap-1 border-b border-border px-3 py-2">
+      <div
+        className="flex items-center gap-1 border-b px-3 py-2"
+        style={{ borderColor: 'var(--editor-border)' }}
+      >
         <button
           type="button"
           onClick={() => setTab('comments')}
@@ -557,7 +570,10 @@ export default function CommentPanel({
           Discussions ({discussions.length})
         </button>
       </div>
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+      <div
+        className="flex items-center justify-between border-b px-3 py-2"
+        style={{ borderColor: 'var(--editor-border)' }}
+      >
         <label className="flex cursor-pointer items-center gap-2 font-mono text-[11px] text-fg-secondary">
           <input
             type="checkbox"

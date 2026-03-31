@@ -18,6 +18,11 @@ interface ShareLink {
   createdAt: string
 }
 
+function getShareLinkUrl(token: string): string {
+  if (typeof window !== 'undefined') return `${window.location.origin}/share/${token}`
+  return `/share/${token}`
+}
+
 interface ShareModalProps {
   docId: string
   open: boolean
@@ -265,7 +270,7 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
 
   const handleCopyLink = async (token: string, id: string) => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/share/${token}`)
+      await navigator.clipboard.writeText(getShareLinkUrl(token))
       setCopiedId(id)
       setTimeout(() => setCopiedId(null), 2000)
     } catch {
@@ -427,34 +432,44 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
               {links.map((link) => (
                 <li
                   key={link.id}
-                  className="border-b border-border py-2 flex items-center justify-between text-xs"
+                  className="flex flex-col gap-2 border-b border-border py-2 text-xs"
                 >
-                  <div className="flex items-center gap-2">
-                    {roleBadge(link.permission)}
-                    {link.hasPassword && (
-                      <span className="font-mono text-[11px] text-fg-muted">password</span>
-                    )}
-                    {link.expiresAt && (
-                      <span className="font-mono text-[11px] text-fg-muted">
-                        expires {new Date(link.expiresAt).toLocaleDateString()}
-                      </span>
-                    )}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {roleBadge(link.permission)}
+                      {link.hasPassword && (
+                        <span className="font-mono text-[11px] text-fg-muted">password</span>
+                      )}
+                      {link.expiresAt && (
+                        <span className="font-mono text-[11px] text-fg-muted">
+                          expires {new Date(link.expiresAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => void handleCopyLink(link.token, link.id)}
+                        className="font-mono text-[11px] text-accent hover:text-accent-hover"
+                      >
+                        {copiedId === link.id ? 'Copied!' : 'Copy'}
+                      </button>
+                      <button
+                        onClick={() => void handleRevokeLink(link.id)}
+                        disabled={revokingLinkId === link.id}
+                        className="font-mono text-[11px] text-fg-muted hover:text-red disabled:opacity-50"
+                      >
+                        {revokingLinkId === link.id ? 'Revoking...' : 'Revoke'}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => void handleCopyLink(link.token, link.id)}
-                      className="font-mono text-[11px] text-accent hover:text-accent-hover"
-                    >
-                      {copiedId === link.id ? 'Copied!' : 'Copy'}
-                    </button>
-                    <button
-                      onClick={() => void handleRevokeLink(link.id)}
-                      disabled={revokingLinkId === link.id}
-                      className="font-mono text-[11px] text-fg-muted hover:text-red disabled:opacity-50"
-                    >
-                      {revokingLinkId === link.id ? 'Revoking...' : 'Revoke'}
-                    </button>
-                  </div>
+                  <input
+                    type="text"
+                    readOnly
+                    value={getShareLinkUrl(link.token)}
+                    onFocus={(event) => event.currentTarget.select()}
+                    className="w-full rounded border border-border bg-bg px-2.5 py-2 font-mono text-[11px] text-fg-muted focus:border-fg focus:outline-none"
+                    aria-label={`Share link for ${link.permission}`}
+                  />
                 </li>
               ))}
             </ul>

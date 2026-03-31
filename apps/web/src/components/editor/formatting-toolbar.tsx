@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { KeyboardEvent } from 'react'
+import type { CSSProperties, KeyboardEvent } from 'react'
 import { EditorView } from '@codemirror/view'
 import {
   toggleBold,
@@ -21,6 +21,11 @@ import {
   insertTable,
 } from './formatting-commands'
 import type { EditorMode } from './editor-mode'
+import {
+  editorAppearances,
+  getEditorAppearance,
+  type EditorAppearanceId,
+} from './editor-appearance'
 
 function useIsMac(): boolean {
   const [isMac, setIsMac] = useState(false)
@@ -49,6 +54,7 @@ interface ToolbarButtonProps {
   buttonRef: (el: HTMLButtonElement | null) => void
   shortcut?: string
   className?: string
+  style?: CSSProperties
 }
 
 function ToolbarButton({
@@ -62,6 +68,7 @@ function ToolbarButton({
   buttonRef,
   shortcut,
   className,
+  style,
 }: ToolbarButtonProps) {
   const fullTitle = shortcut ? `${title} (${shortcut})` : title
   return (
@@ -74,10 +81,23 @@ function ToolbarButton({
       tabIndex={tabIndex}
       title={fullTitle}
       aria-label={ariaLabel}
-      className={
-        className ??
-        'flex w-[30px] h-[28px] items-center justify-center rounded-sm font-mono text-[13px] text-fg-secondary hover:bg-bg-subtle hover:text-fg active:bg-bg-active'
-      }
+      className={className ?? 'flex h-[28px] w-[30px] items-center justify-center rounded-sm font-mono text-[13px]'}
+      style={{
+        color: 'var(--editor-muted)',
+        ...style,
+      }}
+      onMouseEnter={(event) => {
+        if (!className) {
+          event.currentTarget.style.backgroundColor = 'var(--editor-panel-hover)'
+          event.currentTarget.style.color = 'var(--editor-text)'
+        }
+      }}
+      onMouseLeave={(event) => {
+        if (!className) {
+          event.currentTarget.style.backgroundColor = 'transparent'
+          event.currentTarget.style.color = 'var(--editor-muted)'
+        }
+      }}
     >
       {label}
     </button>
@@ -85,7 +105,7 @@ function ToolbarButton({
 }
 
 function Separator() {
-  return <div className="w-px h-[18px] bg-border mx-[6px]" />
+  return <div className="mx-[6px] h-[18px] w-px" style={{ backgroundColor: 'var(--editor-border)' }} />
 }
 
 interface FormattingToolbarProps {
@@ -95,6 +115,8 @@ interface FormattingToolbarProps {
   editorMode: EditorMode
   onModeChange: (mode: EditorMode) => void
   availableModes: EditorMode[]
+  appearance: EditorAppearanceId
+  onAppearanceChange: (appearance: EditorAppearanceId) => void
 }
 
 const modeLabels: Record<EditorMode, string> = {
@@ -110,6 +132,8 @@ export default function FormattingToolbar({
   editorMode,
   onModeChange,
   availableModes,
+  appearance,
+  onAppearanceChange,
 }: FormattingToolbarProps) {
   const isMac = useIsMac()
   const sc = (s: string) => formatShortcut(s, isMac)
@@ -162,9 +186,14 @@ export default function FormattingToolbar({
 
   return (
     <div
-      className="border-b border-border bg-bg px-5 py-2 flex items-center gap-[2px]"
+      className="flex items-center gap-[2px] border-b px-5 py-2"
       role="toolbar"
       aria-label="formatting toolbar"
+      style={{
+        borderColor: 'var(--editor-border)',
+        backgroundColor: 'var(--editor-panel-bg)',
+        color: 'var(--editor-text)',
+      }}
     >
       <ToolbarButton
         label="H1"
@@ -394,9 +423,13 @@ export default function FormattingToolbar({
       <div className="flex-1" />
 
       <div
-        className="flex items-center gap-0 rounded border border-border bg-bg-subtle p-0.5"
+        className="flex items-center gap-0 rounded border p-0.5"
         role="radiogroup"
         aria-label="editor mode"
+        style={{
+          borderColor: 'var(--editor-border)',
+          backgroundColor: 'var(--editor-panel-bg-subtle)',
+        }}
       >
         {availableModes.map((mode, i) => {
           const idx = formattingButtonCount + i
@@ -414,9 +447,17 @@ export default function FormattingToolbar({
               onFocus={() => setActiveIndex(idx)}
               onKeyDown={(e) => handleButtonKeyDown(idx, e)}
               tabIndex={activeIndex === idx ? 0 : -1}
-              className={`rounded px-2 py-1 font-mono text-[11px] ${
-                isActive ? 'bg-fg text-bg' : 'text-fg-secondary hover:bg-bg-subtle'
-              }`}
+              className="rounded px-2 py-1 font-mono text-[11px]"
+              style={{
+                backgroundColor: isActive ? 'var(--editor-text)' : 'transparent',
+                color: isActive ? 'var(--editor-bg)' : 'var(--editor-muted)',
+              }}
+              onMouseEnter={(event) => {
+                if (!isActive) event.currentTarget.style.backgroundColor = 'var(--editor-panel-hover)'
+              }}
+              onMouseLeave={(event) => {
+                if (!isActive) event.currentTarget.style.backgroundColor = 'transparent'
+              }}
             >
               {modeLabels[mode]}
             </button>
@@ -435,12 +476,39 @@ export default function FormattingToolbar({
         buttonRef={(el) => {
           buttonRefs.current[formattingButtonCount + modeButtonCount] = el
         }}
-        className={`flex h-[28px] items-center gap-1 px-2 font-mono text-[13px] ${
-          !previewMode
-            ? 'bg-fg text-bg rounded-sm'
-            : 'text-fg-secondary hover:bg-bg-subtle rounded-sm'
-        }`}
+        className="flex h-[28px] items-center gap-1 rounded-sm px-2 font-mono text-[13px]"
+        style={{
+          backgroundColor: !previewMode ? 'var(--editor-text)' : 'transparent',
+          color: !previewMode ? 'var(--editor-bg)' : 'var(--editor-muted)',
+        }}
       />
+
+      <div className="ml-3 flex items-center gap-2">
+        <label
+          className="font-mono text-[10px] uppercase tracking-wide"
+          style={{ color: 'var(--editor-muted)' }}
+        >
+          Theme
+        </label>
+        <select
+          value={appearance}
+          onChange={(event) => onAppearanceChange(event.target.value as EditorAppearanceId)}
+          className="rounded border px-2 py-1 font-mono text-[11px] outline-none"
+          style={{
+            borderColor: 'var(--editor-border)',
+            backgroundColor: 'var(--editor-panel-bg-subtle)',
+            color: 'var(--editor-text)',
+          }}
+          aria-label="Editor theme"
+          title={`Editor theme: ${getEditorAppearance(appearance).label}`}
+        >
+          {editorAppearances.map((theme) => (
+            <option key={theme.id} value={theme.id}>
+              {theme.label}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   )
 }
