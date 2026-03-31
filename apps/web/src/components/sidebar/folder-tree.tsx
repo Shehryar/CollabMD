@@ -86,6 +86,24 @@ export function FolderTree() {
     })
   }
 
+  const collectAncestorFolderIds = useCallback(
+    (folderId: string | null): string[] => {
+      if (!folderId) return []
+
+      const folderById = new Map(folders.map((folder) => [folder.id, folder]))
+      const ancestors: string[] = []
+      let currentId: string | null = folderId
+
+      while (currentId) {
+        ancestors.push(currentId)
+        currentId = folderById.get(currentId)?.parentId ?? null
+      }
+
+      return ancestors
+    },
+    [folders],
+  )
+
   const navigateToFolder = (folderId: string) => {
     router.push(`/?folder=${folderId}`)
     setOpen(false)
@@ -160,6 +178,30 @@ export function FolderTree() {
   useEffect(() => {
     void refreshDocs()
   }, [refreshDocs])
+
+  useEffect(() => {
+    const activeDocFolderId = activeDocId
+      ? docs.find((doc) => doc.id === activeDocId)?.folderId ?? null
+      : null
+    const folderIdsToOpen = new Set<string>([
+      ...collectAncestorFolderIds(activeFolderId),
+      ...collectAncestorFolderIds(activeDocFolderId),
+    ])
+
+    if (folderIdsToOpen.size === 0) return
+
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      let changed = false
+      for (const folderId of folderIdsToOpen) {
+        if (!next.has(folderId)) {
+          next.add(folderId)
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [activeFolderId, activeDocId, docs, collectAncestorFolderIds])
 
   useEffect(() => {
     const onDocumentsChanged = () => {
@@ -335,7 +377,7 @@ export function FolderTree() {
   const renderFolder = (folder: Folder, depth: number) => {
     const children = getChildren(folder.id)
     const folderDocs = getDocsForFolder(folder.id)
-    const hasChildren = children.length > 0
+    const hasChildren = children.length > 0 || folderDocs.length > 0 || creating === folder.id
     const isExpanded = expanded.has(folder.id)
     const isActive = activeFolderId === folder.id
 
