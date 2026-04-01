@@ -9,19 +9,29 @@ Repo on droplet: /opt/collabmd/repo
 
 ### Deploy workflow
 
+CRITICAL: Never run build in background or pipe through `tail` — a failed build silently pushes the stale old image. Always verify build exit code before pushing.
+
 1. Build images locally (must cross-compile for linux/amd64):
    ```
-   docker build --platform linux/amd64 -t registry.digitalocean.com/collabmd/web:latest -f apps/web/Dockerfile .
-   docker build --platform linux/amd64 -t registry.digitalocean.com/collabmd/sync-server:latest -f apps/sync-server/Dockerfile .
+   docker build --platform linux/amd64 --no-cache -t ghcr.io/shehryar/collabmd-web:latest -f apps/web/Dockerfile . 2>&1 | tee /tmp/web-build.log
+   docker build --platform linux/amd64 --no-cache -t ghcr.io/shehryar/collabmd-sync-server:latest -f apps/sync-server/Dockerfile . 2>&1 | tee /tmp/sync-build.log
    ```
-2. Push to registry:
+2. Verify build succeeded (check exit code AND new image ID):
    ```
-   docker push registry.digitalocean.com/collabmd/web:latest
-   docker push registry.digitalocean.com/collabmd/sync-server:latest
+   docker images ghcr.io/shehryar/collabmd-web:latest --format '{{.ID}} {{.CreatedAt}}'
    ```
-3. Deploy on droplet:
+3. Push to registry:
+   ```
+   docker push ghcr.io/shehryar/collabmd-web:latest
+   docker push ghcr.io/shehryar/collabmd-sync-server:latest
+   ```
+4. Deploy on droplet:
    ```
    ssh root@137.184.197.113 "cd /opt/collabmd/repo && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d"
+   ```
+5. Verify deployed image matches local:
+   ```
+   ssh root@137.184.197.113 "docker images ghcr.io/shehryar/collabmd-web:latest --format '{{.ID}}'"
    ```
 
 ### What requires a rebuild
