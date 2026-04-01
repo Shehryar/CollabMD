@@ -32,6 +32,8 @@ import {
 import { formattingKeymap } from './formatting-commands'
 import {
   defaultEditorAppearanceId,
+  EDITOR_APPEARANCE_EVENT,
+  EDITOR_APPEARANCE_STORAGE_KEY,
   getEditorAppearance,
   getEditorAppearanceStyle,
   getEditorAppearanceSyntaxExtension,
@@ -60,7 +62,6 @@ import { useCommentPositions } from './use-comment-positions'
 const pendingCommentMark = Decoration.mark({ class: 'cm-pending-comment' })
 const setPendingCommentRange = StateEffect.define<{ from: number; to: number } | null>()
 const appearanceCompartment = new Compartment()
-const EDITOR_APPEARANCE_STORAGE_KEY = 'collabmd.editorAppearance'
 
 const pendingCommentField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
@@ -330,6 +331,17 @@ export default function CollabEditor({
     const stored = window.localStorage.getItem(EDITOR_APPEARANCE_STORAGE_KEY)
     if (stored && isEditorAppearanceId(stored)) {
       setAppearanceId(stored)
+    }
+
+    const handleExternalAppearanceChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ appearanceId?: string }>).detail
+      const next = detail?.appearanceId
+      if (next && isEditorAppearanceId(next)) setAppearanceId(next)
+    }
+
+    window.addEventListener(EDITOR_APPEARANCE_EVENT, handleExternalAppearanceChange)
+    return () => {
+      window.removeEventListener(EDITOR_APPEARANCE_EVENT, handleExternalAppearanceChange)
     }
   }, [])
 

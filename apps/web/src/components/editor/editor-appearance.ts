@@ -339,6 +339,8 @@ export const editorAppearances: EditorAppearance[] = [
 ]
 
 export const defaultEditorAppearanceId: EditorAppearanceId = 'light'
+export const EDITOR_APPEARANCE_STORAGE_KEY = 'collabmd.editorAppearance'
+export const EDITOR_APPEARANCE_EVENT = 'collabmd:set-editor-appearance'
 
 export function getEditorAppearance(id: EditorAppearanceId): EditorAppearance {
   return editorAppearances.find((theme) => theme.id === id) ?? editorAppearances[0]
