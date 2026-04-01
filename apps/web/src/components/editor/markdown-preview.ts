@@ -52,6 +52,16 @@ interface MermaidBlockRange {
   definition: string
 }
 
+interface CodeFenceBlockRange {
+  from: number
+  to: number
+  firstLineFrom: number
+  firstLineTo: number
+  lastLineNumber: number
+  info: string
+  content: string
+}
+
 interface PreviewIgnoredRange {
   from: number
   to: number
@@ -593,6 +603,50 @@ function findMermaidBlocks(state: EditorState): MermaidBlockRange[] {
   return blocks
 }
 
+function findCodeFenceBlocks(state: EditorState): CodeFenceBlockRange[] {
+  const blocks: CodeFenceBlockRange[] = []
+
+  for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber++) {
+    const line = state.doc.line(lineNumber)
+    const openingFence = parseFenceDescriptor(line.text)
+
+    if (!openingFence || isMermaidFenceInfo(openingFence.info)) {
+      continue
+    }
+
+    let closingLineNumber = lineNumber + 1
+    while (closingLineNumber <= state.doc.lines) {
+      if (isClosingFence(state.doc.line(closingLineNumber).text, openingFence)) {
+        break
+      }
+      closingLineNumber++
+    }
+
+    if (closingLineNumber > state.doc.lines) {
+      continue
+    }
+
+    const contentLines: string[] = []
+    for (let contentLine = lineNumber + 1; contentLine < closingLineNumber; contentLine++) {
+      contentLines.push(state.doc.line(contentLine).text)
+    }
+
+    blocks.push({
+      from: line.from,
+      to: state.doc.line(closingLineNumber).to,
+      firstLineFrom: line.from,
+      firstLineTo: line.to,
+      lastLineNumber: closingLineNumber,
+      info: openingFence.info,
+      content: contentLines.join('\n'),
+    })
+
+    lineNumber = closingLineNumber
+  }
+
+  return blocks
+}
+
 // --- Bullet widget ---
 
 class BulletWidget extends WidgetType {
@@ -792,6 +846,42 @@ class MermaidWidget extends WidgetType {
 
   eq(other: MermaidWidget) {
     return this.definition === other.definition
+  }
+}
+
+class CodeFenceWidget extends WidgetType {
+  constructor(
+    readonly content: string,
+    readonly info: string,
+  ) {
+    super()
+  }
+
+  toDOM() {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'cm-md-codefence'
+
+    if (this.info.trim()) {
+      const label = document.createElement('div')
+      label.className = 'cm-md-codefence-label'
+      label.textContent = this.info.trim()
+      wrapper.append(label)
+    }
+
+    const pre = document.createElement('pre')
+    pre.className = 'cm-md-codefence-pre'
+
+    const code = document.createElement('code')
+    code.className = 'cm-md-codefence-code'
+    code.textContent = this.content
+
+    pre.append(code)
+    wrapper.append(pre)
+    return wrapper
+  }
+
+  eq(other: CodeFenceWidget) {
+    return this.content === other.content && this.info === other.info
   }
 }
 
@@ -1280,6 +1370,25 @@ function buildDecorations(state: EditorState): DecorationSet {
     }
   }
 
+  for (const block of findCodeFenceBlocks(state)) {
+    const cursorOnBlock = cursorHead >= block.from && cursorHead <= block.to
+    if (cursorOnBlock) continue
+
+    decorations.push(
+      Decoration.replace({
+        widget: new CodeFenceWidget(block.content, block.info),
+      }).range(block.firstLineFrom, block.firstLineTo),
+    )
+
+    for (let lineNumber = state.doc.lineAt(block.firstLineFrom).number + 1; lineNumber <= block.lastLineNumber; lineNumber++) {
+      const line = state.doc.line(lineNumber)
+      if (line.length > 0) {
+        decorations.push(Decoration.replace({}).range(line.from, line.to))
+      }
+      decorations.push(Decoration.line({ class: 'cm-md-hidden-line' }).range(line.from))
+    }
+  }
+
   const cursorLine = state.doc.lineAt(cursorHead)
   for (const range of findHighlightRanges(state)) {
     const lineFrom = state.doc.lineAt(range.from)
@@ -1400,6 +1509,37 @@ export const markdownPreviewTheme = EditorView.theme({
   '.cm-md-codeblock': {
     backgroundColor: 'var(--editor-md-code-bg)',
     borderRadius: '4px',
+  },
+  '.cm-md-codefence': {
+    display: 'block',
+    margin: '12px 0',
+    backgroundColor: 'var(--editor-md-code-bg)',
+    border: '1px solid var(--editor-border)',
+    borderRadius: '8px',
+    overflowX: 'auto',
+  },
+  '.cm-md-codefence-label': {
+    padding: '8px 12px 0',
+    fontFamily: 'var(--font-mono), "JetBrains Mono", "Fira Code", monospace',
+    fontSize: '11px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    color: 'var(--editor-muted)',
+  },
+  '.cm-md-codefence-pre': {
+    margin: '0',
+    padding: '12px',
+    overflowX: 'auto',
+  },
+  '.cm-md-codefence-code': {
+    display: 'block',
+    fontFamily: 'var(--font-mono), "JetBrains Mono", "Fira Code", monospace',
+    fontSize: '0.95em',
+    lineHeight: '1.65',
+    color: 'var(--editor-md-code-text)',
+    whiteSpace: 'pre',
+    fontVariantNumeric: 'tabular-nums',
+    fontFeatureSettings: '"tnum" 1, "liga" 0, "calt" 0',
   },
   '.cm-md-link': {
     color: 'var(--editor-md-link)',

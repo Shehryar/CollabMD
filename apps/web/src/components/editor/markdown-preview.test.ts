@@ -156,6 +156,40 @@ describe('markdown preview mermaid rendering', () => {
   })
 })
 
+describe('markdown preview fenced code rendering', () => {
+  it('renders generic fenced code blocks as preformatted code previews', () => {
+    const doc = [
+      '#### Checkout to subscription creation flow',
+      '',
+      '```text',
+      'Customer',
+      '  |',
+      '  v',
+      'Cart PDP / Cart',
+      '```',
+      '',
+      'After',
+    ].join('\n')
+    createView(doc, doc.length)
+
+    const block = view?.dom.querySelector<HTMLElement>('.cm-md-codefence')
+    const code = view?.dom.querySelector<HTMLElement>('.cm-md-codefence-code')
+    const label = view?.dom.querySelector<HTMLElement>('.cm-md-codefence-label')
+
+    expect(block).not.toBeNull()
+    expect(label?.textContent).toBe('text')
+    expect(code?.textContent).toBe('Customer\n  |\n  v\nCart PDP / Cart')
+    expect(view?.dom.textContent).not.toContain('```text')
+  })
+
+  it('shows raw fenced code while the cursor is inside the block', () => {
+    createView(['Before', '```text', 'Customer', '  |', '```', 'After'].join('\n'), 12)
+
+    expect(view?.dom.querySelector('.cm-md-codefence')).toBeNull()
+    expect(view?.dom.textContent).toContain('```text')
+  })
+})
+
 describe('markdown preview table rendering', () => {
   it('renders GFM tables as HTML tables in preview mode', () => {
     const doc = ['| Field | Type | Notes |', '| --- | --- | --- |', '| id | uuid | primary key |', '| title | text | required |', '', 'After'].join('\n')

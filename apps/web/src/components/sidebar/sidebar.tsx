@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession, signOut } from '@/lib/auth-client'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import OrgSwitcher from '@/components/org/org-switcher'
 import { useActiveOrganization } from '@/lib/auth-client'
 import { FolderTree } from './folder-tree'
 import { useSidebar } from './sidebar-context'
 import { GettingStarted } from './getting-started'
 import { NotificationBell } from './notification-bell'
+import { useKeyboardShortcuts } from '@/components/keyboard-shortcut-provider'
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -21,6 +22,9 @@ export function Sidebar() {
   const { data: activeOrg } = useActiveOrganization()
   const [creatingDoc, setCreatingDoc] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const accountMenuRef = useRef<HTMLDivElement>(null)
+  const { setShortcutHelpOpen } = useKeyboardShortcuts()
 
   const isActive = (path: string) =>
     pathname === path && !searchParams.get('view') && !searchParams.get('folder')
@@ -97,6 +101,36 @@ export function Sidebar() {
     session?.user?.name?.charAt(0)?.toUpperCase() ??
     session?.user?.email?.charAt(0)?.toUpperCase() ??
     '?'
+
+  useEffect(() => {
+    if (!accountMenuOpen) return
+
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null
+      if (target && accountMenuRef.current?.contains(target)) return
+      setAccountMenuOpen(false)
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAccountMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [accountMenuOpen])
+
+  const workspaceHref = activeOrg?.slug ? `/org/${activeOrg.slug}/settings` : '/org/new'
+
+  const drawerLinkClass =
+    'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-bg-hover'
+
+  const drawerIconClass = 'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-bg-subtle text-fg-secondary'
 
   return (
     <>
@@ -250,45 +284,215 @@ export function Sidebar() {
         <div className="mt-auto shrink-0 border-t border-border p-3">
           <OrgSwitcher />
           {session && (
-            <div className="mt-2 flex items-center gap-[10px]">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-accent-subtle font-mono text-[11px] font-semibold text-accent">
-                {userInitial}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-medium text-fg">
-                  {session.user.name ?? session.user.email}
-                </p>
-                {activeOrg?.name && (
-                  <p className="truncate font-mono text-[11px] tracking-[-0.01em] text-fg-muted">
-                    {activeOrg.name}
-                  </p>
-                )}
-                <Link
-                  href="/settings/notifications"
-                  onClick={() => setOpen(false)}
-                  className="mt-0.5 inline-block font-mono text-[10.5px] text-fg-muted hover:text-fg"
+            <div ref={accountMenuRef} className="relative mt-2">
+              {accountMenuOpen && (
+                <div
+                  className="absolute inset-x-0 bottom-full z-50 mb-2 origin-bottom overflow-hidden rounded-2xl border border-border bg-bg/95 shadow-lg backdrop-blur-sm motion-safe:animate-[accountDrawerIn_180ms_cubic-bezier(0.22,1,0.36,1)]"
+                  role="dialog"
+                  aria-label="Account drawer"
                 >
-                  Notifications
-                </Link>
-              </div>
+                  <div className="flex justify-center border-b border-border px-3 pb-2 pt-2">
+                    <span className="h-1 w-10 rounded-full bg-border-strong" />
+                  </div>
+                  <div className="border-b border-border px-3 py-3">
+                    <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+                      Account
+                    </p>
+                    <div className="mt-2 flex items-center gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-accent-subtle font-mono text-[12px] font-semibold text-accent">
+                        {userInitial}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-medium text-fg">
+                          {session.user.name ?? session.user.email}
+                        </p>
+                        <p className="truncate text-[12px] text-fg-muted">{session.user.email}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 px-2 py-2">
+                    <div>
+                      <p className="px-2 pb-1 font-mono text-[10px] uppercase tracking-[0.08em] text-fg-muted">
+                        Workspace
+                      </p>
+                      <Link
+                        href={workspaceHref}
+                        onClick={() => {
+                          setAccountMenuOpen(false)
+                          setOpen(false)
+                        }}
+                        className={drawerLinkClass}
+                      >
+                        <span className={drawerIconClass}>
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h10.5" />
+                          </svg>
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[13px] font-medium text-fg">
+                            {activeOrg?.name ?? 'Choose workspace'}
+                          </span>
+                          <span className="block text-[12px] text-fg-muted">
+                            Manage workspace members and settings
+                          </span>
+                        </span>
+                      </Link>
+                    </div>
+
+                    <div>
+                      <p className="px-2 pb-1 font-mono text-[10px] uppercase tracking-[0.08em] text-fg-muted">
+                        Preferences
+                      </p>
+                      <div className="space-y-1">
+                        <Link
+                          href="/settings"
+                          onClick={() => {
+                            setAccountMenuOpen(false)
+                            setOpen(false)
+                          }}
+                          className={drawerLinkClass}
+                        >
+                          <span className={drawerIconClass}>
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12a7.5 7.5 0 1115 0 7.5 7.5 0 01-15 0zm7.5-3.75v3.75l2.25 2.25" />
+                            </svg>
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[13px] font-medium text-fg">Settings</span>
+                            <span className="block text-[12px] text-fg-muted">
+                              Theme, profile, and personal preferences
+                            </span>
+                          </span>
+                        </Link>
+
+                        <Link
+                          href="/settings"
+                          onClick={() => {
+                            setAccountMenuOpen(false)
+                            setOpen(false)
+                          }}
+                          className={drawerLinkClass}
+                        >
+                          <span className={drawerIconClass}>
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0018 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 00-2.31 6.022 23.848 23.848 0 005.454 1.31m5.713 0a24.255 24.255 0 01-5.713 0m5.713 0a3 3 0 11-5.713 0" />
+                            </svg>
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[13px] font-medium text-fg">Notifications</span>
+                            <span className="block text-[12px] text-fg-muted">
+                              Email preferences and activity alerts
+                            </span>
+                          </span>
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAccountMenuOpen(false)
+                            setShortcutHelpOpen(true)
+                          }}
+                          className={drawerLinkClass}
+                        >
+                          <span className={drawerIconClass}>
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5h10.5A2.25 2.25 0 0119.5 9.75v4.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 14.25v-4.5A2.25 2.25 0 016.75 7.5z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 11.25h.008v.008H8.25v-.008zm3.746 0h.008v.008h-.008v-.008zm3.746 0h.008v.008h-.008v-.008z" />
+                            </svg>
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[13px] font-medium text-fg">Keyboard shortcuts</span>
+                            <span className="block text-[12px] text-fg-muted">
+                              See navigation and editor command keys
+                            </span>
+                          </span>
+                          <span className="shrink-0 rounded border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-[10px] text-fg-muted">
+                            ⌘/
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-border p-2">
+                    <button
+                      onClick={() =>
+                        signOut({
+                          fetchOptions: {
+                            onSuccess: () => {
+                              window.location.href = '/login'
+                            },
+                          },
+                        })
+                      }
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-red-subtle"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-bg-subtle text-red">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M18 12H9m0 0l3-3m-3 3l3 3" />
+                        </svg>
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-medium text-fg">Sign out</span>
+                        <span className="block text-[12px] text-fg-muted">End this session on this device</span>
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <button
-                onClick={() =>
-                  signOut({
-                    fetchOptions: {
-                      onSuccess: () => {
-                        window.location.href = '/login'
-                      },
-                    },
-                  })
-                }
-                className="shrink-0 text-xs text-fg-muted hover:text-fg"
+                onClick={() => setAccountMenuOpen((open) => !open)}
+                className={`flex w-full items-center gap-[10px] rounded border px-2.5 py-2 text-left transition-all ${
+                  accountMenuOpen
+                    ? 'border-border-strong bg-bg-hover shadow-sm'
+                    : 'border-border bg-bg hover:bg-bg-hover'
+                }`}
+                aria-haspopup="dialog"
+                aria-expanded={accountMenuOpen}
+                aria-label="Account menu"
               >
-                Sign out
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-accent-subtle font-mono text-[11px] font-semibold text-accent">
+                  {userInitial}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium text-fg">
+                    {session.user.name ?? session.user.email}
+                  </p>
+                  {activeOrg?.name && (
+                    <p className="truncate font-mono text-[11px] tracking-[-0.01em] text-fg-muted">
+                      {activeOrg.name}
+                    </p>
+                  )}
+                </div>
+                <svg
+                  className={`h-4 w-4 shrink-0 text-fg-faint transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
               </button>
             </div>
           )}
         </div>
       </aside>
+      <style jsx>{`
+        @keyframes accountDrawerIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
     </>
   )
 }

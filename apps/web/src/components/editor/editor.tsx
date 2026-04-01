@@ -104,6 +104,17 @@ const editorTheme = EditorView.theme({
     backgroundColor: 'var(--editor-bg)',
     borderRight: 'none',
     color: 'var(--editor-gutter)',
+    fontFamily: 'var(--font-mono), "JetBrains Mono", "Fira Code", "SF Mono", Menlo, monospace',
+    fontVariantNumeric: 'tabular-nums',
+    fontFeatureSettings: '"tnum" 1, "liga" 0, "calt" 0',
+  },
+  '.cm-gutterElement': {
+    minWidth: '2.5ch',
+    paddingRight: '10px',
+    whiteSpace: 'nowrap',
+    textAlign: 'right',
+    fontVariantNumeric: 'tabular-nums',
+    fontFeatureSettings: '"tnum" 1, "liga" 0, "calt" 0',
   },
   '.cm-activeLineGutter': {
     backgroundColor: 'transparent',
