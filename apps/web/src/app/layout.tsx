@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import localFont from 'next/font/local'
 import './globals.css'
+import { AppThemeBridge } from '@/components/app-theme-bridge'
 
 const jetbrainsMono = localFont({
   src: [
@@ -31,7 +32,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${jetbrainsMono.variable} ${plusJakartaSans.variable}`}>
-      <body>{children}</body>
+      <body>
+        <AppThemeBridge />
+        {children}
+      </body>
     </html>
   )
 }

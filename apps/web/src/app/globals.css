@@ -40,6 +40,78 @@
   box-sizing: border-box;
 }
 
+html[data-app-theme='dark'] {
+  --color-bg: #1f2430;
+  --color-bg-subtle: #272d3b;
+  --color-bg-hover: #313849;
+  --color-bg-active: #3a4358;
+  --color-fg: #e6e1cf;
+  --color-fg-secondary: #c8cfdb;
+  --color-fg-muted: #a7adba;
+  --color-fg-faint: #7d8596;
+  --color-border: #343b4d;
+  --color-border-strong: #46506a;
+  --color-accent: #7dcfff;
+  --color-accent-hover: #93d7ff;
+  --color-accent-subtle: #232938;
+  --color-accent-text: #111827;
+  --color-green: #7ee787;
+  --color-green-subtle: #1f3327;
+  --color-red: #ff757f;
+  --color-red-subtle: #3a2328;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-default: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.38);
+}
+
+html[data-app-theme='midnight'] {
+  --color-bg: #111827;
+  --color-bg-subtle: #172133;
+  --color-bg-hover: #1e293b;
+  --color-bg-active: #243041;
+  --color-fg: #e5e7eb;
+  --color-fg-secondary: #cbd5e1;
+  --color-fg-muted: #94a3b8;
+  --color-fg-faint: #64748b;
+  --color-border: #243041;
+  --color-border-strong: #334155;
+  --color-accent: #93c5fd;
+  --color-accent-hover: #bfdbfe;
+  --color-accent-subtle: #172133;
+  --color-accent-text: #111827;
+  --color-green: #4ade80;
+  --color-green-subtle: #16281d;
+  --color-red: #f87171;
+  --color-red-subtle: #311919;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-default: 0 2px 8px rgba(0, 0, 0, 0.38);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+html[data-app-theme='dracula'] {
+  --color-bg: #282a36;
+  --color-bg-subtle: #303341;
+  --color-bg-hover: #383a4c;
+  --color-bg-active: #44475a;
+  --color-fg: #f8f8f2;
+  --color-fg-secondary: #d7d7ce;
+  --color-fg-muted: #a4a8c1;
+  --color-fg-faint: #6272a4;
+  --color-border: #44475a;
+  --color-border-strong: #6272a4;
+  --color-accent: #bd93f9;
+  --color-accent-hover: #d6b3ff;
+  --color-accent-subtle: #303341;
+  --color-accent-text: #282a36;
+  --color-green: #50fa7b;
+  --color-green-subtle: #1f3a29;
+  --color-red: #ff5555;
+  --color-red-subtle: #3b232b;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-default: 0 2px 8px rgba(0, 0, 0, 0.34);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.42);
+}
+
 body {
   font-family: var(--font-sans);
   color: var(--color-fg);

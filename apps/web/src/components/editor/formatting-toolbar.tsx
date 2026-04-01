@@ -21,11 +21,6 @@ import {
   insertTable,
 } from './formatting-commands'
 import type { EditorMode } from './editor-mode'
-import {
-  editorAppearances,
-  getEditorAppearance,
-  type EditorAppearanceId,
-} from './editor-appearance'
 
 function useIsMac(): boolean {
   const [isMac, setIsMac] = useState(false)
@@ -115,8 +110,6 @@ interface FormattingToolbarProps {
   editorMode: EditorMode
   onModeChange: (mode: EditorMode) => void
   availableModes: EditorMode[]
-  appearance: EditorAppearanceId
-  onAppearanceChange: (appearance: EditorAppearanceId) => void
 }
 
 const modeLabels: Record<EditorMode, string> = {
@@ -132,8 +125,6 @@ export default function FormattingToolbar({
   editorMode,
   onModeChange,
   availableModes,
-  appearance,
-  onAppearanceChange,
 }: FormattingToolbarProps) {
   const isMac = useIsMac()
   const sc = (s: string) => formatShortcut(s, isMac)
@@ -419,33 +410,6 @@ export default function FormattingToolbar({
           buttonRefs.current[16] = el
         }}
       />
-
-      <div className="ml-2 flex items-center gap-2">
-        <label
-          className="hidden font-mono text-[10px] uppercase tracking-wide md:block"
-          style={{ color: 'var(--editor-muted)' }}
-        >
-          Theme
-        </label>
-        <select
-          value={appearance}
-          onChange={(event) => onAppearanceChange(event.target.value as EditorAppearanceId)}
-          className="rounded border px-2 py-1 font-mono text-[11px] outline-none"
-          style={{
-            borderColor: 'var(--editor-border)',
-            backgroundColor: 'var(--editor-panel-bg-subtle)',
-            color: 'var(--editor-text)',
-          }}
-          aria-label="Editor theme"
-          title={`Editor theme: ${getEditorAppearance(appearance).label}`}
-        >
-          {editorAppearances.map((theme) => (
-            <option key={theme.id} value={theme.id}>
-              {theme.label}
-            </option>
-          ))}
-        </select>
-      </div>
 
       <div className="min-w-2 flex-1" />
 

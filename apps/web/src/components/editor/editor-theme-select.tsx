@@ -10,7 +10,11 @@ import {
   type EditorAppearanceId,
 } from './editor-appearance'
 
-export function EditorThemeSelect() {
+interface EditorThemeSelectProps {
+  compact?: boolean
+}
+
+export function EditorThemeSelect({ compact = false }: EditorThemeSelectProps) {
   const [appearanceId, setAppearanceId] = useState<EditorAppearanceId>(defaultEditorAppearanceId)
 
   useEffect(() => {
@@ -31,21 +35,48 @@ export function EditorThemeSelect() {
     }
   }
 
+  if (compact) {
+    return (
+      <label className="inline-flex items-center gap-2 rounded border border-border bg-bg px-2 py-1 font-mono text-[11px] text-fg-secondary">
+        <span className="hidden sm:inline">Theme</span>
+        <select
+          value={appearanceId}
+          onChange={(event) => updateAppearance(event.target.value as EditorAppearanceId)}
+          className="bg-transparent text-fg outline-none"
+          aria-label="Theme"
+        >
+          {editorAppearances.map((theme) => (
+            <option key={theme.id} value={theme.id}>
+              {theme.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    )
+  }
+
   return (
-    <label className="inline-flex items-center gap-2 rounded border border-border bg-bg px-2 py-1 font-mono text-[11px] text-fg-secondary">
-      <span className="hidden sm:inline">Theme</span>
-      <select
-        value={appearanceId}
-        onChange={(event) => updateAppearance(event.target.value as EditorAppearanceId)}
-        className="bg-transparent text-fg outline-none"
-        aria-label="Editor theme"
-      >
-        {editorAppearances.map((theme) => (
-          <option key={theme.id} value={theme.id}>
-            {theme.label}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="rounded border border-border bg-bg-subtle px-4 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-mono text-[12px] font-medium text-fg">Theme</p>
+          <p className="mt-1 text-sm text-fg-secondary">
+            Choose the app and editor appearance across CollabMD.
+          </p>
+        </div>
+        <select
+          value={appearanceId}
+          onChange={(event) => updateAppearance(event.target.value as EditorAppearanceId)}
+          className="rounded border border-border bg-bg px-3 py-2 font-mono text-[12px] text-fg outline-none"
+          aria-label="Theme"
+        >
+          {editorAppearances.map((theme) => (
+            <option key={theme.id} value={theme.id}>
+              {theme.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
   )
 }

@@ -6,7 +6,6 @@ import * as Y from 'yjs'
 import { CollabEditor, useYjs, type YjsContext } from '@/components/editor'
 import { useSession } from '@/lib/auth-client'
 import ShareModal from '@/components/share-modal'
-import { EditorThemeSelect } from '@/components/editor/editor-theme-select'
 
 type DocumentPermission = 'owner' | 'editor' | 'commenter' | 'viewer'
 type AgentPolicy = 'enabled' | 'restricted' | 'disabled'
@@ -454,7 +453,6 @@ export default function DocPage({ params }: DocPageProps) {
               />
             </label>
           )}
-          <EditorThemeSelect />
           {session && (
             <button
               onClick={() => setShareOpen(true)}

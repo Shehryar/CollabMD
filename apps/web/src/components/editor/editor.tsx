@@ -695,8 +695,6 @@ export default function CollabEditor({
           editorMode={editorMode}
           onModeChange={handleModeChange}
           availableModes={availableModes}
-          appearance={appearanceId}
-          onAppearanceChange={setAppearanceId}
         />
       )}
       {!showToolbar && (
