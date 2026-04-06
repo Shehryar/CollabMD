@@ -24,6 +24,16 @@ vi.mock('@/lib/http', () => ({
   requireJsonContentType: vi.fn(() => null),
 }))
 
+vi.mock('@/lib/webhook-secret', () => ({
+  encryptWebhookSecret: vi.fn((secret: string) => `enc:v1:${secret}`),
+}))
+
+const mockValidateOutboundWebhookUrl = vi.fn(async (value: string) => new URL(value))
+vi.mock('@/lib/webhook-url', () => ({
+  validateOutboundWebhookUrl: (...args: unknown[]) =>
+    mockValidateOutboundWebhookUrl.apply(undefined, args as never),
+}))
+
 const mockGet = vi.fn()
 const mockAll = vi.fn()
 const mockOrderBy = vi.fn(() => ({ all: mockAll }))
@@ -75,6 +85,7 @@ function params(orgId = 'org-1'): { params: Promise<{ orgId: string }> } {
 describe('/api/orgs/[orgId]/webhooks', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockValidateOutboundWebhookUrl.mockImplementation(async (value: string) => new URL(value))
   })
 
   it('GET returns 401 when unauthorized', async () => {
@@ -161,20 +172,26 @@ describe('/api/orgs/[orgId]/webhooks', () => {
     expect(res.status).toBe(400)
   })
 
-  it('POST rejects non-http webhook URLs', async () => {
+  it('POST rejects webhook URLs that resolve to local addresses', async () => {
     mockGetSession.mockResolvedValueOnce(session)
     mockGet.mockReturnValueOnce({ role: 'owner' })
+    mockValidateOutboundWebhookUrl.mockRejectedValueOnce(
+      new Error('url hostname resolves to a private or local address'),
+    )
 
     const req = new NextRequest('http://localhost:3000/api/orgs/org-1/webhooks', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        url: 'ftp://example.com/hook',
+        url: 'http://127.0.0.1/hook',
         events: ['document.edited'],
       }),
     })
 
     const res = await POST(req, params())
     expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({
+      error: 'url hostname resolves to a private or local address',
+    })
   })
 })

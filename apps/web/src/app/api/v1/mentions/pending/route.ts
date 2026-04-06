@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as Y from 'yjs'
 import { db, documents, and, eq, isNull, inArray, desc } from '@collabmd/db'
+import { listAccessibleObjects } from '@collabmd/shared'
 import { authenticateAgentKey } from '@/lib/agent-key-auth'
 import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { getSyncHttpUrl } from '@/lib/sync-url'
+import { getSyncInternalHeaders } from '@/lib/sync-internal-auth'
 
 const AGENT_KEY_RATE_LIMIT = 100
 const AGENT_KEY_RATE_WINDOW_MS = 60_000
@@ -81,7 +83,21 @@ export async function GET(request: NextRequest) {
   const agentName = authResult.context.name
   const documentIdFilter = request.nextUrl.searchParams.get('documentId')
 
-  const conditions = [eq(documents.orgId, authResult.context.orgId), isNull(documents.deletedAt)]
+  const accessibleObjects = await listAccessibleObjects(
+    authResult.context.permissionUserId,
+    'can_view',
+    'document',
+  )
+  const accessibleDocIds = accessibleObjects.map((object) => object.replace('document:', ''))
+  if (accessibleDocIds.length === 0) {
+    return NextResponse.json([])
+  }
+
+  const conditions = [
+    eq(documents.orgId, authResult.context.orgId),
+    isNull(documents.deletedAt),
+    inArray(documents.id, accessibleDocIds),
+  ]
 
   const scopedDocuments = authResult.context.scopes.documents
   if (Array.isArray(scopedDocuments)) {
@@ -130,6 +146,7 @@ export async function GET(request: NextRequest) {
     try {
       response = await fetch(`${syncHttpUrl}/snapshot/${encodeURIComponent(row.id)}`, {
         method: 'GET',
+        headers: getSyncInternalHeaders(),
         cache: 'no-store',
       })
     } catch {

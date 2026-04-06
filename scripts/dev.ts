@@ -70,10 +70,15 @@ function tupleAlreadyExists(error: unknown): boolean {
   return /already exists|cannot write a tuple which already exists/i.test(error.message)
 }
 
-async function writeTupleSafe(user: string, relation: string, object: string): Promise<boolean> {
+async function writeTupleSafe(
+  user: string,
+  relation: string,
+  object: string,
+  source = 'dev-rehydrate',
+): Promise<boolean> {
   try {
     const { writeTuple } = await import('@collabmd/shared')
-    await writeTuple(user, relation, object)
+    await writeTuple(user, relation, object, { actorId: 'system', source })
     return true
   } catch (error) {
     if (tupleAlreadyExists(error)) return false

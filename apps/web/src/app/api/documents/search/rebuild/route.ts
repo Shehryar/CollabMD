@@ -14,12 +14,17 @@ import {
   getPgClient,
 } from '@collabmd/db'
 import { indexDocumentFromSnapshot } from '@/lib/search-index'
+import { enforceUserMutationRateLimit } from '@/lib/rate-limit'
 
 export async function POST(_request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
+
+  // Strict rate limit: 2 rebuilds per 5 minutes
+  const rl = enforceUserMutationRateLimit(session.user.id, { limit: 2, windowMs: 5 * 60_000 })
+  if (rl) return rl
 
   // Check that the user is an owner or admin of at least one org
   const userMemberships = await db

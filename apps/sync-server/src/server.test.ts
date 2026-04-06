@@ -116,6 +116,58 @@ describe('health endpoint', () => {
   })
 })
 
+describe('internal HTTP auth', () => {
+  it('rejects snapshot access without the internal secret when configured', async () => {
+    const port = await startServer({ internalSecret: 'sync-secret' })
+    const res = await fetch(`http://localhost:${port}/snapshot/test-doc`)
+    expect(res.status).toBe(401)
+  })
+
+  it('allows snapshot access with the internal secret when configured', async () => {
+    const port = await startServer({ internalSecret: 'sync-secret' })
+    const ws = await connectWsRaw(port, '/snapshot-auth-room')
+
+    const nextDoc = new Y.Doc()
+    nextDoc.getText('codemirror').insert(0, 'snapshot payload')
+    const update = Y.encodeStateAsUpdate(nextDoc)
+    nextDoc.destroy()
+
+    const replaceRes = await fetch(`http://localhost:${port}/replace/snapshot-auth-room`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/octet-stream',
+        'x-collabmd-internal-secret': 'sync-secret',
+      },
+      body: Buffer.from(update),
+    })
+    expect(replaceRes.status).toBe(200)
+
+    const snapshotRes = await fetch(`http://localhost:${port}/snapshot/snapshot-auth-room`, {
+      headers: { 'x-collabmd-internal-secret': 'sync-secret' },
+    })
+    expect(snapshotRes.status).toBe(200)
+
+    ws.close()
+  })
+
+  it('rejects oversized internal HTTP payloads', async () => {
+    const port = await startServer({ internalSecret: 'sync-secret', maxHttpBodyBytes: 8 })
+    const ws = await connectWsRaw(port, '/oversized-room')
+
+    const replaceRes = await fetch(`http://localhost:${port}/replace/oversized-room`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/octet-stream',
+        'x-collabmd-internal-secret': 'sync-secret',
+      },
+      body: Buffer.from('this payload is too large', 'utf8'),
+    })
+    expect(replaceRes.status).toBe(413)
+
+    ws.close()
+  })
+})
+
 // --- WebSocket sync ---
 
 describe('WebSocket sync', () => {
@@ -739,6 +791,22 @@ describe('sync server coverage gaps', () => {
     for (const ws of conns) {
       ws.close()
     }
+  })
+
+  it('rejects new rooms after reaching the room limit', async () => {
+    const port = await startServer({ maxRooms: 1 })
+
+    const first = await connectWsRaw(port, '/room-limit-1')
+    expect(first.readyState).toBe(WebSocket.OPEN)
+
+    const second = new WebSocket(`ws://localhost:${port}/room-limit-2`)
+    const failed = await new Promise<boolean>((resolve) => {
+      second.on('error', () => resolve(true))
+      second.on('close', () => resolve(true))
+    })
+    expect(failed).toBe(true)
+
+    first.close()
   })
 
   it('cleans up room on last disconnect', async () => {

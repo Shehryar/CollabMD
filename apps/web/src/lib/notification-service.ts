@@ -7,6 +7,7 @@ import type {
 } from '@collabmd/shared'
 import { and, db, desc, eq, notifications, sql } from '@collabmd/db'
 import { getSyncHttpUrl } from './sync-url'
+import { getSyncInternalHeaders } from './sync-internal-auth'
 
 function toIsoString(value: unknown): string {
   if (value instanceof Date) return value.toISOString()
@@ -88,7 +89,7 @@ export async function broadcastNotificationEvent(input: {
   try {
     await fetch(`${getSyncHttpUrl()}/notifications/broadcast`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getSyncInternalHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(input),
       cache: 'no-store',
     })

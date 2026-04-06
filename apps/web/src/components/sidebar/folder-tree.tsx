@@ -7,6 +7,7 @@ import { useActiveOrganization } from '@/lib/auth-client'
 import { useSidebar, type Folder, type ConnectedFolder } from './sidebar-context'
 import { SortableFolderRow } from './sortable-folder'
 import { SortableDocRow } from './sortable-doc'
+import FolderShareModal from '@/components/folder-share-modal'
 import { sortByPosition } from './folder-tree-utils'
 
 export { sortByPosition, wouldCreateCircle } from './folder-tree-utils'
@@ -70,6 +71,7 @@ export function FolderTree() {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [shareFolderId, setShareFolderId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [docs, setDocs] = useState<SidebarDoc[]>([])
@@ -322,7 +324,7 @@ export function FolderTree() {
   const focusContextMenuItem = useCallback(
     (index: number) => {
       if (!contextMenu) return
-      const itemCount = 3
+      const itemCount = 4
       const normalized = (index + itemCount) % itemCount
       contextMenuItemRefs.current[normalized]?.focus()
     },
@@ -355,7 +357,7 @@ export function FolderTree() {
         break
       case 'End':
         e.preventDefault()
-        focusContextMenuItem(2)
+        focusContextMenuItem(3)
         break
       case 'Escape':
         e.preventDefault()
@@ -533,6 +535,19 @@ export function FolderTree() {
       )}
 
       {/* Context menu */}
+      {shareFolderId && (() => {
+        const folder = folders.find((entry) => entry.id === shareFolderId)
+        if (!folder) return null
+        return (
+          <FolderShareModal
+            folderId={folder.id}
+            folderName={folder.name}
+            open={true}
+            onClose={() => setShareFolderId(null)}
+          />
+        )
+      })()}
+
       {contextMenu && (
         <>
           <div className="fixed inset-0 z-50" onClick={() => setContextMenu(null)} />
@@ -582,6 +597,21 @@ export function FolderTree() {
             <button
               ref={(el) => {
                 contextMenuItemRefs.current[2] = el
+              }}
+              onClick={() => {
+                setShareFolderId(contextMenu.id)
+                setContextMenu(null)
+              }}
+              className="flex w-full px-3 py-1.5 text-left font-sans text-[13px] text-fg-secondary hover:bg-bg-hover"
+              disabled={busy}
+              role="menuitem"
+              tabIndex={-1}
+            >
+              Share
+            </button>
+            <button
+              ref={(el) => {
+                contextMenuItemRefs.current[3] = el
               }}
               onClick={() => {
                 const folder = folders.find((f) => f.id === contextMenu.id)

@@ -8,7 +8,10 @@ export async function hardDeleteDocument(docId: string) {
   // 1. Clean up all OpenFGA tuples where the document appears as object or user.
   const tuples = await readTuplesForEntity(docObject)
   for (const t of tuples) {
-    await deleteTuple(t.user, t.relation, t.object)
+    await deleteTuple(t.user, t.relation, t.object, {
+      actorId: 'system',
+      source: 'hard-delete',
+    })
   }
 
   // 2. Remove from search index (best-effort, before deleting rows).

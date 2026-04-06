@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { and, db, documents, eq, folders, inArray, isNull, members } from '@collabmd/db'
 import { getSyncHttpUrl } from '@/lib/sync-url'
+import { getSyncInternalHeaders } from '@/lib/sync-internal-auth'
 
 interface SyncConnection {
   docId: string
@@ -22,7 +23,10 @@ async function fetchDaemonConnections(): Promise<SyncConnection[]> {
   const syncHttpUrl = getSyncHttpUrl()
 
   try {
-    const res = await fetch(`${syncHttpUrl}/connections`, { cache: 'no-store' })
+    const res = await fetch(`${syncHttpUrl}/connections`, {
+      headers: getSyncInternalHeaders(),
+      cache: 'no-store',
+    })
     if (!res.ok) return []
     const data = await res.json()
     if (!Array.isArray(data)) return []

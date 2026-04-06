@@ -8,6 +8,7 @@ import {
   jwks,
   notifications,
   userNotificationPreferences,
+  pendingResourceInvites,
 } from './schema.js'
 
 describe('db schema', () => {
@@ -20,5 +21,6 @@ describe('db schema', () => {
     expect(jwks).toBeDefined()
     expect(notifications).toBeDefined()
     expect(userNotificationPreferences).toBeDefined()
+    expect(pendingResourceInvites).toBeDefined()
   })
 })

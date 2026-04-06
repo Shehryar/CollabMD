@@ -16,8 +16,12 @@ import {
   ne,
 } from '@collabmd/db'
 import { writeTuple, listAccessibleObjects, checkPermission } from '@collabmd/shared'
-import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
+import { enforceUserMutationRateLimit, enforceReadRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireJsonContentType } from '@/lib/http'
+
+function escapeLikePattern(input: string): string {
+  return input.replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
 import { indexDocument, searchDocuments } from '@/lib/search-index'
 
 function isPermissionsServiceUnavailable(error: unknown): boolean {
@@ -113,11 +117,20 @@ export async function POST(request: NextRequest) {
     .get()
 
   try {
-    await writeTuple(`user:${session.user.id}`, 'owner', `document:${id}`)
-    await writeTuple(`org:${orgId}`, 'org', `document:${id}`)
+    await writeTuple(`user:${session.user.id}`, 'owner', `document:${id}`, {
+      actorId: session.user.id,
+      source: 'document-create',
+    })
+    await writeTuple(`org:${orgId}`, 'org', `document:${id}`, {
+      actorId: session.user.id,
+      source: 'document-create',
+    })
 
     if (folderId) {
-      await writeTuple(`folder:${folderId}`, 'parent', `document:${id}`)
+      await writeTuple(`folder:${folderId}`, 'parent', `document:${id}`, {
+        actorId: session.user.id,
+        source: 'document-create',
+      })
     }
 
     // Apply org-level default document permissions
@@ -135,7 +148,12 @@ export async function POST(request: NextRequest) {
 
           const tuplePromises = orgMembers
             .filter((m) => m.userId !== session.user.id)
-            .map((m) => writeTuple(`user:${m.userId}`, defaultPerm, `document:${id}`))
+            .map((m) =>
+              writeTuple(`user:${m.userId}`, defaultPerm, `document:${id}`, {
+                actorId: session.user.id,
+                source: 'document-create',
+              }),
+            )
 
           await Promise.all(tuplePromises)
         }
@@ -171,6 +189,9 @@ export async function GET(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
+
+  const readRl = enforceReadRateLimit(`user:${session.user.id}:documents`)
+  if (readRl) return readRl
 
   const { searchParams } = request.nextUrl
   const folderId = searchParams.get('folderId')
@@ -211,7 +232,7 @@ export async function GET(request: NextRequest) {
 
     if (ftsDocIds.length === 0) {
       // Fall back to title-only LIKE search
-      conditions.push(like(documents.title, `%${search}%`))
+      conditions.push(like(documents.title, `%${escapeLikePattern(search)}%`))
     } else {
       // Restrict to FTS-matched documents (which are already within accessible set)
       conditions.push(inArray(documents.id, ftsDocIds))

@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+async function copyText(value: string): Promise<void> {
+  await navigator.clipboard.writeText(value)
+}
+
 interface Collaborator {
-  userId: string
+  userId: string | null
+  invitationId: string | null
+  pending: boolean
   name: string
   email: string
   role: string
@@ -21,6 +27,14 @@ interface ShareLink {
 function getShareLinkUrl(token: string): string {
   if (typeof window !== 'undefined') return `${window.location.origin}/share/${token}`
   return `/share/${token}`
+}
+
+function getPendingInviteUrl(docId: string): string {
+  const callbackURL = encodeURIComponent(`/doc/${docId}`)
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/signup?callbackURL=${callbackURL}`
+  }
+  return `/signup?callbackURL=${callbackURL}`
 }
 
 interface ShareModalProps {
@@ -45,6 +59,7 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
   const [loadingCollaborators, setLoadingCollaborators] = useState(false)
   const [loadingLinks, setLoadingLinks] = useState(false)
   const [sharing, setSharing] = useState(false)
+  const [creatingInviteLink, setCreatingInviteLink] = useState(false)
   const [removingUserId, setRemovingUserId] = useState<string | null>(null)
   const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(null)
   const [creatingLink, setCreatingLink] = useState(false)
@@ -134,30 +149,47 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
     }
   }, [open, onClose])
 
-  if (!open) return null
+  const createInvite = useCallback(
+    async (sendEmail: boolean) => {
+      if (!email.trim()) return { ok: false as const }
+
+      const res = await fetch(`/api/documents/${docId}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role, sendEmail }),
+      })
+
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        pending?: boolean
+        inviteUrl?: string
+      }
+
+      if (!res.ok) {
+        setShareMsg({ type: 'err', text: data.error ?? 'Failed to share' })
+        return { ok: false as const }
+      }
+
+      return { ok: true as const, data }
+    },
+    [docId, email, role],
+  )
 
   const handleShare = async () => {
     if (!email.trim() || sharing) return
     setSharing(true)
     setShareMsg(null)
     try {
-      const res = await fetch(`/api/documents/${docId}/share`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, role }),
+      const result = await createInvite(true)
+      if (!result.ok) return
+      setShareMsg({
+        type: 'ok',
+        text: result.data.pending
+          ? `Invite sent to ${email}. They'll get access after creating an account.`
+          : `Shared with ${email}`,
       })
-      if (res.ok) {
-        setShareMsg({ type: 'ok', text: `Shared with ${email}` })
-        setEmail('')
-        await fetchCollaborators()
-      } else {
-        const data = await res.json().catch(() => ({}))
-        const msg =
-          data.error === 'user not found'
-            ? 'User not found - they need an account first'
-            : (data.error ?? 'Failed to share')
-        setShareMsg({ type: 'err', text: msg })
-      }
+      setEmail('')
+      await fetchCollaborators()
     } catch {
       setShareMsg({ type: 'err', text: 'Failed to share' })
     } finally {
@@ -165,15 +197,73 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
     }
   }
 
-  const handleRemove = async (userId: string, userRole: string) => {
-    if (removingUserId) return
-    setRemovingUserId(userId)
+  const handleCopyInviteLink = async () => {
+    if (!email.trim() || creatingInviteLink) return
+    setCreatingInviteLink(true)
+    setShareMsg(null)
+    try {
+      const result = await createInvite(false)
+      if (!result.ok || !result.data.inviteUrl) return
+      await copyText(result.data.inviteUrl)
+      setShareMsg({ type: 'ok', text: `Invite link copied for ${email}` })
+      await fetchCollaborators()
+    } catch {
+      setShareMsg({ type: 'err', text: 'Failed to copy invite link' })
+    } finally {
+      setCreatingInviteLink(false)
+    }
+  }
+
+  const handleCopyPendingInviteLink = async (collaborator: Collaborator) => {
+    if (!collaborator.pending) return
+    try {
+      await copyText(getPendingInviteUrl(docId))
+      setShareMsg({ type: 'ok', text: `Invite link copied for ${collaborator.email}` })
+    } catch {
+      setShareMsg({ type: 'err', text: 'Failed to copy invite link' })
+    }
+  }
+
+  const handleResendPendingInvite = async (collaborator: Collaborator) => {
+    if (!collaborator.pending || !collaborator.email || sharing) return
+    setSharing(true)
+    setShareMsg(null)
+    try {
+      const res = await fetch(`/api/documents/${docId}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: collaborator.email, role: collaborator.role, sendEmail: true }),
+      })
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        setShareMsg({ type: 'err', text: data.error ?? 'Failed to resend invite' })
+        return
+      }
+
+      setShareMsg({ type: 'ok', text: `Invite email resent to ${collaborator.email}` })
+      await fetchCollaborators()
+    } catch {
+      setShareMsg({ type: 'err', text: 'Failed to resend invite' })
+    } finally {
+      setSharing(false)
+    }
+  }
+
+  const handleRemove = async (collaborator: Collaborator) => {
+    const targetId = collaborator.userId ?? collaborator.invitationId
+    if (!targetId || removingUserId) return
+    setRemovingUserId(targetId)
     setShareMsg(null)
     try {
       const res = await fetch(`/api/documents/${docId}/share`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, role: userRole }),
+        body: JSON.stringify({
+          userId: collaborator.userId,
+          invitationId: collaborator.invitationId,
+          role: collaborator.role,
+        }),
       })
       if (!res.ok) {
         setShareMsg({ type: 'err', text: 'Failed to remove collaborator' })
@@ -188,32 +278,45 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
   }
 
   const handleRoleChange = async (
-    userId: string,
-    oldRole: string,
+    collaborator: Collaborator,
     newRole: 'viewer' | 'commenter' | 'editor',
   ) => {
-    if (oldRole === newRole || updatingRoleUserId) return
-    setUpdatingRoleUserId(userId)
+    const targetId = collaborator.userId ?? collaborator.invitationId
+    if (!targetId || collaborator.role === newRole || updatingRoleUserId) return
+    setUpdatingRoleUserId(targetId)
     setShareMsg(null)
-    setCollaborators((prev) => prev.map((c) => (c.userId === userId ? { ...c, role: newRole } : c)))
+    setCollaborators((prev) =>
+      prev.map((c) =>
+        (c.userId ?? c.invitationId) === targetId ? { ...c, role: newRole } : c,
+      ),
+    )
 
     try {
       const res = await fetch(`/api/documents/${docId}/share`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, oldRole, newRole }),
+        body: JSON.stringify({
+          userId: collaborator.userId,
+          invitationId: collaborator.invitationId,
+          oldRole: collaborator.role,
+          newRole,
+        }),
       })
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         setCollaborators((prev) =>
-          prev.map((c) => (c.userId === userId ? { ...c, role: oldRole } : c)),
+          prev.map((c) =>
+            (c.userId ?? c.invitationId) === targetId ? { ...c, role: collaborator.role } : c,
+          ),
         )
         setShareMsg({ type: 'err', text: data.error ?? 'Failed to update collaborator role' })
       }
     } catch {
       setCollaborators((prev) =>
-        prev.map((c) => (c.userId === userId ? { ...c, role: oldRole } : c)),
+        prev.map((c) =>
+          (c.userId ?? c.invitationId) === targetId ? { ...c, role: collaborator.role } : c,
+        ),
       )
       setShareMsg({ type: 'err', text: 'Failed to update collaborator role' })
     } finally {
@@ -286,6 +389,8 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
     )
   }
 
+  if (!open) return null
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/15 backdrop-blur-[2px]"
@@ -317,31 +422,38 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
         </div>
 
         <div className="p-4 px-5">
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <input
               type="email"
               placeholder="Email address"
-              className="flex-1 font-mono text-[13px] py-[7px] px-[10px] border border-border rounded bg-bg text-fg focus:border-fg focus:outline-none"
+              className="flex-1 min-w-[220px] font-mono text-[13px] py-[7px] px-[10px] border border-border rounded bg-bg text-fg focus:border-fg focus:outline-none"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void handleShare()
               }}
-              disabled={sharing}
+              disabled={sharing || creatingInviteLink}
             />
             <select
               className="font-mono text-[12px] border border-border rounded bg-bg text-fg-secondary px-2 py-[7px]"
               value={role}
               onChange={(e) => setRole(e.target.value as typeof role)}
-              disabled={sharing}
+              disabled={sharing || creatingInviteLink}
             >
               <option value="viewer">Viewer</option>
               <option value="commenter">Commenter</option>
               <option value="editor">Editor</option>
             </select>
             <button
+              onClick={() => void handleCopyInviteLink()}
+              disabled={sharing || creatingInviteLink}
+              className="font-mono text-[12.5px] font-medium py-[7px] px-4 border border-border rounded hover:bg-bg-subtle disabled:opacity-50"
+            >
+              {creatingInviteLink ? 'Copying...' : 'Copy invite link'}
+            </button>
+            <button
               onClick={() => void handleShare()}
-              disabled={sharing}
+              disabled={sharing || creatingInviteLink}
               className="font-mono text-[12.5px] font-medium py-[7px] px-4 bg-fg text-bg rounded hover:bg-[#333] disabled:opacity-50"
             >
               {sharing ? 'Sharing...' : 'Share'}
@@ -366,55 +478,80 @@ export default function ShareModal({ docId, open, onClose }: ShareModalProps) {
             <p className="text-xs text-fg-muted">No collaborators yet</p>
           ) : (
             <ul>
-              {collaborators.map((c) => (
-                <li
-                  key={c.userId}
-                  className="border-b border-border py-2 flex items-center gap-[10px]"
-                >
-                  <span className="w-6 h-6 rounded-full bg-accent-subtle border border-border font-mono text-[9px] font-semibold text-accent flex items-center justify-center shrink-0">
-                    {(c.name || c.email).charAt(0).toUpperCase()}
-                  </span>
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <span className="font-sans text-[12.5px] font-medium text-fg">
-                      {c.name || c.email}
+              {collaborators.map((c) => {
+                const targetId = c.userId ?? c.invitationId ?? c.email
+                return (
+                  <li
+                    key={targetId}
+                    className="border-b border-border py-2 flex items-center gap-[10px]"
+                  >
+                    <span className="w-6 h-6 rounded-full bg-accent-subtle border border-border font-mono text-[9px] font-semibold text-accent flex items-center justify-center shrink-0">
+                      {(c.name || c.email).charAt(0).toUpperCase()}
                     </span>
-                    {c.name && (
-                      <span className="font-mono text-[11px] text-fg-muted">{c.email}</span>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <span className="font-sans text-[12.5px] font-medium text-fg">
+                        {c.name || c.email}
+                      </span>
+                      {c.name ? (
+                        <span className="font-mono text-[11px] text-fg-muted">{c.email}</span>
+                      ) : c.pending ? (
+                        <span className="font-mono text-[11px] text-fg-muted">Pending invite</span>
+                      ) : null}
+                    </div>
+                    {c.role === 'owner' ? (
+                      <span className="font-mono text-[11px] text-fg-secondary">owner</span>
+                    ) : (
+                      <select
+                        value={c.role}
+                        onChange={(e) => {
+                          void handleRoleChange(c, e.target.value as 'viewer' | 'commenter' | 'editor')
+                        }}
+                        disabled={updatingRoleUserId === targetId}
+                        className={`font-mono text-[11px] text-fg-secondary border border-border rounded-sm bg-bg px-2 py-0.5 cursor-pointer ${
+                          updatingRoleUserId === targetId ? 'opacity-60' : ''
+                        }`}
+                      >
+                        <option value="viewer">viewer</option>
+                        <option value="commenter">commenter</option>
+                        <option value="editor">editor</option>
+                      </select>
                     )}
-                  </div>
-                  {c.role === 'owner' ? (
-                    <span className="font-mono text-[11px] text-fg-secondary">owner</span>
-                  ) : (
-                    <select
-                      value={c.role}
-                      onChange={(e) => {
-                        void handleRoleChange(
-                          c.userId,
-                          c.role,
-                          e.target.value as 'viewer' | 'commenter' | 'editor',
-                        )
-                      }}
-                      disabled={updatingRoleUserId === c.userId}
-                      className={`font-mono text-[11px] text-fg-secondary border border-border rounded-sm bg-bg px-2 py-0.5 cursor-pointer ${
-                        updatingRoleUserId === c.userId ? 'opacity-60' : ''
-                      }`}
-                    >
-                      <option value="viewer">viewer</option>
-                      <option value="commenter">commenter</option>
-                      <option value="editor">editor</option>
-                    </select>
-                  )}
-                  {c.role !== 'owner' && (
-                    <button
-                      onClick={() => void handleRemove(c.userId, c.role)}
-                      disabled={removingUserId === c.userId || updatingRoleUserId === c.userId}
-                      className="font-mono text-[11px] text-fg-muted hover:text-red disabled:opacity-50 ml-auto shrink-0"
-                    >
-                      {removingUserId === c.userId ? 'Removing...' : 'Remove'}
-                    </button>
-                  )}
-                </li>
-              ))}
+                    {c.pending && (
+                      <div className="ml-auto flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => void handleCopyPendingInviteLink(c)}
+                          className="font-mono text-[11px] text-accent hover:text-accent-hover"
+                        >
+                          Copy link
+                        </button>
+                        <button
+                          onClick={() => void handleResendPendingInvite(c)}
+                          disabled={sharing}
+                          className="font-mono text-[11px] text-fg-muted hover:text-fg disabled:opacity-50"
+                        >
+                          {sharing ? 'Sending...' : 'Resend'}
+                        </button>
+                        <button
+                          onClick={() => void handleRemove(c)}
+                          disabled={removingUserId === targetId || updatingRoleUserId === targetId}
+                          className="font-mono text-[11px] text-fg-muted hover:text-red disabled:opacity-50 shrink-0"
+                        >
+                          {removingUserId === targetId ? 'Removing...' : 'Remove'}
+                        </button>
+                      </div>
+                    )}
+                    {!c.pending && c.role !== 'owner' && (
+                      <button
+                        onClick={() => void handleRemove(c)}
+                        disabled={removingUserId === targetId || updatingRoleUserId === targetId}
+                        className="font-mono text-[11px] text-fg-muted hover:text-red disabled:opacity-50 ml-auto shrink-0"
+                      >
+                        {removingUserId === targetId ? 'Removing...' : 'Remove'}
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>

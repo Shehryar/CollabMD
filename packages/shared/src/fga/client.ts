@@ -1,6 +1,12 @@
 import { OpenFgaClient, type WriteAuthorizationModelRequest } from '@openfga/sdk'
+import { db, permissionAuditLog } from '@collabmd/db'
 import { defaultConfig } from '../config.js'
 import model from './model.json'
+
+export interface TupleWriteOptions {
+  actorId?: string | null
+  source?: string
+}
 
 let fgaClient: OpenFgaClient | null = null
 let resolvedStoreId: string | null = null
@@ -80,14 +86,60 @@ export async function checkPermission(
   return allowed ?? false
 }
 
-export async function writeTuple(user: string, relation: string, object: string): Promise<void> {
-  const client = await getFgaClient()
-  await client.write({ writes: [{ user, relation, object }] })
+async function insertPermissionAuditRow(input: {
+  action: 'grant' | 'revoke'
+  userRef: string
+  relation: string
+  objectRef: string
+  actorId?: string | null
+  source?: string
+}): Promise<void> {
+  await db.insert(permissionAuditLog).values({
+    id: crypto.randomUUID(),
+    action: input.action,
+    userRef: input.userRef,
+    relation: input.relation,
+    objectRef: input.objectRef,
+    actorId: input.actorId ?? null,
+    source: input.source ?? 'unknown',
+    createdAt: Date.now(),
+  })
 }
 
-export async function deleteTuple(user: string, relation: string, object: string): Promise<void> {
+export async function writeTuple(
+  user: string,
+  relation: string,
+  object: string,
+  options?: TupleWriteOptions,
+): Promise<void> {
+  const client = await getFgaClient()
+  await client.write({ writes: [{ user, relation, object }] })
+  await insertPermissionAuditRow({
+    action: 'grant',
+    userRef: user,
+    relation,
+    objectRef: object,
+    actorId: options?.actorId,
+    source: options?.source,
+  })
+}
+
+export async function deleteTuple(
+  user: string,
+  relation: string,
+  object: string,
+  options?: TupleWriteOptions,
+): Promise<void> {
   const client = await getFgaClient()
   await client.write({ deletes: [{ user, relation, object }] })
+  await insertPermissionAuditRow({
+    action: 'revoke',
+    userRef: user,
+    relation,
+    objectRef: object,
+    actorId: options?.actorId,
+    source: options?.source,
+  })
 }
 
 export async function readTuples(

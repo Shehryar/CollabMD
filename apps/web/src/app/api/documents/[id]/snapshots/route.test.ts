@@ -36,6 +36,10 @@ vi.mock('@/lib/sync-url', () => ({
   getSyncHttpUrl: () => 'http://localhost:4444',
 }))
 
+vi.mock('@/lib/sync-internal-auth', () => ({
+  getSyncInternalHeaders: () => new Headers({ 'x-collabmd-internal-secret': 'test-secret' }),
+}))
+
 const mockSelectAll = vi.fn()
 const mockLimit = vi.fn(() => ({ all: mockSelectAll }))
 const mockOrderBy = vi.fn(() => ({ limit: mockLimit }))

@@ -146,7 +146,10 @@ export async function DELETE(
   // Clean up OpenFGA tuples before deleting the folder row.
   const tuples = await readTuplesForEntity(`folder:${id}`)
   for (const t of tuples) {
-    await deleteTuple(t.user, t.relation, t.object)
+    await deleteTuple(t.user, t.relation, t.object, {
+      actorId: session.user.id,
+      source: 'folder-delete',
+    })
   }
 
   await db.delete(folders).where(eq(folders.id, id)).run()

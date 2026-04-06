@@ -28,6 +28,7 @@ export interface DispatchWebhookWithRetryInput {
 export interface WebhookDispatchDeps {
   fetchFn?: typeof fetch
   scheduleFn?: (handler: () => void, delayMs: number) => unknown
+  timeoutMs?: number
   recordDelivery: (input: RecordWebhookDeliveryInput) => Promise<void> | void
 }
 
@@ -100,6 +101,7 @@ export function dispatchWebhookWithRetry(
   const attempt = input.attempt ?? 1
   const payload = JSON.stringify(input.payloadObject)
   const signature = buildWebhookSignature(input.webhook.secret, payload)
+  const timeoutMs = Math.max(1, Math.trunc(deps.timeoutMs ?? 10_000) || 10_000)
 
   void (async () => {
     let statusCode: number | null = null
@@ -107,19 +109,32 @@ export function dispatchWebhookWithRetry(
     let success = false
 
     try {
-      const res = await fetchFn(input.webhook.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CollabMD-Signature': signature,
-        },
-        body: payload,
-      })
-      statusCode = res.status
-      responseBody = (await res.text()).slice(0, 5_000)
-      success = res.ok
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), timeoutMs)
+      try {
+        const res = await fetchFn(input.webhook.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CollabMD-Signature': signature,
+          },
+          body: payload,
+          signal: controller.signal,
+          redirect: 'error',
+        })
+        statusCode = res.status
+        responseBody = (await res.text()).replace(/<[^>]*>/g, '').slice(0, 5_000)
+        success = res.ok
+      } finally {
+        clearTimeout(timeout)
+      }
     } catch (error) {
-      responseBody = error instanceof Error ? error.message : 'request failed'
+      responseBody =
+        error instanceof Error && error.name === 'AbortError'
+          ? `request timed out after ${timeoutMs}ms`
+          : error instanceof Error
+            ? error.message
+            : 'request failed'
     }
 
     await deps.recordDelivery({

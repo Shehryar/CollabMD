@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "3000:3000"
     environment:
@@ -11,6 +13,7 @@ services:
       - BETTER_AUTH_URL=http://localhost:3000
       - NEXT_PUBLIC_SYNC_URL=ws://localhost:4444
       - SYNC_SERVER_INTERNAL_URL=http://sync-server:4444
+      - SYNC_SERVER_INTERNAL_SECRET=${SYNC_SERVER_INTERNAL_SECRET:-}
     volumes:
       - db-data:/app/data
     depends_on:
@@ -21,11 +24,15 @@ services:
     build:
       context: .
       dockerfile: apps/sync-server/Dockerfile
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "4444:4444"
     environment:
       - NODE_ENV=production
       - PORT=4444
+      - SYNC_SERVER_INTERNAL_SECRET=${SYNC_SERVER_INTERNAL_SECRET:-}
+      - WEBHOOK_TIMEOUT_MS=${WEBHOOK_TIMEOUT_MS:-10000}
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:4444/health"]
       interval: 10s

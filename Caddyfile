@@ -1,5 +1,12 @@
 # Replace with your actual domain
 collabmd.dev {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
 	# Sync server WebSocket endpoint — strip /sync prefix
 	handle_path /sync/* {
 		reverse_proxy sync-server:4444

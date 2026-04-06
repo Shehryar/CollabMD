@@ -2,6 +2,8 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "80:80"
       - "443:443"
@@ -19,6 +21,8 @@ services:
   web:
     image: ghcr.io/shehryar/collabmd-web:latest
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     expose:
       - "3000"
     environment:
@@ -27,6 +31,7 @@ services:
       - BETTER_AUTH_URL=${BETTER_AUTH_URL}
       - NEXT_PUBLIC_SYNC_URL=${NEXT_PUBLIC_SYNC_URL}
       - SYNC_SERVER_INTERNAL_URL=http://sync-server:4444
+      - SYNC_SERVER_INTERNAL_SECRET=${SYNC_SERVER_INTERNAL_SECRET:-}
       - DATABASE_URL=${DATABASE_URL}
       - OPENFGA_URL=http://openfga:8080
       - LOOPS_API_KEY=${LOOPS_API_KEY:-}
@@ -47,6 +52,8 @@ services:
   sync-server:
     image: ghcr.io/shehryar/collabmd-sync-server:latest
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     expose:
       - "4444"
     environment:
@@ -55,7 +62,9 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - BETTER_AUTH_URL=http://web:3000
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - SYNC_SERVER_INTERNAL_SECRET=${SYNC_SERVER_INTERNAL_SECRET:-}
       - OPENFGA_URL=http://openfga:8080
+      - WEBHOOK_TIMEOUT_MS=${WEBHOOK_TIMEOUT_MS:-10000}
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:4444/health"]
       interval: 10s
@@ -66,14 +75,16 @@ services:
   openfga-db:
     image: postgres:16-alpine
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     environment:
-      - POSTGRES_USER=openfga
-      - POSTGRES_PASSWORD=openfga
-      - POSTGRES_DB=openfga
+      - POSTGRES_USER=${OPENFGA_DB_USER}
+      - POSTGRES_PASSWORD=${OPENFGA_DB_PASSWORD}
+      - POSTGRES_DB=${OPENFGA_DB_NAME:-openfga}
     volumes:
       - openfga-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U openfga -d openfga"]
+      test: ["CMD-SHELL", "pg_isready -U ${OPENFGA_DB_USER} -d ${OPENFGA_DB_NAME:-openfga}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -81,9 +92,11 @@ services:
   openfga-migrate:
     image: openfga/openfga:latest
     command: migrate
+    security_opt:
+      - no-new-privileges:true
     environment:
       - OPENFGA_DATASTORE_ENGINE=postgres
-      - OPENFGA_DATASTORE_URI=postgres://openfga:openfga@openfga-db:5432/openfga?sslmode=disable
+      - OPENFGA_DATASTORE_URI=postgres://${OPENFGA_DB_USER}:${OPENFGA_DB_PASSWORD}@openfga-db:5432/${OPENFGA_DB_NAME:-openfga}?sslmode=disable
     depends_on:
       openfga-db:
         condition: service_healthy
@@ -91,13 +104,15 @@ services:
   openfga:
     image: openfga/openfga:latest
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     command: run
     expose:
       - "8080"
       - "8081"
     environment:
       - OPENFGA_DATASTORE_ENGINE=postgres
-      - OPENFGA_DATASTORE_URI=postgres://openfga:openfga@openfga-db:5432/openfga?sslmode=disable
+      - OPENFGA_DATASTORE_URI=postgres://${OPENFGA_DB_USER}:${OPENFGA_DB_PASSWORD}@openfga-db:5432/${OPENFGA_DB_NAME:-openfga}?sslmode=disable
       - OPENFGA_PLAYGROUND_ENABLED=false
     depends_on:
       openfga-db:
@@ -107,6 +122,8 @@ services:
 
   openfga-healthcheck:
     image: curlimages/curl:latest
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       - openfga
     entrypoint: ["sh", "-c", "while true; do sleep 30; done"]

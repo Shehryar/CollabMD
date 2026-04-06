@@ -358,6 +358,51 @@ export const notifications = pgTable(
   }),
 )
 
+export const pendingResourceInvites = pgTable(
+  'pending_resource_invites',
+  {
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    resourceType: text('resource_type').notNull(),
+    resourceId: text('resource_id').notNull(),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    role: text('role').notNull(),
+    inviterId: text('inviter_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  },
+  (table) => ({
+    emailIdx: index('pending_resource_invites_email_idx').on(table.email),
+    resourceIdx: index('pending_resource_invites_resource_idx').on(
+      table.resourceType,
+      table.resourceId,
+    ),
+    inviterIdIdx: index('pending_resource_invites_inviter_id_idx').on(table.inviterId),
+  }),
+)
+
+export const permissionAuditLog = pgTable(
+  'permission_audit_log',
+  {
+    id: text('id').primaryKey(),
+    action: text('action').notNull(),
+    userRef: text('user_ref').notNull(),
+    relation: text('relation').notNull(),
+    objectRef: text('object_ref').notNull(),
+    actorId: text('actor_id'),
+    source: text('source').notNull(),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+  },
+  (table) => ({
+    objectRefIdx: index('idx_pal_object').on(table.objectRef),
+    userRefIdx: index('idx_pal_user').on(table.userRef),
+    createdAtIdx: index('idx_pal_created').on(table.createdAt),
+  }),
+)
+
 // ─── Postgres full-text search (replaces SQLite FTS5) ───
 
 export const documentSearch = pgTable('document_search', {

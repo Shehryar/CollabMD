@@ -61,7 +61,22 @@ async function recordWebhookDelivery(input: {
 
 const PORT = parseInt(process.env.PORT ?? '4444', 10)
 const SNAPSHOT_INTERVAL_MS = parseInt(process.env.SNAPSHOT_INTERVAL_MS ?? '300000', 10)
+const BETTER_AUTH_URL = process.env.BETTER_AUTH_URL?.trim() || ''
+const SYNC_SERVER_INTERNAL_SECRET =
+  process.env.SYNC_SERVER_INTERNAL_SECRET?.trim() || process.env.BETTER_AUTH_SECRET?.trim() || ''
+
+if (process.env.NODE_ENV === 'production' && !BETTER_AUTH_URL) {
+  throw new Error('BETTER_AUTH_URL is required in production')
+}
+if (process.env.NODE_ENV === 'production' && !SYNC_SERVER_INTERNAL_SECRET) {
+  throw new Error(
+    'SYNC_SERVER_INTERNAL_SECRET or BETTER_AUTH_SECRET is required in production',
+  )
+}
+const MAX_ACTIVE_ROOMS = parseInt(process.env.MAX_ACTIVE_ROOMS ?? '1000', 10)
+const MAX_HTTP_BODY_BYTES = parseInt(process.env.MAX_HTTP_BODY_BYTES ?? `${5 * 1024 * 1024}`, 10)
 const WEBHOOK_MAX_CONCURRENCY = parseInt(process.env.WEBHOOK_MAX_CONCURRENCY ?? '20', 10)
+const WEBHOOK_TIMEOUT_MS = parseInt(process.env.WEBHOOK_TIMEOUT_MS ?? '10000', 10)
 const WEBHOOK_DELIVERY_RETENTION_DAYS = parseInt(
   process.env.WEBHOOK_DELIVERY_RETENTION_DAYS ?? '30',
   10,
@@ -213,7 +228,10 @@ async function cleanupOldWebhookDeliveries(): Promise<void> {
 let pushRealtimeNotification: (userId: string, event: NotificationRealtimeEvent) => void = () => {}
 
 const syncServer = createSyncServer({
-  auth: process.env.BETTER_AUTH_URL
+  internalSecret: SYNC_SERVER_INTERNAL_SECRET || undefined,
+  maxRooms: MAX_ACTIVE_ROOMS,
+  maxHttpBodyBytes: MAX_HTTP_BODY_BYTES,
+  auth: BETTER_AUTH_URL
     ? {
         verifyToken,
         verifySessionCookie,
@@ -426,6 +444,7 @@ const syncServer = createSyncServer({
         {
           recordDelivery: recordWebhookDelivery,
           fetchFn: limitedWebhookFetch,
+          timeoutMs: WEBHOOK_TIMEOUT_MS,
         },
       )
     }

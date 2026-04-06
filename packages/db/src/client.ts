@@ -82,6 +82,55 @@ function ensureSchemaCompatibility(sqlite: AnyRawClient): void {
     `)
   }
 
+  const pendingResourceInvitesTable = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pending_resource_invites'")
+    .get() as { name?: string } | undefined
+  if (!pendingResourceInvitesTable) {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS pending_resource_invites (
+        id TEXT PRIMARY KEY NOT NULL,
+        email TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id TEXT NOT NULL,
+        org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        inviter_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at INTEGER NOT NULL
+      );
+    `)
+  }
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS pending_resource_invites_email_idx
+      ON pending_resource_invites (email);
+    CREATE INDEX IF NOT EXISTS pending_resource_invites_resource_idx
+      ON pending_resource_invites (resource_type, resource_id);
+    CREATE INDEX IF NOT EXISTS pending_resource_invites_inviter_id_idx
+      ON pending_resource_invites (inviter_id);
+  `)
+
+  const permissionAuditLogTable = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'permission_audit_log'")
+    .get() as { name?: string } | undefined
+  if (!permissionAuditLogTable) {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS permission_audit_log (
+        id TEXT PRIMARY KEY NOT NULL,
+        action TEXT NOT NULL,
+        user_ref TEXT NOT NULL,
+        relation TEXT NOT NULL,
+        object_ref TEXT NOT NULL,
+        actor_id TEXT,
+        source TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+    `)
+  }
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_pal_object ON permission_audit_log (object_ref);
+    CREATE INDEX IF NOT EXISTS idx_pal_user ON permission_audit_log (user_ref);
+    CREATE INDEX IF NOT EXISTS idx_pal_created ON permission_audit_log (created_at);
+  `)
+
   const webhooksTable = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'webhooks'")
     .get() as { name?: string } | undefined

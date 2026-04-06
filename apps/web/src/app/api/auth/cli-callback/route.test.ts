@@ -2,9 +2,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-// Mocks
 const mockGetSession = vi.fn()
 const mockGetCookie = vi.fn()
+const mockCreateCliAuthCode = vi.fn()
 
 vi.mock('next/headers', () => ({
   headers: vi.fn(async () => new Headers()),
@@ -19,6 +19,10 @@ vi.mock('@/lib/auth', () => ({
   },
 }))
 
+vi.mock('@/lib/cli-auth', () => ({
+  createCliAuthCode: (...args: unknown[]) => mockCreateCliAuthCode.apply(undefined, args as never),
+}))
+
 import { GET } from './route'
 
 const fakeSession = {
@@ -28,6 +32,7 @@ const fakeSession = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockCreateCliAuthCode.mockReturnValue({ code: 'cli_code_123' })
 })
 
 describe('GET /api/auth/cli-callback', () => {
@@ -67,7 +72,7 @@ describe('GET /api/auth/cli-callback', () => {
     const req = new NextRequest('http://localhost:3000/api/auth/cli-callback?port=5000&state=abc')
     const res = await GET(req)
 
-    expect(res.status).toBe(307) // NextResponse.redirect uses 307
+    expect(res.status).toBe(307)
     const location = res.headers.get('location')!
     expect(location).toContain('/login')
     expect(location).toContain('callbackURL')
@@ -76,27 +81,34 @@ describe('GET /api/auth/cli-callback', () => {
 
   it('returns 401 when session exists but no session token cookie', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
-    mockGetCookie.mockReturnValueOnce(undefined) // no cookie
+    mockGetCookie.mockReturnValueOnce(undefined)
 
     const req = new NextRequest('http://localhost:3000/api/auth/cli-callback?port=5000&state=abc')
     const res = await GET(req)
     expect(res.status).toBe(401)
   })
 
-  it('returns auto-post HTML callback when authenticated', async () => {
+  it('returns auto-post HTML callback with one-time code when authenticated', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
     mockGetCookie.mockReturnValueOnce({ value: 'session_token_value' })
 
     const req = new NextRequest('http://localhost:3000/api/auth/cli-callback?port=5000&state=abc')
     const res = await GET(req)
 
+    expect(mockCreateCliAuthCode).toHaveBeenCalledWith({
+      sessionToken: 'session_token_value',
+      userId: 'user-1',
+      email: 'test@example.com',
+      name: 'Test User',
+    })
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('text/html')
     const html = await res.text()
     expect(html).toContain('method="POST"')
     expect(html).toContain('http://127.0.0.1:5000/callback')
-    expect(html).toContain('name="token"')
-    expect(html).toContain('session_token_value')
-    expect(html).not.toContain('token=session_token_value')
+    expect(html).toContain('name="code"')
+    expect(html).toContain('cli_code_123')
+    expect(html).not.toContain('session_token_value')
+    expect(html).not.toContain('name="token"')
   })
 })

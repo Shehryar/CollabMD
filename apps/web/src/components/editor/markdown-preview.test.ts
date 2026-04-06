@@ -172,20 +172,22 @@ describe('markdown preview fenced code rendering', () => {
     ].join('\n')
     createView(doc, doc.length)
 
-    const block = view?.dom.querySelector<HTMLElement>('.cm-md-codefence')
-    const code = view?.dom.querySelector<HTMLElement>('.cm-md-codefence-code')
     const label = view?.dom.querySelector<HTMLElement>('.cm-md-codefence-label')
+    const codeLines = Array.from(
+      view?.dom.querySelectorAll<HTMLElement>('.cm-md-codefence-code') ?? [],
+    ).map((node) => node.textContent)
+    const codeFenceLines = view?.dom.querySelectorAll('.cm-md-codefence-line') ?? []
 
-    expect(block).not.toBeNull()
+    expect(codeFenceLines.length).toBeGreaterThan(0)
     expect(label?.textContent).toBe('text')
-    expect(code?.textContent).toBe('Customer\n  |\n  v\nCart PDP / Cart')
+    expect(codeLines).toEqual(['Customer', '  |', '  v', 'Cart PDP / Cart'])
     expect(view?.dom.textContent).not.toContain('```text')
   })
 
   it('shows raw fenced code while the cursor is inside the block', () => {
     createView(['Before', '```text', 'Customer', '  |', '```', 'After'].join('\n'), 12)
 
-    expect(view?.dom.querySelector('.cm-md-codefence')).toBeNull()
+    expect(view?.dom.querySelector('.cm-md-codefence-line')).toBeNull()
     expect(view?.dom.textContent).toContain('```text')
   })
 })

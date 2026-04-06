@@ -28,6 +28,7 @@ vi.mock('@/lib/rate-limit', () => ({
   rateLimit: vi.fn(() => ({ success: true, remaining: 99, reset: Date.now() + 60000 })),
   rateLimitResponse: vi.fn(),
   enforceUserMutationRateLimit: vi.fn(() => null),
+  enforceReadRateLimit: vi.fn(() => null),
   getClientIp: vi.fn(() => '127.0.0.1'),
 }))
 

@@ -6,6 +6,7 @@ import { checkPermission } from '@collabmd/shared'
 import { and, db, documentSnapshots, eq } from '@collabmd/db'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { getSyncHttpUrl } from '@/lib/sync-url'
+import { getSyncInternalHeaders } from '@/lib/sync-internal-auth'
 
 type RouteParams = { params: Promise<{ id: string; snapshotId: string }> }
 
@@ -41,9 +42,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const syncHttpUrl = getSyncHttpUrl()
   const replaceRes = await fetch(`${syncHttpUrl}/replace/${encodeURIComponent(docId)}`, {
     method: 'POST',
-    headers: {
+    headers: getSyncInternalHeaders({
       'Content-Type': 'application/octet-stream',
-    },
+    }),
     body: new Blob([new Uint8Array(snapshot.snapshot)], { type: 'application/octet-stream' }),
   })
 

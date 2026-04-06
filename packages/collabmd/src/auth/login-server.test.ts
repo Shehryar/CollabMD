@@ -1,12 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { startLoginServer } from './login-server.js'
 
-// Track servers to ensure cleanup
 const activeServers: Array<{ port: number }> = []
 
 afterEach(async () => {
-  // Force-close any lingering servers by hitting them with correct state
-  // (the server auto-closes on success, and the 120s timeout handles failure)
   activeServers.length = 0
 })
 
@@ -19,10 +16,7 @@ describe('LoginServer', () => {
     expect(port).toBeGreaterThan(0)
     expect(port).toBeLessThan(65536)
 
-    // Clean up: send valid callback to close the server
-    const res = await fetch(
-      `http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`,
-    )
+    const res = await fetch(`http://localhost:${port}/callback?code=c&state=${state}`)
     expect(res.status).toBe(200)
     await result
   })
@@ -31,7 +25,7 @@ describe('LoginServer', () => {
     const state = 'test-state-123'
     const { port, result } = await startLoginServer(state)
 
-    const callbackUrl = `http://localhost:${port}/callback?token=sess_abc&state=${state}&userId=user-1&email=test@example.com&name=Test+User`
+    const callbackUrl = `http://localhost:${port}/callback?code=cli_code_123&state=${state}`
     const res = await fetch(callbackUrl)
     expect(res.status).toBe(200)
 
@@ -39,28 +33,20 @@ describe('LoginServer', () => {
     expect(text).toContain('Login successful')
 
     const loginResult = await result
-    expect(loginResult.token).toBe('sess_abc')
+    expect(loginResult.code).toBe('cli_code_123')
     expect(loginResult.state).toBe(state)
-    expect(loginResult.userId).toBe('user-1')
-    expect(loginResult.email).toBe('test@example.com')
-    expect(loginResult.name).toBe('Test User')
   })
 
   it('returns 400 on state mismatch', async () => {
     const { port } = await startLoginServer('expected-state')
 
-    const res = await fetch(
-      `http://localhost:${port}/callback?token=t&state=wrong-state&userId=u&email=e@e.com`,
-    )
+    const res = await fetch(`http://localhost:${port}/callback?code=c&state=wrong-state`)
     expect(res.status).toBe(400)
 
     const text = await res.text()
     expect(text).toBe('State mismatch')
 
-    // Clean up: send correct state to close server
-    await fetch(
-      `http://localhost:${port}/callback?token=t&state=expected-state&userId=u&email=e@e.com`,
-    )
+    await fetch(`http://localhost:${port}/callback?code=c&state=expected-state`)
   })
 
   it('returns 404 for non-callback paths', async () => {
@@ -73,45 +59,39 @@ describe('LoginServer', () => {
     const text = await res.text()
     expect(text).toBe('Not found')
 
-    // Clean up
-    await fetch(`http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`)
+    await fetch(`http://localhost:${port}/callback?code=c&state=${state}`)
   })
 
-  it('returns 400 for missing params (no state, userId, email)', async () => {
+  it('returns 400 for missing params', async () => {
     const state = 'test-state-missing'
     const { port } = await startLoginServer(state)
 
-    const res = await fetch(`http://localhost:${port}/callback?token=t`)
+    const res = await fetch(`http://localhost:${port}/callback?code=c`)
     expect(res.status).toBe(400)
 
     const text = await res.text()
     expect(text).toBe('Missing parameters')
 
-    // Clean up
-    await fetch(`http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`)
+    await fetch(`http://localhost:${port}/callback?code=c&state=${state}`)
   })
 
-  it('returns 400 when token is missing', async () => {
-    const state = 'test-state-no-token'
+  it('returns 400 when code is missing', async () => {
+    const state = 'test-state-no-code'
     const { port } = await startLoginServer(state)
 
-    const res = await fetch(
-      `http://localhost:${port}/callback?state=${state}&userId=u&email=e@e.com`,
-    )
+    const res = await fetch(`http://localhost:${port}/callback?state=${state}`)
     expect(res.status).toBe(400)
 
-    // Clean up
-    await fetch(`http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`)
+    await fetch(`http://localhost:${port}/callback?code=c&state=${state}`)
   })
 
   it('server closes after successful callback', async () => {
     const state = 'test-state-close'
     const { port, result } = await startLoginServer(state)
 
-    await fetch(`http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`)
+    await fetch(`http://localhost:${port}/callback?code=c&state=${state}`)
     await result
 
-    // Server should be closed now; next request should fail
     await expect(
       fetch(`http://localhost:${port}/callback`).catch(() => {
         throw new Error('connection refused')
@@ -119,13 +99,13 @@ describe('LoginServer', () => {
     ).rejects.toThrow()
   })
 
-  it('handles callback with no name parameter (defaults to empty string)', async () => {
-    const state = 'test-state-no-name'
+  it('returns only the cli code and state from callback payload', async () => {
+    const state = 'test-state-code-only'
     const { port, result } = await startLoginServer(state)
 
-    await fetch(`http://localhost:${port}/callback?token=t&state=${state}&userId=u&email=e@e.com`)
+    await fetch(`http://localhost:${port}/callback?code=abc123&state=${state}`)
 
     const loginResult = await result
-    expect(loginResult.name).toBe('')
+    expect(loginResult).toEqual({ code: 'abc123', state })
   })
 })

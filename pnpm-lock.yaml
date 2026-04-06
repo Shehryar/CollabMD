@@ -350,6 +350,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@collabmd/db':
+        specifier: workspace:*
+        version: link:../db
       '@openfga/sdk':
         specifier: ^0.9.1
         version: 0.9.1

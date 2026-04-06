@@ -39,10 +39,12 @@ export function buildShareInviteEmail(input: {
   resourceType: 'document' | 'folder'
   resourceUrl: string
   preferencesUrl: string
+  actionLabel?: string
 }): EmailTemplate {
   const subject = `${input.inviterName} shared a ${input.resourceType} with you`
   const resourceLabel = `${input.resourceType === 'document' ? 'Document' : 'Folder'}: ${input.resourceName}`
-  const actionLabel = input.resourceType === 'document' ? 'Open document' : 'Open folder'
+  const actionLabel =
+    input.actionLabel ?? (input.resourceType === 'document' ? 'Open document' : 'Open folder')
   const text = [
     `${input.inviterName} shared a ${input.resourceType} with you in CollabMD.`,
     resourceLabel,

@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth'
 import { requireJsonContentType } from '@/lib/http'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { encryptWebhookSecret } from '@/lib/webhook-secret'
+import { validateOutboundWebhookUrl } from '@/lib/webhook-url'
 import { db, agentKeys, webhooks, organizations, members, and, eq } from '@collabmd/db'
 
 interface AgentRegistryEntry {
@@ -101,12 +102,12 @@ export async function POST(
   // Validate webhook URL if provided
   if (webhookUrl) {
     try {
-      const parsed = new URL(webhookUrl)
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        return NextResponse.json({ error: 'webhookUrl must use http or https' }, { status: 400 })
-      }
-    } catch {
-      return NextResponse.json({ error: 'webhookUrl must be a valid URL' }, { status: 400 })
+      await validateOutboundWebhookUrl(webhookUrl)
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message.replace(/^url /, 'webhookUrl ') : 'webhookUrl must be a valid URL' },
+        { status: 400 },
+      )
     }
   }
 

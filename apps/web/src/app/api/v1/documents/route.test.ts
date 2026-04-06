@@ -22,6 +22,12 @@ vi.mock('@/lib/rate-limit', () => ({
   rateLimitResponse: (...args: unknown[]) => mockRateLimitResponse.apply(undefined, args as never),
 }))
 
+const mockListAccessibleObjects = vi.fn()
+vi.mock('@collabmd/shared', () => ({
+  listAccessibleObjects: (...args: unknown[]) =>
+    mockListAccessibleObjects.apply(undefined, args as never),
+}))
+
 const mockAll = vi.fn()
 const mockOffset = vi.fn(() => ({ all: mockAll }))
 const mockLimit = vi.fn(() => ({ offset: mockOffset }))
@@ -65,9 +71,11 @@ describe('/api/v1/documents', () => {
       context: {
         keyId: 'key-1',
         orgId: 'org-1',
+        permissionUserId: 'agent:key-1',
         scopes: {},
       },
     })
+    mockListAccessibleObjects.mockResolvedValue(['document:doc-1'])
     mockRateLimit.mockReturnValue({
       success: true,
       limit: 100,
@@ -107,10 +115,12 @@ describe('/api/v1/documents', () => {
   })
 
   it('applies document and folder scope filters when provided', async () => {
+    mockListAccessibleObjects.mockResolvedValueOnce(['document:doc-2', 'document:doc-3'])
     mockAuthenticateAgentKey.mockResolvedValueOnce({
       context: {
         keyId: 'key-1',
         orgId: 'org-1',
+        permissionUserId: 'agent:key-1',
         scopes: {
           documents: ['doc-2', 'doc-3'],
           folders: ['folder-2'],
@@ -131,6 +141,7 @@ describe('/api/v1/documents', () => {
       context: {
         keyId: 'key-1',
         orgId: 'org-1',
+        permissionUserId: 'agent:key-1',
         scopes: {
           documents: [],
         },

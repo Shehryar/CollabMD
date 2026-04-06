@@ -1,5 +1,5 @@
 import http from 'node:http'
-import { createHash } from 'node:crypto'
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { WebSocketServer, type WebSocket } from 'ws'
 import * as Y from 'yjs'
 import * as syncProtocol from 'y-protocols/sync'
@@ -58,6 +58,7 @@ type SyncEventType =
   | 'discussion.created'
 
 export interface SyncServerConfig {
+  internalSecret?: string
   auth?: {
     verifyToken: (token: string) => Promise<TokenPayload | null>
     verifySessionCookie?: (cookieHeader: string) => Promise<TokenPayload | null>
@@ -88,13 +89,20 @@ export interface SyncServerConfig {
     data?: Record<string, unknown>
   }) => Promise<void>
   snapshotIntervalMs?: number
+  maxRooms?: number
+  maxHttpBodyBytes?: number
 }
 
 const MAX_CONNECTIONS_PER_USER = 20
+const DEFAULT_MAX_ACTIVE_ROOMS = 1_000
+const DEFAULT_MAX_HTTP_BODY_BYTES = 5 * 1024 * 1024
+const INTERNAL_AUTH_HEADER = 'x-collabmd-internal-secret'
 
 export function createSyncServer(config?: SyncServerConfig) {
   const rooms = new Map<string, Room>()
   const snapshotIntervalMs = config?.snapshotIntervalMs ?? 300_000
+  const maxRooms = config?.maxRooms ?? DEFAULT_MAX_ACTIVE_ROOMS
+  const maxHttpBodyBytes = config?.maxHttpBodyBytes ?? DEFAULT_MAX_HTTP_BODY_BYTES
   // Track active WebSocket connections per user for rate limiting
   const userConnections = new Map<string, Set<WebSocket>>()
   const notificationConnections = new Map<string, Set<WebSocket>>()
@@ -103,6 +111,62 @@ export function createSyncServer(config?: SyncServerConfig) {
 
   function hashSnapshot(snapshot: Uint8Array): string {
     return createHash('sha256').update(snapshot).digest('hex')
+  }
+
+  function hasValidInternalSecret(req: http.IncomingMessage): boolean {
+    if (!config?.internalSecret) return true
+    const candidate = req.headers[INTERNAL_AUTH_HEADER]
+    const provided = Array.isArray(candidate) ? candidate[0] : candidate
+    if (typeof provided !== 'string') return false
+
+    const expectedBuffer = Buffer.from(config.internalSecret)
+    const providedBuffer = Buffer.from(provided)
+    if (expectedBuffer.length !== providedBuffer.length) return false
+    return timingSafeEqual(expectedBuffer, providedBuffer)
+  }
+
+  function requireInternalRequest(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+    if (hasValidInternalSecret(req)) return true
+    res.writeHead(401, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: 'unauthorized' }))
+    return false
+  }
+
+  function readRequestBody(
+    req: http.IncomingMessage,
+    limitBytes: number,
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = []
+      let totalBytes = 0
+      let settled = false
+
+      const fail = (error: Error) => {
+        if (settled) return
+        settled = true
+        reject(error)
+      }
+
+      req.on('data', (chunk: Buffer) => {
+        if (settled) return
+        totalBytes += chunk.byteLength
+        if (totalBytes > limitBytes) {
+          settled = true
+          req.pause()
+          reject(new Error('payload too large'))
+          return
+        }
+        chunks.push(chunk)
+      })
+      req.on('end', () => {
+        if (settled) return
+        settled = true
+        resolve(Buffer.concat(chunks))
+      })
+      req.on('error', () => {
+        fail(new Error('failed to read request body'))
+      })
+    })
   }
 
   function clearSnapshotTimer(room: Room) {
@@ -617,6 +681,7 @@ export function createSyncServer(config?: SyncServerConfig) {
       return
     }
     if (req.method === 'GET' && pathname === '/connections') {
+      if (!requireInternalRequest(req, res)) return
       const result: Array<{ docId: string; userId: string; source: 'daemon' }> = []
       for (const [roomName, room] of rooms) {
         for (const [ws] of room.conns) {
@@ -631,6 +696,7 @@ export function createSyncServer(config?: SyncServerConfig) {
       return
     }
     if (req.method === 'GET' && pathname.startsWith('/snapshot/')) {
+      if (!requireInternalRequest(req, res)) return
       const docId = decodeURIComponent(pathname.slice('/snapshot/'.length))
       if (!docId) {
         res.writeHead(400, { 'Content-Type': 'application/json' })
@@ -651,6 +717,7 @@ export function createSyncServer(config?: SyncServerConfig) {
       return
     }
     if (req.method === 'POST' && pathname.startsWith('/replace/')) {
+      if (!requireInternalRequest(req, res)) return
       const docId = decodeURIComponent(pathname.slice('/replace/'.length))
       if (!docId) {
         res.writeHead(400, { 'Content-Type': 'application/json' })
@@ -665,94 +732,94 @@ export function createSyncServer(config?: SyncServerConfig) {
         return
       }
 
-      const chunks: Buffer[] = []
-      req.on('data', (chunk: Buffer) => {
-        chunks.push(chunk)
-      })
-      req.on('end', () => {
-        try {
-          const payload = Buffer.concat(chunks)
-          if (payload.byteLength === 0) {
+      void readRequestBody(req, maxHttpBodyBytes)
+        .then((payload) => {
+          try {
+            if (payload.byteLength === 0) {
+              res.writeHead(400, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'empty payload' }))
+              return
+            }
+
+            const incomingUpdate = new Uint8Array(
+              payload.buffer,
+              payload.byteOffset,
+              payload.byteLength,
+            )
+            const tempDoc = new Y.Doc()
+            Y.applyUpdate(tempDoc, incomingUpdate)
+            const normalizedUpdate = Y.encodeStateAsUpdate(tempDoc)
+            Y.applyUpdate(room.doc, normalizedUpdate)
+            tempDoc.destroy()
+
+            room.lastEditAt = Date.now()
+            room.lastEditUserId = null
+            room.lastEditSource = null
+            scheduleSnapshot(room)
+            emitEvent({
+              eventType: 'document.edited',
+              documentId: room.name,
+              actorId: null,
+              actorSource: null,
+              timestamp: new Date().toISOString(),
+            })
+
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ ok: true }))
+          } catch {
             res.writeHead(400, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ error: 'empty payload' }))
-            return
+            res.end(JSON.stringify({ error: 'invalid update payload' }))
           }
-
-          const incomingUpdate = new Uint8Array(
-            payload.buffer,
-            payload.byteOffset,
-            payload.byteLength,
-          )
-          const tempDoc = new Y.Doc()
-          Y.applyUpdate(tempDoc, incomingUpdate)
-          const normalizedUpdate = Y.encodeStateAsUpdate(tempDoc)
-          Y.applyUpdate(room.doc, normalizedUpdate)
-          tempDoc.destroy()
-
-          room.lastEditAt = Date.now()
-          room.lastEditUserId = null
-          room.lastEditSource = null
-          scheduleSnapshot(room)
-          emitEvent({
-            eventType: 'document.edited',
-            documentId: room.name,
-            actorId: null,
-            actorSource: null,
-            timestamp: new Date().toISOString(),
-          })
-
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: true }))
-        } catch {
-          res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'invalid update payload' }))
-        }
-      })
-      req.on('error', () => {
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'failed to read request body' }))
-      })
+        })
+        .catch((error) => {
+          const status = error instanceof Error && error.message === 'payload too large' ? 413 : 400
+          const message = status === 413 ? 'payload too large' : 'failed to read request body'
+          res.writeHead(status, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: message }))
+        })
       return
     }
     if (req.method === 'POST' && pathname === '/notifications/broadcast') {
-      const chunks: Buffer[] = []
-      req.on('data', (chunk: Buffer) => {
-        chunks.push(chunk)
-      })
-      req.on('end', () => {
-        try {
-          const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
-            userId?: unknown
-            userIds?: unknown
-            event?: NotificationRealtimeEvent
-          }
-          const userIds = Array.isArray(body.userIds)
-            ? body.userIds.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-            : typeof body.userId === 'string' && body.userId.trim().length > 0
-              ? [body.userId]
-              : []
+      if (!requireInternalRequest(req, res)) return
+      void readRequestBody(req, maxHttpBodyBytes)
+        .then((payload) => {
+          try {
+            const body = JSON.parse(payload.toString('utf8')) as {
+              userId?: unknown
+              userIds?: unknown
+              event?: NotificationRealtimeEvent
+            }
+            const userIds = Array.isArray(body.userIds)
+              ? body.userIds.filter(
+                  (value): value is string => typeof value === 'string' && value.trim().length > 0,
+                )
+              : typeof body.userId === 'string' && body.userId.trim().length > 0
+                ? [body.userId]
+                : []
 
-          if (userIds.length === 0 || !body.event || typeof body.event !== 'object') {
+            if (userIds.length === 0 || !body.event || typeof body.event !== 'object') {
+              res.writeHead(400, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'invalid notification payload' }))
+              return
+            }
+
+            for (const userId of userIds) {
+              pushNotificationToUser(userId, body.event)
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ ok: true }))
+          } catch {
             res.writeHead(400, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ error: 'invalid notification payload' }))
-            return
+            res.end(JSON.stringify({ error: 'invalid request body' }))
           }
-
-          for (const userId of userIds) {
-            pushNotificationToUser(userId, body.event)
-          }
-
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: true }))
-        } catch {
-          res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'invalid request body' }))
-        }
-      })
-      req.on('error', () => {
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'failed to read request body' }))
-      })
+        })
+        .catch((error) => {
+          const status = error instanceof Error && error.message === 'payload too large' ? 413 : 400
+          const message = status === 413 ? 'payload too large' : 'failed to read request body'
+          res.writeHead(status, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: message }))
+        })
       return
     }
     res.writeHead(404)
@@ -847,6 +914,12 @@ export function createSyncServer(config?: SyncServerConfig) {
       }
 
       const authDone = Date.now()
+      if (!rooms.has(roomName) && rooms.size >= maxRooms) {
+        socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n')
+        socket.destroy()
+        return
+      }
+
       const room = getRoom(roomName)
       await hydrateRoom(room)
       const hydrateDone = Date.now()

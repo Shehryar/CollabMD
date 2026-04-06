@@ -26,6 +26,12 @@ vi.mock('@/lib/webhook-secret', () => ({
   encryptWebhookSecret: vi.fn((s: string) => `encrypted:${s}`),
 }))
 
+const mockValidateOutboundWebhookUrl = vi.fn(async (value: string) => new URL(value))
+vi.mock('@/lib/webhook-url', () => ({
+  validateOutboundWebhookUrl: (...args: unknown[]) =>
+    mockValidateOutboundWebhookUrl.apply(undefined, args as never),
+}))
+
 const mockDbResult = { get: vi.fn(), run: vi.fn(), all: vi.fn() }
 const mockWhereSelect = vi.fn(() => ({ get: mockDbResult.get }))
 const mockFrom = vi.fn(() => ({ where: mockWhereSelect }))
@@ -69,6 +75,7 @@ function makeRequest(body: Record<string, unknown>): NextRequest {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockValidateOutboundWebhookUrl.mockImplementation(async (value: string) => new URL(value))
 })
 
 describe('POST /api/orgs/[orgId]/connect-agent', () => {
@@ -117,6 +124,7 @@ describe('POST /api/orgs/[orgId]/connect-agent', () => {
   it('returns 400 when webhookUrl is not a valid URL', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
     mockDbResult.get.mockReturnValueOnce({ role: 'admin' })
+    mockValidateOutboundWebhookUrl.mockRejectedValueOnce(new Error('url must be valid'))
 
     const res = await POST(
       makeRequest({ name: 'writer', webhookUrl: 'not-a-url' }),
@@ -124,20 +132,23 @@ describe('POST /api/orgs/[orgId]/connect-agent', () => {
     )
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error).toBe('webhookUrl must be a valid URL')
+    expect(body.error).toBe('webhookUrl must be valid')
   })
 
-  it('returns 400 when webhookUrl uses non-http scheme', async () => {
+  it('returns 400 when webhookUrl resolves to a local address', async () => {
     mockGetSession.mockResolvedValueOnce(fakeSession)
     mockDbResult.get.mockReturnValueOnce({ role: 'admin' })
+    mockValidateOutboundWebhookUrl.mockRejectedValueOnce(
+      new Error('url hostname resolves to a private or local address'),
+    )
 
     const res = await POST(
-      makeRequest({ name: 'writer', webhookUrl: 'ftp://example.com/hook' }),
+      makeRequest({ name: 'writer', webhookUrl: 'http://127.0.0.1/hook' }),
       makeParams('org-1'),
     )
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error).toBe('webhookUrl must use http or https')
+    expect(body.error).toBe('webhookUrl hostname resolves to a private or local address')
   })
 
   it('creates API key and returns raw key without webhook', async () => {

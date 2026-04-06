@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import * as Y from 'yjs'
 import { getSyncHttpUrl } from '@/lib/sync-url'
+import { getSyncInternalHeaders } from '@/lib/sync-internal-auth'
 
 export async function fetchDocFromSyncServer(docId: string): Promise<
   | {
@@ -13,6 +14,7 @@ export async function fetchDocFromSyncServer(docId: string): Promise<
   const syncHttpUrl = getSyncHttpUrl()
   const response = await fetch(`${syncHttpUrl}/snapshot/${encodeURIComponent(docId)}`, {
     method: 'GET',
+    headers: getSyncInternalHeaders(),
     cache: 'no-store',
   })
 
@@ -41,7 +43,7 @@ export async function replaceDocOnSyncServer(
   const syncHttpUrl = getSyncHttpUrl()
   const response = await fetch(`${syncHttpUrl}/replace/${encodeURIComponent(docId)}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/octet-stream' },
+    headers: getSyncInternalHeaders({ 'Content-Type': 'application/octet-stream' }),
     body: Buffer.from(update),
   })
 

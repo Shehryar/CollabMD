@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers, cookies } from 'next/headers'
 import { auth } from '@/lib/auth'
+import { createCliAuthCode } from '@/lib/cli-auth'
 
 function escapeHtml(value: string): string {
   return value
@@ -40,12 +41,16 @@ export async function GET(request: NextRequest) {
   }
 
   const callbackUrl = `http://127.0.0.1:${portNum}/callback`
-  const formFields = {
-    token: sessionToken,
-    state,
+  const cliCode = createCliAuthCode({
+    sessionToken,
     userId: session.user.id,
     email: session.user.email,
     name: session.user.name || '',
+  })
+
+  const formFields = {
+    code: cliCode.code,
+    state,
   }
 
   const html = `<!doctype html>
@@ -53,11 +58,8 @@ export async function GET(request: NextRequest) {
   <body>
     <p>Completing CLI login...</p>
     <form id="cli-callback" method="POST" action="${escapeHtml(callbackUrl)}">
-      <input type="hidden" name="token" value="${escapeHtml(formFields.token)}" />
+      <input type="hidden" name="code" value="${escapeHtml(formFields.code)}" />
       <input type="hidden" name="state" value="${escapeHtml(formFields.state)}" />
-      <input type="hidden" name="userId" value="${escapeHtml(formFields.userId)}" />
-      <input type="hidden" name="email" value="${escapeHtml(formFields.email)}" />
-      <input type="hidden" name="name" value="${escapeHtml(formFields.name)}" />
       <noscript><button type="submit">Complete login</button></noscript>
     </form>
     <script>document.getElementById('cli-callback')?.submit()</script>

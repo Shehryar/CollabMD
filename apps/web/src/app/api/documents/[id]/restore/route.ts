@@ -41,10 +41,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .returning()
     .get()
 
-  await writeTuple(`user:${doc.ownerId}`, 'owner', `document:${id}`)
-  await writeTuple(`org:${doc.orgId}`, 'org', `document:${id}`)
+  await writeTuple(`user:${doc.ownerId}`, 'owner', `document:${id}`, {
+    actorId: session.user.id,
+    source: 'document-restore',
+  })
+  await writeTuple(`org:${doc.orgId}`, 'org', `document:${id}`, {
+    actorId: session.user.id,
+    source: 'document-restore',
+  })
   if (doc.folderId) {
-    await writeTuple(`folder:${doc.folderId}`, 'parent', `document:${id}`)
+    await writeTuple(`folder:${doc.folderId}`, 'parent', `document:${id}`, {
+      actorId: session.user.id,
+      source: 'document-restore',
+    })
   }
 
   return NextResponse.json(restored)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, documents, and, eq, isNull, inArray, desc } from '@collabmd/db'
+import { listAccessibleObjects } from '@collabmd/shared'
 import { authenticateAgentKey } from '@/lib/agent-key-auth'
 import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
@@ -28,7 +29,25 @@ export async function GET(request: NextRequest) {
     return rateLimitResponse(rate, AGENT_KEY_RATE_LIMIT)
   }
 
-  const conditions = [eq(documents.orgId, authResult.context.orgId), isNull(documents.deletedAt)]
+  const accessibleObjects = await listAccessibleObjects(
+    authResult.context.permissionUserId,
+    'can_view',
+    'document',
+  )
+  const accessibleDocIds = accessibleObjects.map((object) => object.replace('document:', ''))
+  if (accessibleDocIds.length === 0) {
+    return NextResponse.json([], {
+      headers: {
+        'x-collabmd-next-offset': '',
+      },
+    })
+  }
+
+  const conditions = [
+    eq(documents.orgId, authResult.context.orgId),
+    isNull(documents.deletedAt),
+    inArray(documents.id, accessibleDocIds),
+  ]
 
   const scopedDocuments = authResult.context.scopes.documents
   if (Array.isArray(scopedDocuments)) {

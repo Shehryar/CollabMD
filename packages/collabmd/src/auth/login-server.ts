@@ -2,11 +2,8 @@ import { createServer } from 'http'
 import type { IncomingMessage, ServerResponse } from 'http'
 
 export interface LoginResult {
-  token: string
+  code: string
   state: string
-  userId: string
-  email: string
-  name: string
 }
 
 function readRequestBody(req: IncomingMessage): Promise<string> {
@@ -25,32 +22,23 @@ function parseCallbackPayload(
   req: IncomingMessage,
   body: string,
 ): {
-  token: string | null
+  code: string | null
   state: string | null
-  userId: string | null
-  email: string | null
-  name: string | null
 } {
   // Legacy GET flow uses query params.
   if (req.method === 'GET') {
     const url = new URL(req.url ?? '/', 'http://localhost')
     return {
-      token: url.searchParams.get('token'),
+      code: url.searchParams.get('code'),
       state: url.searchParams.get('state'),
-      userId: url.searchParams.get('userId'),
-      email: url.searchParams.get('email'),
-      name: url.searchParams.get('name'),
     }
   }
 
   // New flow posts URL-encoded form data from browser callback page.
   const params = new URLSearchParams(body)
   return {
-    token: params.get('token'),
+    code: params.get('code'),
     state: params.get('state'),
-    userId: params.get('userId'),
-    email: params.get('email'),
-    name: params.get('name'),
   }
 }
 
@@ -81,9 +69,9 @@ export function startLoginServer(
 
         readRequestBody(req)
           .then((body) => {
-            const { token, state, userId, email, name } = parseCallbackPayload(req, body)
+            const { code, state } = parseCallbackPayload(req, body)
 
-            if (!token || !state || !userId || !email) {
+            if (!code || !state) {
               res.writeHead(400)
               res.end('Missing parameters')
               return
@@ -102,7 +90,7 @@ export function startLoginServer(
 
             clearTimeout(timeout)
             server.close()
-            resolveResult({ token, state, userId, email, name: name ?? '' })
+            resolveResult({ code, state })
           })
           .catch((err) => {
             res.writeHead(400)

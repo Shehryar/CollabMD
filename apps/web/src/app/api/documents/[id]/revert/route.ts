@@ -7,6 +7,7 @@ import { and, db, documentSnapshots, eq } from '@collabmd/db'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireJsonContentType } from '@/lib/http'
 import { getSyncHttpUrl } from '@/lib/sync-url'
+import { getSyncInternalHeaders } from '@/lib/sync-internal-auth'
 
 type RouteParams = { params: Promise<{ id: string }> }
 
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const currentStateRes = await fetch(`${syncHttpUrl}/snapshot/${encodeURIComponent(docId)}`, {
     method: 'GET',
+    headers: getSyncInternalHeaders(),
     cache: 'no-store',
   })
 
@@ -81,9 +83,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const replaceRes = await fetch(`${syncHttpUrl}/replace/${encodeURIComponent(docId)}`, {
     method: 'POST',
-    headers: {
+    headers: getSyncInternalHeaders({
       'Content-Type': 'application/octet-stream',
-    },
+    }),
     body: new Blob([new Uint8Array(targetSnapshot.snapshot)], { type: 'application/octet-stream' }),
   })
 

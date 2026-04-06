@@ -174,12 +174,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const tuples = await readTuples(`document:${id}`)
     for (const t of tuples) {
       if (t.relation === 'parent' && t.user.startsWith('folder:')) {
-        await deleteTuple(t.user, 'parent', `document:${id}`)
+        await deleteTuple(t.user, 'parent', `document:${id}`, {
+          actorId: session.user.id,
+          source: 'document-move',
+        })
       }
     }
     // Add new parent tuple if moving to a folder
     if (folderId) {
-      await writeTuple(`folder:${folderId}`, 'parent', `document:${id}`)
+      await writeTuple(`folder:${folderId}`, 'parent', `document:${id}`, {
+        actorId: session.user.id,
+        source: 'document-move',
+      })
     }
   }
 
@@ -214,7 +220,10 @@ export async function DELETE(
 
   const tuples = await readTuples(`document:${id}`)
   for (const t of tuples) {
-    await deleteTuple(t.user, t.relation, `document:${id}`)
+    await deleteTuple(t.user, t.relation, `document:${id}`, {
+      actorId: session.user.id,
+      source: 'document-delete',
+    })
   }
 
   return NextResponse.json({ ok: true })

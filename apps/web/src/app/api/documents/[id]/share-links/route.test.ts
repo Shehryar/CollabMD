@@ -122,9 +122,9 @@ describe('/api/documents/[id]/share-links', () => {
         documentId: string
         permission: string
         passwordHash: string | null
-        expiresAt: Date | null
+        expiresAt: number | null
         createdBy: string
-        createdAt: Date
+        createdAt: number
       }
 
       expect(inserted.documentId).toBe('doc-1')
@@ -132,8 +132,8 @@ describe('/api/documents/[id]/share-links', () => {
       expect(inserted.createdBy).toBe('user-1')
       expect(inserted.passwordHash).toMatch(/^[a-f0-9]+:[a-f0-9]+$/)
       expect(inserted.passwordHash).not.toContain('secret123')
-      expect(inserted.expiresAt?.toISOString()).toBe('2026-01-03T00:00:00.000Z')
-      expect(inserted.createdAt.toISOString()).toBe('2026-01-01T00:00:00.000Z')
+      expect(new Date(inserted.expiresAt!).toISOString()).toBe('2026-01-03T00:00:00.000Z')
+      expect(new Date(inserted.createdAt).toISOString()).toBe('2026-01-01T00:00:00.000Z')
     })
   })
 

@@ -75,8 +75,14 @@ export async function POST(request: NextRequest) {
     .returning()
     .get()
 
-  await writeTuple(`user:${session.user.id}`, 'owner', `folder:${id}`)
-  await writeTuple(`org:${orgId}`, 'org', `folder:${id}`)
+  await writeTuple(`user:${session.user.id}`, 'owner', `folder:${id}`, {
+    actorId: session.user.id,
+    source: 'folder-create',
+  })
+  await writeTuple(`org:${orgId}`, 'org', `folder:${id}`, {
+    actorId: session.user.id,
+    source: 'folder-create',
+  })
 
   return NextResponse.json(folder, { status: 201 })
 }

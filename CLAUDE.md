@@ -71,6 +71,19 @@ Exception: `NEXT_PUBLIC_*` env vars are baked into the Next.js client bundle at 
 - The OpenFGA image is distroless (no shell, no wget, no curl). Healthcheck uses a curl sidecar container.
 - `BETTER_AUTH_URL` must match the public URL exactly or all POST requests get 403 (CSRF).
 - `NEXT_PUBLIC_SYNC_URL` must use `wss://` in production (not `ws://`).
+- OpenFGA tuples are the source of truth for permissions. If the OpenFGA volume is lost, only baseline tuples (ownership, org, folder containment) can be reconstructed from Supabase. Explicit per-user shares are lost. A `permission_audit_log` table is planned to fix this.
+
+### Security hardening (2026-04-01)
+
+- Sync server HTTP endpoints (`/snapshot`, `/replace`, `/connections`, `/notifications/broadcast`) require `x-collabmd-internal-secret` header. Web app sends via `getSyncInternalHeaders()` from `lib/sync-internal-auth.ts`.
+- `SYNC_SERVER_INTERNAL_SECRET` env var on droplet (falls back to `BETTER_AUTH_SECRET`). Both web and sync-server must share the same value.
+- Webhook URLs validated against private IPs, localhost, link-local, single-label hostnames, and DNS-resolved addresses (`lib/webhook-url.ts`). Webhook fetch uses `redirect: 'error'` to prevent redirect-based SSRF.
+- CLI auth uses one-time code exchange (`lib/cli-auth.ts`, `/api/auth/cli-exchange`) instead of raw session tokens.
+- CSP set in `next.config.ts`, HSTS/X-Frame-Options/nosniff in Caddyfile. CSP `form-action` allows `http://127.0.0.1:*` for CLI callback.
+- Auth rate limiting: 5/min for magic link, 20/min for other auth POST. Share link passwords: 5 attempts per 15min per token.
+- `BETTER_AUTH_URL` and `SYNC_SERVER_INTERNAL_SECRET` both required in production (sync server throws on startup if missing).
+- All containers have `security_opt: no-new-privileges:true`. Web and sync-server run as non-root users.
+- OpenFGA DB credentials are env-var driven (`OPENFGA_DB_USER`, `OPENFGA_DB_PASSWORD`) in prod compose.
 
 ### Email (Loops)
 
@@ -79,6 +92,10 @@ Exception: `NEXT_PUBLIC_*` env vars are baked into the Next.js client bundle at 
 - Share invite template: not yet created
 - DNS records for mail.collabmd.dev verified (MX, SPF, DMARC, DKIM)
 - Env vars: LOOPS_API_KEY, LOOPS_MAGIC_LINK_TRANSACTIONAL_ID, LOOPS_SHARE_INVITE_TRANSACTIONAL_ID
+
+### Progress tracking
+
+Progress file: `~/Documents/Notes/AI/Projects/Local-First-Collab-Docs/Progress.md` (may be stale, treat MEMORY.md as more current)
 
 ## Local Development
 

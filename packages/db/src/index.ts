@@ -28,6 +28,8 @@ export const agentKeys = _s.agentKeys as S['agentKeys']
 export const userNotificationPreferences =
   _s.userNotificationPreferences as S['userNotificationPreferences']
 export const notifications = _s.notifications as S['notifications']
+export const pendingResourceInvites = _s.pendingResourceInvites as S['pendingResourceInvites']
+export const permissionAuditLog = _s.permissionAuditLog as S['permissionAuditLog']
 
 // Notification preferences helpers
 export * from './notification-preferences.js'

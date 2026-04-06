@@ -39,6 +39,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   if (link.passwordHash) {
+    // Per-token rate limit: 5 password attempts per 15 minutes
+    const tokenRl = rateLimit(`share-token:${link.id}:password`, 5, 15 * 60_000)
+    if (!tokenRl.success) return rateLimitResponse(tokenRl, 5)
+
     const body = await request.json().catch(() => ({}))
     const { password } = body as { password?: string }
 

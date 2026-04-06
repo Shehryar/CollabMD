@@ -32,6 +32,14 @@ vi.mock('@/lib/http', () => ({
     mockRequireJsonContentType.apply(undefined, args as never),
 }))
 
+vi.mock('@/lib/sync-url', () => ({
+  getSyncHttpUrl: () => 'http://localhost:4444',
+}))
+
+vi.mock('@/lib/sync-internal-auth', () => ({
+  getSyncInternalHeaders: () => new Headers({ 'x-collabmd-internal-secret': 'test-secret' }),
+}))
+
 const mockSelectGet = vi.fn()
 const mockWhereSelect = vi.fn(() => ({ get: mockSelectGet }))
 const mockFrom = vi.fn(() => ({ where: mockWhereSelect }))

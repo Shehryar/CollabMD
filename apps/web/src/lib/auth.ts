@@ -7,13 +7,20 @@ import { jwt } from 'better-auth/plugins'
 import { bearer } from 'better-auth/plugins'
 import { db, isPostgres } from '@collabmd/db'
 import * as schema from '@collabmd/db/schema'
+import { applyPendingResourceInvitesForUser } from '@/lib/pending-resource-invites'
 
 if (!process.env.BETTER_AUTH_SECRET) {
   throw new Error('BETTER_AUTH_SECRET is required')
 }
 
+if (process.env.NODE_ENV === 'production' && !process.env.BETTER_AUTH_URL?.trim()) {
+  throw new Error('BETTER_AUTH_URL is required in production')
+}
+
+const betterAuthUrl = process.env.BETTER_AUTH_URL?.trim() || 'http://localhost:3000'
+
 export const auth = betterAuth({
-  baseURL: process.env.BETTER_AUTH_URL ?? 'http://localhost:3000',
+  baseURL: betterAuthUrl,
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, {
     provider: isPostgres ? 'pg' : 'sqlite',
@@ -55,8 +62,6 @@ export const auth = betterAuth({
           parsed.searchParams.set('callbackURL', cbValues[0])
         }
         const url = parsed.toString()
-        console.log(`[magic-link] rawUrl: ${rawUrl}`)
-        console.log(`[magic-link] cleaned url: ${url}`)
         if (process.env.NODE_ENV === 'development') {
           console.log(`\n=== MAGIC LINK ===\nTo: ${email}\n${url}\n==================\n`)
           return
@@ -90,8 +95,8 @@ export const auth = betterAuth({
     }),
     jwt({
       jwt: {
-        issuer: process.env.BETTER_AUTH_URL ?? 'http://localhost:3000',
-        audience: process.env.BETTER_AUTH_URL ?? 'http://localhost:3000',
+        issuer: betterAuthUrl,
+        audience: betterAuthUrl,
         expirationTime: '15m',
       },
     }),
@@ -112,6 +117,11 @@ export const auth = betterAuth({
               slug,
               userId: user.id,
             },
+          })
+
+          await applyPendingResourceInvitesForUser({
+            id: user.id,
+            email: user.email,
           })
         },
       },

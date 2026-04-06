@@ -46,6 +46,8 @@ export async function sendShareInviteEmail(input: {
   resourceId: string
   preference: EmailNotificationPreference
   baseUrl?: string
+  resourceUrlOverride?: string
+  actionLabel?: string
 }): Promise<void> {
   if (!shouldSendNotificationEmail(input.preference, 'share_invite')) return
 
@@ -58,10 +60,12 @@ export async function sendShareInviteEmail(input: {
       resourceName: input.resourceName,
       resourceType: input.resourceType,
       resourceUrl:
-        input.resourceType === 'document'
+        input.resourceUrlOverride ??
+        (input.resourceType === 'document'
           ? `${baseUrl}/doc/${input.resourceId}`
-          : `${baseUrl}/?folder=${encodeURIComponent(input.resourceId)}`,
+          : `${baseUrl}/?folder=${encodeURIComponent(input.resourceId)}`),
       preferencesUrl: `${baseUrl}/settings`,
+      actionLabel: input.actionLabel,
     })
     if (process.env.NODE_ENV !== 'production') {
       console.log(`\n=== EMAIL ===\nTo: ${input.to}\nSubject: ${email.subject}\n\n${email.text}\n=============\n`)
@@ -71,9 +75,10 @@ export async function sendShareInviteEmail(input: {
 
   const baseUrl = normalizeBaseUrl(input.baseUrl)
   const resourceUrl =
-    input.resourceType === 'document'
+    input.resourceUrlOverride ??
+    (input.resourceType === 'document'
       ? `${baseUrl}/doc/${input.resourceId}`
-      : `${baseUrl}/?folder=${encodeURIComponent(input.resourceId)}`
+      : `${baseUrl}/?folder=${encodeURIComponent(input.resourceId)}`)
 
   await sendLoopsTransactional(transactionalId, input.to, {
     inviterName: input.inviterName,
@@ -81,5 +86,6 @@ export async function sendShareInviteEmail(input: {
     resourceType: input.resourceType,
     resourceUrl,
     preferencesUrl: `${baseUrl}/settings`,
+    ...(input.actionLabel ? { actionLabel: input.actionLabel } : {}),
   })
 }

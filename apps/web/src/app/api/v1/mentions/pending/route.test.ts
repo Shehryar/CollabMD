@@ -27,6 +27,19 @@ vi.mock('@/lib/sync-url', () => ({
   getSyncHttpUrl: () => 'http://localhost:4444',
 }))
 
+vi.mock('@/lib/sync-internal-auth', () => ({
+  getSyncInternalHeaders: (extra?: Record<string, string>) => ({
+    'x-collabmd-internal-secret': 'test-secret',
+    ...extra,
+  }),
+}))
+
+const mockListAccessibleObjects = vi.fn()
+vi.mock('@collabmd/shared', () => ({
+  listAccessibleObjects: (...args: unknown[]) =>
+    mockListAccessibleObjects.apply(undefined, args as never),
+}))
+
 const mockAll = vi.fn()
 const mockOffset = vi.fn(() => ({ all: mockAll }))
 const mockLimit = vi.fn(() => ({ offset: mockOffset }))
@@ -134,10 +147,12 @@ describe('/api/v1/mentions/pending', () => {
       context: {
         keyId: 'key-1',
         orgId: 'org-1',
+        permissionUserId: 'agent:key-1',
         name: 'writer',
         scopes: {},
       },
     })
+    mockListAccessibleObjects.mockResolvedValue(['document:doc-1'])
     mockRateLimit.mockReturnValue({
       success: true,
       limit: 100,
@@ -276,6 +291,7 @@ describe('/api/v1/mentions/pending', () => {
       context: {
         keyId: 'key-1',
         orgId: 'org-1',
+        permissionUserId: 'agent:key-1',
         name: 'Writer',
         scopes: {},
       },

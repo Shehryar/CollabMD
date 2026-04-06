@@ -14,13 +14,30 @@ export async function loginCommand(serverUrl: string): Promise<void> {
 
   const loginResult = await result
 
+  const exchangeRes = await fetch(`${serverUrl}/api/auth/cli-exchange`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: loginResult.code }),
+  })
+
+  if (!exchangeRes.ok) {
+    throw new Error(`Failed to exchange CLI login code: ${exchangeRes.status} ${exchangeRes.statusText}`)
+  }
+
+  const exchanged = (await exchangeRes.json()) as {
+    token: string
+    userId: string
+    email: string
+    name: string
+  }
+
   saveCredential(serverUrl, {
-    sessionToken: loginResult.token,
-    userId: loginResult.userId,
-    email: loginResult.email,
-    name: loginResult.name,
+    sessionToken: exchanged.token,
+    userId: exchanged.userId,
+    email: exchanged.email,
+    name: exchanged.name,
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   })
 
-  console.log(`Logged in as ${loginResult.email}`)
+  console.log(`Logged in as ${exchanged.email}`)
 }

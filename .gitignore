@@ -17,3 +17,4 @@ apps/web/.next-dev/
 playwright-report/
 test-results/
 e2e/.openfga.pid
+.claude/worktrees/

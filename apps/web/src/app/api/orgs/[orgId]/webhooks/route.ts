@@ -5,6 +5,7 @@ import { auth } from '@/lib/auth'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import { requireJsonContentType } from '@/lib/http'
 import { encryptWebhookSecret } from '@/lib/webhook-secret'
+import { validateOutboundWebhookUrl } from '@/lib/webhook-url'
 import { db, webhooks, members, and, eq, desc } from '@collabmd/db'
 
 const webhookEventTypes = [
@@ -125,12 +126,12 @@ export async function POST(
   }
 
   try {
-    const parsed = new URL(url)
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return NextResponse.json({ error: 'url must use http or https' }, { status: 400 })
-    }
-  } catch {
-    return NextResponse.json({ error: 'url must be valid' }, { status: 400 })
+    await validateOutboundWebhookUrl(url)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'url must be valid' },
+      { status: 400 },
+    )
   }
 
   const events = parseEvents(body.events)

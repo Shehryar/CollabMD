@@ -93,6 +93,41 @@ describe('webhook dispatch helpers', () => {
     expect(scheduleFn).toHaveBeenCalledTimes(3)
   })
 
+  it('records a timeout when webhook delivery takes too long', async () => {
+    vi.useFakeTimers()
+    const flushAsync = async () => {
+      for (let i = 0; i < 6; i += 1) {
+        await Promise.resolve()
+      }
+    }
+
+    const fetchFn = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'))
+          })
+        }),
+    )
+    const recordDelivery = vi.fn(async () => {})
+
+    dispatchWebhookWithRetry(
+      {
+        webhook: { id: 'wh-1', url: 'https://example.test/webhook', secret: 'secret' },
+        eventType: 'document.edited',
+        payloadObject: { eventType: 'document.edited', documentId: 'doc-1' },
+      },
+      { fetchFn: fetchFn as unknown as typeof fetch, recordDelivery, timeoutMs: 50 },
+    )
+
+    await vi.advanceTimersByTimeAsync(50)
+    await flushAsync()
+
+    expect(recordDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({ responseBody: 'request timed out after 50ms' }),
+    )
+  })
+
   it('limits webhook fetch concurrency', async () => {
     const flushAsync = async () => {
       for (let i = 0; i < 6; i += 1) {
