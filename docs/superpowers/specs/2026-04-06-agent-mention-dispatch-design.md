@@ -110,24 +110,53 @@ New class: `MentionPoller` in `packages/collabmd/src/daemon/mention-poller.ts`.
 
 - Runs on a `setInterval` at the configured `pollInterval`
 - Calls `GET /api/v1/mentions/pending` with the agent API key as bearer token
+- The API key's name determines which agent's mentions are returned (the endpoint filters by `agentName` from the key's `context.name`). Each configured agent command should have a corresponding API key whose name matches the command key.
 - For each pending mention:
-  - Checks if the `mentionedAgent` matches a configured command
   - Checks if this mention has already been dispatched (tracked by `commentId` in a `Set`)
-  - Writes a trigger file to `.collabmd/agent-triggers/` in the same format comment-bridge uses
+  - Writes a trigger file to `.collabmd/agent-triggers/` in the same format comment-bridge uses, with `mentionedAgent` set to the API key's agent name
   - Calls `AgentRunner.handleTriggerCreated()` with the trigger path
 - After the agent responds, the response is posted back via `POST /api/v1/documents/:id/comments` with `{ commentId, text }` using the same API key
 
+### API Key to Agent Mapping
+
+The `/api/v1/mentions/pending` endpoint uses the API key's name as the agent name (line 83 of `route.ts`: `const agentName = authResult.context.name`). It scans comments for `@{agentName}` mentions and filters out comments where the agent has already replied.
+
+For a single-agent setup, one API key is sufficient. For multi-agent setups (multiple configured commands), the user creates one API key per agent. The config supports this:
+
+```json
+{
+  "agents": {
+    "commands": {
+      "reviewer": {
+        "command": "claude --print ...",
+        "apiKey": "ak_reviewer_key"
+      },
+      "writer": {
+        "command": "openclaw exec ...",
+        "apiKey": "ak_writer_key"
+      }
+    }
+  }
+}
+```
+
+The top-level `apiKey` serves as a default. Per-command `apiKey` overrides it. The poller makes one poll request per unique API key.
+
 ### Deduplication
 
-The poller tracks dispatched mention IDs in memory (`Set<string>`). A mention is considered "handled" once the trigger file is created. If the daemon restarts, it may re-process mentions that were handled but not yet replied to. This is acceptable for the MVP since `AgentRunner` already deduplicates by trigger path.
+The poller tracks dispatched mention IDs in memory (`Set<string>`). A mention is considered "handled" once the trigger file is created. If the daemon restarts, it may re-process mentions that were handled but not yet replied to.
 
-The `/api/v1/mentions/pending` endpoint already filters out mentions that have a reply from the agent, so once the agent responds, the mention drops off the list naturally.
+The `/api/v1/mentions/pending` endpoint already filters out mentions that have a reply from the agent (by checking thread replies for matching `authorName`), so once the agent responds, the mention drops off the list naturally. This provides eventual consistency even after restarts, though duplicate agent invocations are possible during the window between dispatch and reply.
 
-### Integration with FolderDaemon
+**Known limitation:** In-memory dedup is lost on restart. A future improvement could persist dispatched IDs to `.collabmd/mention-poller-state.json`.
 
-`MentionPoller` is instantiated in `FolderDaemon` alongside the existing `AgentRunner`. It shares the same `AgentRunner` instance for command execution. The poller starts when the daemon starts and stops when the daemon stops.
+### Integration with Daemon
 
-For the multi-folder `Daemon` orchestrator: the poller runs once globally (not per folder), since mentions are org-scoped, not folder-scoped.
+`MentionPoller` is org-scoped, not folder-scoped. It lives in the `Daemon` orchestrator (`packages/collabmd/src/daemon/index.ts`), not in `FolderDaemon`. This avoids duplicate pollers when multiple folders are registered for the same org.
+
+For the single-folder `collabmd dev` flow, `FolderDaemon` instantiates its own `MentionPoller` since there's no `Daemon` orchestrator.
+
+The poller shares the `AgentRunner` instance for command execution. It starts when the daemon starts and stops when the daemon stops.
 
 ### Response Posting
 
@@ -136,6 +165,15 @@ Today `AgentRunner` writes a `.response.json` file that comment-bridge picks up 
 The response flow branches:
 - **Local trigger (file watcher):** response → `.response.json` → comment-bridge → CRDT
 - **Cloud trigger (poller):** response → v1 API POST → sync server → CRDT
+
+### HTTP Client
+
+`MentionPoller` needs a minimal HTTP client for two operations: polling mentions and posting replies. This is a lightweight fetch wrapper in `mention-poller.ts` itself (not a shared package). It makes two types of requests:
+
+- `GET /api/v1/mentions/pending` with `Authorization: Bearer ak_...`
+- `POST /api/v1/documents/:id/comments` with `{ commentId, text }` and the same auth header
+
+This avoids adding a dependency on `packages/mcp-server` from `packages/collabmd`. The MCP server's `CollabMDClient` also gets a `replyToComment` method (Section 1), but the daemon uses its own minimal client.
 
 ### Error Handling
 
@@ -238,6 +276,10 @@ Thread context:
 You were @mentioned as @{agentName}. Please respond to this comment.
 ```
 
+### ACP Spec Version
+
+Target the ACP spec as of the stdio transport (the only stable transport). HTTP/Streamable transport is still draft and not supported. Reference: https://agentclientprotocol.com
+
 ### Fallback
 
 If the ACP subprocess fails to initialize or doesn't respond to the `initialize` message within 10 seconds, the daemon logs an error and marks the mention as failed. No fallback to raw command mode since `acp` and `command` are mutually exclusive config fields.
@@ -293,3 +335,7 @@ No changes needed to this payload.
 - **WebSocket event delivery** to the daemon. The polling approach is simpler and sufficient for MVP. WebSocket push can be added later as an optimization if polling latency becomes an issue.
 - **Agent registry UI changes.** The existing org settings agent/webhook management is sufficient.
 - **New database tables.** No new tables needed. Mention state is derived from Yjs snapshots (existing pattern).
+
+## Known Scalability Concern
+
+The `/api/v1/mentions/pending` endpoint loads every accessible document's Yjs snapshot, parses comments, and scans for @mentions. This is O(N) snapshot fetches per poll where N is the number of documents in the org. For orgs with many documents, this will become slow. Acceptable for MVP but a future optimization (e.g., a `pending_mentions` materialized view, or an event log that records mentions at write time) will be needed at scale.
