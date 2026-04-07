@@ -1,15 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGetPreferences = vi.fn()
-const mockAll = vi.fn()
-const mockWhere = vi.fn(() => ({ all: mockAll }))
+const mockWhere = vi.fn()
 const mockFrom = vi.fn(() => ({ where: mockWhere }))
 
 vi.mock('@collabmd/db', () => ({
   db: {
     select: vi.fn(() => ({ from: mockFrom })),
   },
-  getUserEmailNotificationPreferences: (...args: unknown[]) =>
+  getUserEmailNotificationPreferencesAsync: (...args: unknown[]) =>
     mockGetPreferences.apply(undefined, args as never),
   users: {
     id: 'id',
@@ -56,7 +55,7 @@ describe('sendMentionEmails', () => {
         ['user-3', 'none'],
       ]),
     )
-    mockAll.mockReturnValue([
+    mockWhere.mockResolvedValue([
       { id: 'user-1', email: 'all@example.com' },
       { id: 'user-2', email: 'mentions@example.com' },
       { id: 'user-3', email: 'none@example.com' },
@@ -77,8 +76,8 @@ describe('sendMentionEmails', () => {
     globalThis.fetch = originalFetch
   })
 
-  it('builds mention emails only for allowed recipients', () => {
-    const payloads = buildMentionEmailPayloads({
+  it('builds mention emails only for allowed recipients', async () => {
+    const payloads = await buildMentionEmailPayloads({
       userIds: ['user-1', 'user-2', 'user-3'],
       actorName: 'Alice',
       documentId: 'doc-1',
@@ -106,7 +105,7 @@ describe('sendMentionEmails', () => {
 
   it('skips work when there are no recipients', async () => {
     expect(
-      buildMentionEmailPayloads({
+      await buildMentionEmailPayloads({
         userIds: [],
         actorName: 'Alice',
         documentId: 'doc-1',

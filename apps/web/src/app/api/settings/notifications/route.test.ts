@@ -32,7 +32,7 @@ vi.mock('@/lib/http', () => ({
 const mockGetPreference = vi.fn()
 const mockSetPreference = vi.fn()
 vi.mock('@collabmd/db', () => ({
-  getUserEmailNotificationPreference: (...args: unknown[]) =>
+  getUserEmailNotificationPreferenceAsync: (...args: unknown[]) =>
     mockGetPreference.apply(undefined, args as never),
   setUserEmailNotificationPreference: (...args: unknown[]) =>
     mockSetPreference.apply(undefined, args as never),

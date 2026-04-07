@@ -848,6 +848,7 @@ export function createSyncServer(config?: SyncServerConfig) {
             ? authHeader.slice('Bearer '.length)
             : null
           if (!token) {
+            console.warn(`[sync] missing bearer token room=${roomName} source=${source}`)
             socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
             socket.destroy()
             return
@@ -861,6 +862,7 @@ export function createSyncServer(config?: SyncServerConfig) {
         }
 
         if (!payload) {
+          console.warn(`[sync] auth failed room=${roomName} source=${source}`)
           socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
           socket.destroy()
           return
@@ -879,6 +881,9 @@ export function createSyncServer(config?: SyncServerConfig) {
 
         if (notificationUserId) {
           if (notificationUserId !== payload.id) {
+            console.warn(
+              `[sync] notification room forbidden room=${roomName} source=${source} userId=${payload.id}`,
+            )
             wss.handleUpgrade(req, socket, head, (ws) => {
               ws.close(4403, 'Forbidden')
             })
@@ -893,6 +898,9 @@ export function createSyncServer(config?: SyncServerConfig) {
             roomName,
           )
           if (!canView) {
+            console.warn(
+              `[sync] document forbidden room=${roomName} source=${source} userId=${payload.id} permission=can_view`,
+            )
             wss.handleUpgrade(req, socket, head, (ws) => {
               ws.close(4403, 'Forbidden')
             })

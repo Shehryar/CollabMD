@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth'
 import { requireJsonContentType } from '@/lib/http'
 import { enforceUserMutationRateLimit, getClientIp } from '@/lib/rate-limit'
 import {
-  getUserEmailNotificationPreference,
+  getUserEmailNotificationPreferenceAsync,
   setUserEmailNotificationPreference,
 } from '@collabmd/db'
 import { isEmailNotificationPreference } from '@collabmd/shared'
@@ -16,7 +16,7 @@ export async function GET(_request: NextRequest) {
   }
 
   return NextResponse.json({
-    emailNotifications: getUserEmailNotificationPreference(session.user.id),
+    emailNotifications: await getUserEmailNotificationPreferenceAsync(session.user.id),
   })
 }
 

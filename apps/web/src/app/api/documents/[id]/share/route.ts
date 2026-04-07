@@ -7,7 +7,7 @@ import {
   pendingResourceInvites,
   eq,
   and,
-  getUserEmailNotificationPreference,
+  getUserEmailNotificationPreferenceAsync,
 } from '@collabmd/db'
 import { auth } from '@/lib/auth'
 import { checkPermission, writeTuple, deleteTuple, readTuples } from '@collabmd/shared'
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       resourceName: document.title,
       resourceType: 'document',
       resourceId: docId,
-      preference: getUserEmailNotificationPreference(targetUser.id),
+      preference: await getUserEmailNotificationPreferenceAsync(targetUser.id),
       baseUrl: process.env.BETTER_AUTH_URL || request.nextUrl.origin,
     })
   }

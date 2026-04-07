@@ -1,6 +1,6 @@
 import {
   db,
-  getUserEmailNotificationPreferences,
+  getUserEmailNotificationPreferencesAsync,
   inArray,
   users,
 } from '@collabmd/db'
@@ -54,31 +54,30 @@ export async function sendMentionEmails(input: {
   documentTitle: string
   excerpt: string
 }): Promise<void> {
-  const payloads = buildMentionEmailPayloads(input)
+  const payloads = await buildMentionEmailPayloads(input)
   await Promise.allSettled(payloads.map((payload) => sendEmail(payload)))
 }
 
-export function buildMentionEmailPayloads(input: {
+export async function buildMentionEmailPayloads(input: {
   userIds: string[]
   actorName: string
   documentId: string
   documentTitle: string
   excerpt: string
-}): Array<{
+}): Promise<Array<{
   to: string
   subject: string
   text: string
   html: string
-}> {
+}>> {
   const uniqueUserIds = Array.from(new Set(input.userIds.filter((value) => value.trim().length > 0)))
   if (uniqueUserIds.length === 0) return []
 
-  const preferences = getUserEmailNotificationPreferences(uniqueUserIds)
-  const recipients = db
+  const preferences = await getUserEmailNotificationPreferencesAsync(uniqueUserIds)
+  const recipients = await db
     .select({ id: users.id, email: users.email })
     .from(users)
     .where(inArray(users.id, uniqueUserIds))
-    .all()
 
   const baseUrl = normalizeBaseUrl()
   return recipients.flatMap((recipient) => {

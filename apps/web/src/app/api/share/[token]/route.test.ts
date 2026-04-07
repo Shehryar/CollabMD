@@ -2,6 +2,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
+const mockGetSession = vi.fn()
+const mockWriteTuple = vi.fn()
+
 // ── Mocks ──────────────────────────────────────────────────────────────
 
 const mockRateLimit = vi.fn(() => ({
@@ -29,6 +32,22 @@ const mockRateLimitResponse = vi.fn(
 vi.mock('@/lib/rate-limit', () => ({
   rateLimit: (...args: unknown[]) => mockRateLimit.apply(undefined, args as never),
   rateLimitResponse: (...args: unknown[]) => mockRateLimitResponse.apply(undefined, args as never),
+}))
+
+vi.mock('next/headers', () => ({
+  headers: vi.fn(async () => new Headers()),
+}))
+
+vi.mock('@/lib/auth', () => ({
+  auth: {
+    api: {
+      getSession: (...args: unknown[]) => mockGetSession.apply(undefined, args as never),
+    },
+  },
+}))
+
+vi.mock('@collabmd/shared', () => ({
+  writeTuple: (...args: unknown[]) => mockWriteTuple.apply(undefined, args as never),
 }))
 
 // Drizzle chain mock
@@ -97,6 +116,8 @@ async function sha256hex(input: string): Promise<string> {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockGetSession.mockResolvedValue(null)
+  mockWriteTuple.mockResolvedValue(undefined)
 })
 
 describe('POST /api/share/[token]', () => {
@@ -188,6 +209,32 @@ describe('POST /api/share/[token]', () => {
     const body = await res.json()
     expect(body.documentId).toBe('doc-4')
     expect(body.permission).toBe('viewer')
+    expect(mockWriteTuple).not.toHaveBeenCalled()
+  })
+
+  it('grants tuple access for authenticated user opening a valid link', async () => {
+    mockDbResult.get.mockReturnValueOnce({
+      id: 'link-4b',
+      documentId: 'doc-4b',
+      token: 'valid-token-auth',
+      permission: 'commenter',
+      passwordHash: null,
+      expiresAt: null,
+    })
+    mockGetSession.mockResolvedValueOnce({
+      user: {
+        id: 'user-123',
+      },
+    })
+
+    const req = shareRequest('valid-token-auth')
+    const res = await POST(req, makeParams('valid-token-auth'))
+
+    expect(res.status).toBe(200)
+    expect(mockWriteTuple).toHaveBeenCalledWith('user:user-123', 'commenter', 'document:doc-4b', {
+      actorId: 'user-123',
+      source: 'share-link',
+    })
   })
 
   it('returns 200 for valid link with correct password', async () => {

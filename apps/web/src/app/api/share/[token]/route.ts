@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { headers } from 'next/headers'
 import { createHash, scryptSync, timingSafeEqual } from 'node:crypto'
 import { db, shareLinks, eq } from '@collabmd/db'
+import { writeTuple } from '@collabmd/shared'
+import { auth } from '@/lib/auth'
 import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 type RouteParams = { params: Promise<{ token: string }> }
@@ -31,10 +34,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const link = await db.select().from(shareLinks).where(eq(shareLinks.token, token)).get()
 
   if (!link) {
+    console.warn(`[share-link] token not found ip=${ip}`)
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
 
   if (link.expiresAt && link.expiresAt < Date.now()) {
+    console.warn(`[share-link] expired linkId=${link.id} docId=${link.documentId} ip=${ip}`)
     return NextResponse.json({ error: 'expired' }, { status: 410 })
   }
 
@@ -47,12 +52,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { password } = body as { password?: string }
 
     if (!password) {
+      console.info(`[share-link] password required linkId=${link.id} docId=${link.documentId} ip=${ip}`)
       return NextResponse.json({ error: 'password required' }, { status: 401 })
     }
 
     if (!verifyPassword(password, link.passwordHash)) {
+      console.warn(`[share-link] wrong password linkId=${link.id} docId=${link.documentId} ip=${ip}`)
       return NextResponse.json({ error: 'wrong password' }, { status: 403 })
     }
+  }
+
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (session?.user.id) {
+    console.info(
+      `[share-link] granting access linkId=${link.id} docId=${link.documentId} userId=${session.user.id} permission=${link.permission}`,
+    )
+    await writeTuple(`user:${session.user.id}`, link.permission, `document:${link.documentId}`, {
+      actorId: session.user.id,
+      source: 'share-link',
+    })
+  } else {
+    console.info(
+      `[share-link] validated without session linkId=${link.id} docId=${link.documentId} permission=${link.permission}`,
+    )
   }
 
   return NextResponse.json({

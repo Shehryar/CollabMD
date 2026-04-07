@@ -102,7 +102,7 @@ vi.mock('@collabmd/db', () => ({
     orgId: 'org_id',
     inviterId: 'inviter_id',
   },
-  getUserEmailNotificationPreference: vi.fn(() => 'all'),
+  getUserEmailNotificationPreferenceAsync: vi.fn(() => 'all'),
   inArray: (...args: unknown[]) => mockInArray.apply(undefined, args as never),
   eq: (...args: unknown[]) => mockEq.apply(undefined, args as never),
   and: (...args: unknown[]) => mockAnd.apply(undefined, args as never),

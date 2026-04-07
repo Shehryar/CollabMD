@@ -7,7 +7,10 @@ import { jwt } from 'better-auth/plugins'
 import { bearer } from 'better-auth/plugins'
 import { db, isPostgres } from '@collabmd/db'
 import * as schema from '@collabmd/db/schema'
-import { applyPendingResourceInvitesForUser } from '@/lib/pending-resource-invites'
+import {
+  applyPendingResourceInvitesForUser,
+  applyPendingResourceInvitesForUserId,
+} from '@/lib/pending-resource-invites'
 
 if (!process.env.BETTER_AUTH_SECRET) {
   throw new Error('BETTER_AUTH_SECRET is required')
@@ -119,10 +122,35 @@ export const auth = betterAuth({
             },
           })
 
-          await applyPendingResourceInvitesForUser({
-            id: user.id,
-            email: user.email,
-          })
+          try {
+            const result = await applyPendingResourceInvitesForUser({
+              id: user.id,
+              email: user.email,
+            })
+            if (result.failed > 0) {
+              console.warn(
+                `[pending-invite] partial claim during signup userId=${user.id} claimed=${result.claimed} failed=${result.failed}`,
+              )
+            }
+          } catch (error) {
+            console.error(`[pending-invite] signup claim failed userId=${user.id}`, error)
+          }
+        },
+      },
+    },
+    session: {
+      create: {
+        after: async (session) => {
+          try {
+            const result = await applyPendingResourceInvitesForUserId(session.userId)
+            if (result.claimed > 0 || result.failed > 0) {
+              console.info(
+                `[pending-invite] session claim userId=${session.userId} claimed=${result.claimed} failed=${result.failed}`,
+              )
+            }
+          } catch (error) {
+            console.error(`[pending-invite] session claim failed userId=${session.userId}`, error)
+          }
         },
       },
     },
