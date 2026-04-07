@@ -33,6 +33,10 @@ CRITICAL: Never run build in background or pipe through `tail` — a failed buil
    ```
    ssh root@137.184.197.113 "docker images ghcr.io/shehryar/collabmd-web:latest --format '{{.ID}}'"
    ```
+6. Prune old images on droplet (keeps last 48h for rollback):
+   ```
+   ssh root@137.184.197.113 "docker image prune -af --filter 'until=48h'"
+   ```
 
 ### What requires a rebuild
 
@@ -84,6 +88,12 @@ Exception: `NEXT_PUBLIC_*` env vars are baked into the Next.js client bundle at 
 - `BETTER_AUTH_URL` and `SYNC_SERVER_INTERNAL_SECRET` both required in production (sync server throws on startup if missing).
 - All containers have `security_opt: no-new-privileges:true`. Web and sync-server run as non-root users.
 - OpenFGA DB credentials are env-var driven (`OPENFGA_DB_USER`, `OPENFGA_DB_PASSWORD`) in prod compose.
+
+### Log rotation
+
+- Docker: `/etc/docker/daemon.json` sets `max-size: 10m`, `max-file: 3` per container (30MB max per container)
+- Systemd journal: `/etc/systemd/journald.conf.d/size.conf` caps at 100M
+- Old Docker images pruned at deploy time (step 6 above)
 
 ### Email (Loops)
 
