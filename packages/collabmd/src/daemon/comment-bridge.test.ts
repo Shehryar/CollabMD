@@ -78,11 +78,22 @@ describe('CommentBridge', () => {
     source?: 'browser' | 'daemon'
     authorName?: string
     createdAt?: string
-    thread?: Array<{ authorName: string; text: string; createdAt: string }>
+    thread?: Array<{
+      id?: string
+      parentId?: string
+      authorName: string
+      text: string
+      createdAt: string
+    }>
     suggestion?: {
       originalText: string
       proposedText: string
       status: 'pending' | 'accepted' | 'dismissed'
+    }
+    textAnchor?: {
+      quote: string
+      prefix: string
+      suffix: string
     }
   }): void => {
     ydoc.transact(() => {
@@ -102,6 +113,13 @@ describe('CommentBridge', () => {
       ycomment.set('text', input.text)
       ycomment.set('createdAt', input.createdAt ?? '2026-02-10T12:00:00Z')
       ycomment.set('resolved', input.resolved ?? false)
+      if (input.textAnchor) {
+        const yanchor = new Y.Map<unknown>()
+        yanchor.set('quote', input.textAnchor.quote)
+        yanchor.set('prefix', input.textAnchor.prefix)
+        yanchor.set('suffix', input.textAnchor.suffix)
+        ycomment.set('textAnchor', yanchor)
+      }
       if (input.suggestion) {
         const ysuggestion = new Y.Map<unknown>()
         ysuggestion.set('originalText', input.suggestion.originalText)
@@ -113,6 +131,8 @@ describe('CommentBridge', () => {
       const thread = new Y.Array<Y.Map<unknown>>()
       for (const reply of input.thread ?? []) {
         const yreply = new Y.Map<unknown>()
+        if (reply.id) yreply.set('id', reply.id)
+        if (reply.parentId) yreply.set('parentId', reply.parentId)
         yreply.set('authorId', reply.authorName)
         yreply.set('authorName', reply.authorName)
         yreply.set('text', reply.text)
@@ -143,11 +163,22 @@ describe('CommentBridge', () => {
       text: string
       createdAt: string
       resolved: boolean
-      thread: Array<{ author: string; text: string; createdAt: string }>
+      thread: Array<{
+        id?: string
+        parentId?: string
+        author: string
+        text: string
+        createdAt: string
+      }>
       suggestion?: {
         originalText: string
         proposedText: string
         status: 'pending' | 'accepted' | 'dismissed'
+      }
+      textAnchor?: {
+        quote: string
+        prefix: string
+        suffix: string
       }
     }>
   } =>
@@ -162,11 +193,22 @@ describe('CommentBridge', () => {
         text: string
         createdAt: string
         resolved: boolean
-        thread: Array<{ author: string; text: string; createdAt: string }>
+        thread: Array<{
+          id?: string
+          parentId?: string
+          author: string
+          text: string
+          createdAt: string
+        }>
         suggestion?: {
           originalText: string
           proposedText: string
           status: 'pending' | 'accepted' | 'dismissed'
+        }
+        textAnchor?: {
+          quote: string
+          prefix: string
+          suffix: string
         }
       }>
     }
@@ -197,9 +239,45 @@ describe('CommentBridge', () => {
         text: 'Needs detail',
         createdAt: '2026-02-10T12:00:00Z',
         resolved: false,
-        thread: [{ author: 'Claude', text: 'Will update', createdAt: '2026-02-10T12:05:00Z' }],
+        textAnchor: {
+          quote: 'line 2\n',
+          prefix: 'line 1\n',
+          suffix: 'line 3\n',
+        },
+        thread: [
+          expect.objectContaining({
+            author: 'Claude',
+            text: 'Will update',
+            createdAt: '2026-02-10T12:05:00Z',
+          }),
+        ],
       },
     ])
+  })
+
+  it('serializes portable text anchor metadata to sidecar JSON', () => {
+    ytext.insert(0, 'hello world')
+    addComment({
+      id: 'anchor-1',
+      startIndex: 6,
+      endIndex: 11,
+      text: 'Anchor this',
+      authorName: 'Agent',
+      textAnchor: {
+        quote: 'world',
+        prefix: 'hello ',
+        suffix: '',
+      },
+    })
+
+    initializeBridge()
+
+    const sidecar = readSidecar()
+    expect(sidecar.comments[0]?.textAnchor).toEqual({
+      quote: 'world',
+      prefix: 'hello ',
+      suffix: '',
+    })
   })
 
   it('serializes suggestion data to sidecar JSON', () => {
@@ -270,6 +348,50 @@ describe('CommentBridge', () => {
     const endIndex = getAbsoluteIndex(created.get('anchorEnd') as Uint8Array)
     expect(startIndex).toBe(lineStart(2))
     expect(endIndex).toBe(lineStart(3))
+  })
+
+  it('deserializes text anchor data from sidecar JSON', () => {
+    ytext.insert(0, 'hello world')
+    initializeBridge()
+
+    mkdirSync(join(tempDir, '.collabmd', 'comments', 'docs'), { recursive: true })
+    writeFileSync(
+      sidecarPath(),
+      JSON.stringify(
+        {
+          documentPath,
+          comments: [
+            {
+              id: 'anchor-from-file',
+              line: 1,
+              endLine: 1,
+              author: 'Agent',
+              source: 'daemon',
+              text: 'Anchor me',
+              createdAt: '2026-02-11T10:00:00Z',
+              resolved: false,
+              textAnchor: {
+                quote: 'hello',
+                prefix: '',
+                suffix: ' world',
+              },
+              thread: [],
+            },
+          ],
+        },
+        null,
+        2,
+      ) + '\n',
+      'utf-8',
+    )
+
+    bridge!.onCommentFileChange()
+
+    const created = ycomments.get(0)
+    const textAnchor = created.get('textAnchor') as Y.Map<unknown>
+    expect(textAnchor.get('quote')).toBe('hello')
+    expect(textAnchor.get('prefix')).toBe('')
+    expect(textAnchor.get('suffix')).toBe(' world')
   })
 
   it('deserializes suggestion data from sidecar JSON', () => {
@@ -392,7 +514,11 @@ describe('CommentBridge', () => {
 
     const sidecar = readSidecar()
     expect(sidecar.comments[0]?.thread).toEqual([
-      { author: 'Claude', text: 'Initial reply', createdAt: '2026-02-11T10:00:00Z' },
+      expect.objectContaining({
+        author: 'Claude',
+        text: 'Initial reply',
+        createdAt: '2026-02-11T10:00:00Z',
+      }),
     ])
 
     sidecar.comments[0]!.thread.push({

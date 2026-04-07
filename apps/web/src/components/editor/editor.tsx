@@ -643,8 +643,8 @@ export default function CollabEditor({
   )
 
   const handleReply = useCallback(
-    (commentId: string, text: string) => {
-      replyToComment(commentId, text)
+    (commentId: string, text: string, parentId?: string | null) => {
+      replyToComment(commentId, text, parentId)
     },
     [replyToComment],
   )
@@ -681,8 +681,8 @@ export default function CollabEditor({
   )
 
   const handleReplyDiscussion = useCallback(
-    (discussionId: string, text: string) => {
-      replyToDiscussion(discussionId, text)
+    (discussionId: string, text: string, parentId?: string | null) => {
+      replyToDiscussion(discussionId, text, parentId)
     },
     [replyToDiscussion],
   )

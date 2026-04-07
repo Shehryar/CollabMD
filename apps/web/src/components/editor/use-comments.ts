@@ -8,6 +8,8 @@ const COMMENT_SYNC_DEBOUNCE_MS = 40
 export type CommentSource = 'browser' | 'daemon'
 
 export interface CommentThreadEntry {
+  id: string
+  parentId: string | null
   authorId: string
   authorName: string
   text: string
@@ -20,6 +22,12 @@ export interface SuggestionData {
   status: 'pending' | 'accepted' | 'dismissed'
 }
 
+export interface TextAnchorData {
+  quote: string
+  prefix: string
+  suffix: string
+}
+
 export interface CommentEntry {
   id: string
   anchorStart: Uint8Array
@@ -30,6 +38,7 @@ export interface CommentEntry {
   text: string
   createdAt: string
   resolved: boolean
+  textAnchor?: TextAnchorData
   thread: CommentThreadEntry[]
   suggestion?: SuggestionData
 }
@@ -63,6 +72,7 @@ interface ReplyCommentInput {
   ydoc: Y.Doc
   ycomments: Y.Array<Y.Map<unknown>>
   commentId: string
+  parentId?: string | null
   authorId: string
   authorName: string
   text: string
@@ -131,25 +141,76 @@ function asBool(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback
 }
 
+function fallbackThreadEntryId(
+  authorId: string,
+  authorName: string,
+  text: string,
+  createdAt: string,
+  index: number,
+): string {
+  return `reply-${authorId || authorName || 'unknown'}-${createdAt || 'unknown'}-${index}-${text}`
+}
+
 function readThread(thread: unknown): CommentThreadEntry[] {
   if (!(thread instanceof Y.Array)) return []
 
   const entries: CommentThreadEntry[] = []
-  for (const value of thread.toArray()) {
+  for (const [index, value] of thread.toArray().entries()) {
     if (!(value instanceof Y.Map)) continue
 
     const text = asString(value.get('text')).trim()
     if (!text) continue
 
+    const authorId = asString(value.get('authorId'))
+    const authorName = asString(value.get('authorName'))
+    const createdAt = asString(value.get('createdAt'))
+    const id =
+      asString(value.get('id')).trim() ||
+      fallbackThreadEntryId(authorId, authorName, text, createdAt, index)
+    const rawParentId = asString(value.get('parentId')).trim()
+
     entries.push({
-      authorId: asString(value.get('authorId')),
-      authorName: asString(value.get('authorName')),
+      id,
+      parentId: rawParentId || null,
+      authorId,
+      authorName,
       text,
-      createdAt: asString(value.get('createdAt')),
+      createdAt,
     })
   }
 
   return entries
+}
+
+function createTextAnchorData(content: string, from: number, to: number): TextAnchorData | undefined {
+  const start = Math.max(0, Math.min(from, to))
+  const end = Math.max(0, Math.max(from, to))
+  if (start === end) return undefined
+
+  return {
+    quote: content.slice(start, end),
+    prefix: content.slice(Math.max(0, start - 40), start),
+    suffix: content.slice(end, Math.min(content.length, end + 40)),
+  }
+}
+
+function createTextAnchorMap(anchor: TextAnchorData): Y.Map<unknown> {
+  const yanchor = new Y.Map<unknown>()
+  yanchor.set('quote', anchor.quote)
+  yanchor.set('prefix', anchor.prefix)
+  yanchor.set('suffix', anchor.suffix)
+  return yanchor
+}
+
+function readTextAnchor(value: unknown): TextAnchorData | undefined {
+  if (!(value instanceof Y.Map)) return undefined
+
+  const quote = asString(value.get('quote'))
+  const prefix = asString(value.get('prefix'))
+  const suffix = asString(value.get('suffix'))
+  if (!quote) return undefined
+
+  return { quote, prefix, suffix }
 }
 
 function readSuggestion(suggestion: unknown): SuggestionData | undefined {
@@ -191,6 +252,7 @@ function readComment(value: unknown): CommentEntry | null {
     text,
     createdAt: asString(value.get('createdAt')),
     resolved: asBool(value.get('resolved')),
+    textAnchor: readTextAnchor(value.get('textAnchor')),
     thread: readThread(value.get('thread')),
     suggestion: readSuggestion(value.get('suggestion')),
   }
@@ -291,6 +353,7 @@ export function createCommentInYArray(input: CreateCommentInput): string | null 
 
   const id = createId()
   const createdAt = input.createdAt ?? new Date().toISOString()
+  const textAnchor = createTextAnchorData(input.ytext.toString(), from, to)
 
   input.ydoc.transact(() => {
     const ycomment = new Y.Map<unknown>()
@@ -303,6 +366,7 @@ export function createCommentInYArray(input: CreateCommentInput): string | null 
     ycomment.set('text', text)
     ycomment.set('createdAt', createdAt)
     ycomment.set('resolved', false)
+    if (textAnchor) ycomment.set('textAnchor', createTextAnchorMap(textAnchor))
     ycomment.set('thread', new Y.Array<Y.Map<unknown>>())
 
     input.ycomments.push([ycomment])
@@ -412,9 +476,12 @@ export function replyToCommentInYArray(input: ReplyCommentInput): boolean {
   if (!comment) return false
 
   const createdAt = input.createdAt ?? new Date().toISOString()
+  const parentId = input.parentId?.trim() || null
 
   input.ydoc.transact(() => {
     const reply = new Y.Map<unknown>()
+    reply.set('id', createId())
+    if (parentId) reply.set('parentId', parentId)
     reply.set('authorId', input.authorId)
     reply.set('authorName', input.authorName)
     reply.set('text', text)
@@ -439,6 +506,7 @@ export function addCommentReply(
   ycomments: Y.Array<Y.Map<unknown>>,
   input: {
     commentId: string
+    parentId?: string | null
     authorId: string
     authorName: string
     text: string
@@ -581,7 +649,7 @@ export function useComments(options: UseCommentsOptions) {
   )
 
   const replyToComment = useCallback(
-    (commentId: string, text: string): boolean => {
+    (commentId: string, text: string, parentId?: string | null): boolean => {
       if (!canComment) return false
 
       const authorId = currentUser?.id
@@ -591,6 +659,7 @@ export function useComments(options: UseCommentsOptions) {
         ydoc,
         ycomments,
         commentId,
+        parentId,
         text,
         authorId,
         authorName: currentUser.name?.trim() || 'Unknown user',

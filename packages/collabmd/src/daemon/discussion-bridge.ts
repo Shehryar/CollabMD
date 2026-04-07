@@ -13,6 +13,8 @@ interface SidecarAuthor {
 }
 
 interface SidecarReply {
+  id: string
+  parentId?: string
   author: SidecarAuthor
   text: string
   createdAt: string
@@ -153,6 +155,7 @@ export class DiscussionBridge {
       const authorMap = new Y.Map<unknown>()
       authorMap.set('userId', author)
       authorMap.set('name', author)
+      reply.set('id', this.createReplyId({ userId: author, name: author }, text, createdAt))
       reply.set('author', authorMap)
       reply.set('text', text)
       reply.set('createdAt', createdAt)
@@ -294,6 +297,8 @@ export class DiscussionBridge {
     const thread = new Y.Array<Y.Map<unknown>>()
     for (const reply of discussion.thread) {
       const yreply = new Y.Map<unknown>()
+      yreply.set('id', reply.id)
+      if (reply.parentId) yreply.set('parentId', reply.parentId)
       yreply.set('author', this.createYAuthor(reply.author))
       yreply.set('text', reply.text)
       yreply.set('createdAt', reply.createdAt)
@@ -321,11 +326,16 @@ export class DiscussionBridge {
     const signatures = new Set<string>()
     for (const value of thread.toArray()) {
       if (!(value instanceof Y.Map)) continue
+      const author = this.readAuthor(value.get('author'))
+      const text = this.asString(value.get('text'))
+      const createdAt = this.asString(value.get('createdAt'))
       signatures.add(
         this.replySignature({
-          author: this.readAuthor(value.get('author')),
-          text: this.asString(value.get('text')),
-          createdAt: this.asString(value.get('createdAt')),
+          id: this.asString(value.get('id')).trim() || this.createReplyId(author, text, createdAt),
+          parentId: this.asString(value.get('parentId')).trim() || undefined,
+          author,
+          text,
+          createdAt,
         }),
       )
     }
@@ -334,6 +344,8 @@ export class DiscussionBridge {
       const signature = this.replySignature(reply)
       if (signatures.has(signature)) continue
       const yreply = new Y.Map<unknown>()
+      yreply.set('id', reply.id)
+      if (reply.parentId) yreply.set('parentId', reply.parentId)
       yreply.set('author', this.createYAuthor(reply.author))
       yreply.set('text', reply.text)
       yreply.set('createdAt', reply.createdAt)
@@ -388,10 +400,14 @@ export class DiscussionBridge {
         if (!(entry instanceof Y.Map)) continue
         const replyText = this.asString(entry.get('text')).trim()
         if (!replyText) continue
+        const author = this.readAuthor(entry.get('author'))
+        const createdAt = this.asString(entry.get('createdAt'))
         const replySignature = this.replySignature({
-          author: this.readAuthor(entry.get('author')),
+          id: this.asString(entry.get('id')).trim() || this.createReplyId(author, replyText, createdAt),
+          parentId: this.asString(entry.get('parentId')).trim() || undefined,
+          author,
           text: replyText,
-          createdAt: this.asString(entry.get('createdAt')),
+          createdAt,
         })
         for (const agent of this.extractMentionedAgents(replyText)) {
           const signature = `${discussionId}\u0000reply\u0000${replySignature}\u0000${agent}`
@@ -543,10 +559,14 @@ export class DiscussionBridge {
       const candidate = entry as Record<string, unknown>
       const text = this.asString(candidate.text).trim()
       if (!text) continue
+      const author = this.parseAuthor(candidate.author)
+      const createdAt = this.asString(candidate.createdAt) || new Date().toISOString()
       thread.push({
-        author: this.parseAuthor(candidate.author),
+        id: this.asString(candidate.id).trim() || this.createReplyId(author, text, createdAt),
+        parentId: this.asString(candidate.parentId).trim() || undefined,
+        author,
         text,
-        createdAt: this.asString(candidate.createdAt) || new Date().toISOString(),
+        createdAt,
       })
     }
     return thread
@@ -559,17 +579,27 @@ export class DiscussionBridge {
       if (!(entry instanceof Y.Map)) continue
       const text = this.asString(entry.get('text')).trim()
       if (!text) continue
+      const author = this.readAuthor(entry.get('author'))
+      const createdAt = this.asString(entry.get('createdAt'))
       thread.push({
-        author: this.readAuthor(entry.get('author')),
+        id: this.asString(entry.get('id')).trim() || this.createReplyId(author, text, createdAt),
+        parentId: this.asString(entry.get('parentId')).trim() || undefined,
+        author,
         text,
-        createdAt: this.asString(entry.get('createdAt')),
+        createdAt,
       })
     }
     return thread
   }
 
+  private createReplyId(author: SidecarAuthor, text: string, createdAt: string): string {
+    return createHash('sha256')
+      .update(`${author.userId}\u0000${author.name}\u0000${text}\u0000${createdAt}`)
+      .digest('hex')
+  }
+
   private replySignature(value: SidecarReply): string {
-    return `${value.author.userId}\u0000${value.author.name}\u0000${value.text}\u0000${value.createdAt}`
+    return `${value.id}\u0000${value.parentId ?? ''}\u0000${value.author.userId}\u0000${value.author.name}\u0000${value.text}\u0000${value.createdAt}`
   }
 
   private asString(value: unknown): string {

@@ -37,6 +37,48 @@ describe('use-discussions helpers', () => {
     const thread = discussion.get('thread') as Y.Array<Y.Map<unknown>>
     expect(thread.length).toBe(1)
     expect((thread.get(0).get('author') as Y.Map<unknown>).get('name')).toBe('Reply User')
+    expect(typeof thread.get(0).get('id')).toBe('string')
+  })
+
+  it('supports nested discussion replies', () => {
+    const ydoc = new Y.Doc()
+    const ydiscussions = ydoc.getArray<Y.Map<unknown>>('discussions')
+    const discussionId = createDiscussionInYArray({
+      ydoc,
+      ydiscussions,
+      authorId: 'u-1',
+      authorName: 'User',
+      title: 'Thread',
+      text: 'Body',
+    })
+
+    replyToDiscussionInYArray({
+      ydoc,
+      ydiscussions,
+      discussionId: discussionId!,
+      authorId: 'u-2',
+      authorName: 'Reply User',
+      text: 'First reply',
+    })
+
+    const firstReplyId = ((ydiscussions.get(0).get('thread') as Y.Array<Y.Map<unknown>>).get(0).get(
+      'id'
+    ) as string)
+
+    const ok = replyToDiscussionInYArray({
+      ydoc,
+      ydiscussions,
+      discussionId: discussionId!,
+      parentId: firstReplyId,
+      authorId: 'u-3',
+      authorName: 'Nested User',
+      text: 'Nested reply',
+    })
+
+    expect(ok).toBe(true)
+    const thread = ydiscussions.get(0).get('thread') as Y.Array<Y.Map<unknown>>
+    expect(thread.length).toBe(2)
+    expect(thread.get(1).get('parentId')).toBe(firstReplyId)
   })
 
   it('marks discussions as resolved', () => {

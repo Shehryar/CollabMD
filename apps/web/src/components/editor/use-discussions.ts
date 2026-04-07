@@ -11,6 +11,8 @@ export interface DiscussionAuthor {
 }
 
 export interface DiscussionReply {
+  id: string
+  parentId: string | null
   author: DiscussionAuthor
   text: string
   createdAt: string
@@ -65,6 +67,15 @@ function createId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
+function fallbackReplyId(
+  author: DiscussionAuthor,
+  text: string,
+  createdAt: string,
+  index: number,
+): string {
+  return `discussion-reply-${author.userId || author.name || 'unknown'}-${createdAt || 'unknown'}-${index}-${text}`
+}
+
 function readDiscussions(ydiscussions: Y.Array<Y.Map<unknown>>): DiscussionEntry[] {
   const discussions: DiscussionEntry[] = []
   for (const value of ydiscussions.toArray()) {
@@ -78,14 +89,20 @@ function readDiscussions(ydiscussions: Y.Array<Y.Map<unknown>>): DiscussionEntry
     const threadValue = value.get('thread')
     const thread: DiscussionReply[] = []
     if (threadValue instanceof Y.Array) {
-      for (const entry of threadValue.toArray()) {
+      for (const [index, entry] of threadValue.toArray().entries()) {
         if (!(entry instanceof Y.Map)) continue
         const replyText = asString(entry.get('text')).trim()
         if (!replyText) continue
+        const author = readAuthor(entry.get('author'))
+        const createdAt = asString(entry.get('createdAt'))
+        const id = asString(entry.get('id')).trim() || fallbackReplyId(author, replyText, createdAt, index)
+        const rawParentId = asString(entry.get('parentId')).trim()
         thread.push({
-          author: readAuthor(entry.get('author')),
+          id,
+          parentId: rawParentId || null,
+          author,
           text: replyText,
-          createdAt: asString(entry.get('createdAt')),
+          createdAt,
         })
       }
     }
@@ -149,6 +166,7 @@ export function replyToDiscussionInYArray(input: {
   ydoc: Y.Doc
   ydiscussions: Y.Array<Y.Map<unknown>>
   discussionId: string
+  parentId?: string | null
   authorId: string
   authorName: string
   text: string
@@ -160,6 +178,9 @@ export function replyToDiscussionInYArray(input: {
 
   input.ydoc.transact(() => {
     const reply = new Y.Map<unknown>()
+    reply.set('id', createId())
+    const parentId = input.parentId?.trim() || null
+    if (parentId) reply.set('parentId', parentId)
     reply.set('author', createAuthor(input.authorId, input.authorName))
     reply.set('text', text)
     reply.set('createdAt', input.createdAt ?? new Date().toISOString())
@@ -250,13 +271,14 @@ export function useDiscussions(options: UseDiscussionsOptions) {
   )
 
   const replyToDiscussion = useCallback(
-    (discussionId: string, text: string): boolean => {
+    (discussionId: string, text: string, parentId?: string | null): boolean => {
       if (!canComment || !currentUser?.id) return false
       const name = currentUser.name?.trim() || 'Unknown user'
       return replyToDiscussionInYArray({
         ydoc,
         ydiscussions,
         discussionId,
+        parentId,
         authorId: currentUser.id,
         authorName: name,
         text,

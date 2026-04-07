@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { CommentEntry } from './use-comments'
 import type { DiscussionEntry } from './use-discussions'
 import { computeCommentLayout } from './comment-layout'
@@ -13,12 +13,12 @@ interface CommentPanelProps {
   activeDiscussionId: string | null
   onSelectComment: (commentId: string) => void
   onSelectDiscussion: (discussionId: string) => void
-  onReply: (commentId: string, text: string) => void
+  onReply: (commentId: string, text: string, parentId?: string | null) => void
   onResolve: (commentId: string) => void
   onAcceptSuggestion: (commentId: string) => void
   onDismissSuggestion: (commentId: string) => void
   onCreateDiscussion: (title: string, text: string) => void
-  onReplyDiscussion: (discussionId: string, text: string) => void
+  onReplyDiscussion: (discussionId: string, text: string, parentId?: string | null) => void
   onResolveDiscussion: (discussionId: string) => void
   canReply: boolean
   canResolve: boolean
@@ -86,6 +86,40 @@ function getAgentMentions(comment: CommentEntry): AgentMention[] {
   return mentions
 }
 
+interface ThreadNode<T> {
+  entry: T
+  children: ThreadNode<T>[]
+}
+
+function buildThreadTree<T extends { id: string; parentId: string | null; createdAt: string }>(
+  entries: T[],
+): ThreadNode<T>[] {
+  const byId = new Map<string, ThreadNode<T>>()
+  for (const entry of entries) {
+    byId.set(entry.id, { entry, children: [] })
+  }
+
+  const roots: ThreadNode<T>[] = []
+  for (const entry of entries) {
+    const node = byId.get(entry.id)
+    if (!node) continue
+    const parent = entry.parentId ? byId.get(entry.parentId) : null
+    if (parent && parent !== node) {
+      parent.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  }
+
+  const sortNodes = (nodes: ThreadNode<T>[]) => {
+    nodes.sort((a, b) => Date.parse(a.entry.createdAt) - Date.parse(b.entry.createdAt))
+    for (const node of nodes) sortNodes(node.children)
+  }
+  sortNodes(roots)
+
+  return roots
+}
+
 export default function CommentPanel({
   comments,
   discussions,
@@ -113,9 +147,11 @@ export default function CommentPanel({
   const [showResolved, setShowResolved] = useState(false)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
+  const [replyTargets, setReplyTargets] = useState<Record<string, string | null>>({})
   const [discussionTitle, setDiscussionTitle] = useState('')
   const [discussionBody, setDiscussionBody] = useState('')
   const [discussionReplyDrafts, setDiscussionReplyDrafts] = useState<Record<string, string>>({})
+  const [discussionReplyTargets, setDiscussionReplyTargets] = useState<Record<string, string | null>>({})
   const itemRefs = useRef<Record<string, HTMLElement | null>>({})
   const [cardHeights, setCardHeights] = useState<Record<string, number>>({})
   const panelScrollRef = useRef<HTMLDivElement>(null)
@@ -294,14 +330,113 @@ export default function CommentPanel({
 
   if (!open) return null
 
+  function renderCommentReplyNode(
+    comment: CommentEntry,
+    node: ThreadNode<CommentEntry['thread'][number]>,
+    depth = 0,
+  ): ReactNode {
+    const replyTarget = replyTargets[comment.id] ?? null
+    const isReplyingHere = replyTarget === node.entry.id
+
+    return (
+      <div key={node.entry.id} className="space-y-2">
+        <div
+          className="rounded border border-border bg-bg-subtle px-2 py-1.5"
+          style={{ marginLeft: Math.min(depth, 6) * 12 }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-mono text-[10px] text-fg">{node.entry.authorName}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-fg-muted">{relativeTime(node.entry.createdAt)}</p>
+              {canReply && !comment.resolved && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReplyTargets((previous) => ({
+                      ...previous,
+                      [comment.id]: previous[comment.id] === node.entry.id ? null : node.entry.id,
+                    }))
+                  }}
+                  className="font-mono text-[10px] text-fg-secondary hover:text-fg"
+                >
+                  Reply
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="mt-1 whitespace-pre-wrap text-[12px] text-fg-secondary">{node.entry.text}</p>
+        </div>
+        {isReplyingHere && renderCommentReplyForm(comment, true)}
+        {node.children.map((child) => renderCommentReplyNode(comment, child, depth + 1))}
+      </div>
+    )
+  }
+
+  function renderCommentReplyForm(comment: CommentEntry, nested = false) {
+    const replyDraft = replyDrafts[comment.id] ?? ''
+    const replyTarget = replyTargets[comment.id] ?? null
+    const replyingTo = replyTarget
+      ? comment.thread.find((entry) => entry.id === replyTarget)?.authorName || 'reply'
+      : null
+
+    return (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          const next = replyDraft.trim()
+          if (!next) return
+          onReply(comment.id, next, replyTarget)
+          setReplyDrafts((previous) => ({ ...previous, [comment.id]: '' }))
+          setReplyTargets((previous) => ({ ...previous, [comment.id]: null }))
+        }}
+        className="space-y-1.5"
+        style={nested ? { marginLeft: 12 } : undefined}
+      >
+        {replyingTo && (
+          <div className="flex items-center justify-between rounded border border-border bg-bg-subtle px-2 py-1">
+            <p className="text-[10px] text-fg-muted">Replying to {replyingTo}</p>
+            <button
+              type="button"
+              onClick={() => setReplyTargets((previous) => ({ ...previous, [comment.id]: null }))}
+              className="font-mono text-[10px] text-fg-secondary hover:text-fg"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+        <textarea
+          value={replyDraft}
+          onChange={(event) =>
+            setReplyDrafts((previous) => ({
+              ...previous,
+              [comment.id]: event.target.value,
+            }))
+          }
+          rows={2}
+          placeholder={replyingTo ? `Reply to ${replyingTo}` : 'Reply'}
+          className="w-full resize-none rounded border border-border bg-bg px-2 py-1.5 text-[12px] text-fg outline-none focus:border-accent"
+        />
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={replyDraft.trim().length === 0}
+            className="rounded border border-accent bg-accent px-2 py-1 font-mono text-[10px] text-accent-text disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            Reply
+          </button>
+        </div>
+      </form>
+    )
+  }
+
   function renderCommentCard(comment: CommentEntry, anchorY: number | null) {
     const expanded = expandedIds.has(comment.id) || activeCommentId === comment.id
-    const replyDraft = replyDrafts[comment.id] ?? ''
     const suggestion = comment.suggestion
     const pendingSuggestion = suggestion?.status === 'pending'
     const acceptedSuggestion = suggestion?.status === 'accepted'
     const dismissedSuggestion = suggestion?.status === 'dismissed'
     const agentMentions = getAgentMentions(comment)
+    const replyTree = buildThreadTree(comment.thread)
 
     const isPositioned = anchorY != null
 
@@ -437,20 +572,7 @@ export default function CommentPanel({
 
         {expanded && (
           <div className="mt-2 space-y-2 border-t border-border pt-2">
-            {comment.thread.map((entry: CommentEntry['thread'][number], index: number) => (
-              <div
-                key={`${comment.id}-${index}`}
-                className="rounded border border-border bg-bg-subtle px-2 py-1.5"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="font-mono text-[10px] text-fg">{entry.authorName}</p>
-                  <p className="text-[10px] text-fg-muted">{relativeTime(entry.createdAt)}</p>
-                </div>
-                <p className="mt-1 whitespace-pre-wrap text-[12px] text-fg-secondary">
-                  {entry.text}
-                </p>
-              </div>
-            ))}
+            {replyTree.map((node) => renderCommentReplyNode(comment, node))}
 
             <div className="flex items-center justify-end gap-2">
               {canEdit && pendingSuggestion && (
@@ -482,43 +604,131 @@ export default function CommentPanel({
               )}
             </div>
 
-            {canReply && !comment.resolved && (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  const next = replyDraft.trim()
-                  if (!next) return
-                  onReply(comment.id, next)
-                  setReplyDrafts((previous) => ({ ...previous, [comment.id]: '' }))
-                }}
-                className="space-y-1.5"
-              >
-                <textarea
-                  value={replyDraft}
-                  onChange={(event) =>
-                    setReplyDrafts((previous) => ({
-                      ...previous,
-                      [comment.id]: event.target.value,
-                    }))
-                  }
-                  rows={2}
-                  placeholder="Reply"
-                  className="w-full resize-none rounded border border-border bg-bg px-2 py-1.5 text-[12px] text-fg outline-none focus:border-accent"
-                />
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={replyDraft.trim().length === 0}
-                    className="rounded border border-accent bg-accent px-2 py-1 font-mono text-[10px] text-accent-text disabled:cursor-not-allowed disabled:opacity-55"
-                  >
-                    Reply
-                  </button>
-                </div>
-              </form>
-            )}
+            {canReply && !comment.resolved && (replyTargets[comment.id] ?? null) === null &&
+              renderCommentReplyForm(comment)}
           </div>
         )}
       </article>
+    )
+  }
+
+  function renderDiscussionReplyNode(
+    discussion: DiscussionEntry,
+    node: ThreadNode<DiscussionEntry['thread'][number]>,
+    depth = 0,
+  ): ReactNode {
+    const replyTarget = discussionReplyTargets[discussion.id] ?? null
+    const isReplyingHere = replyTarget === node.entry.id
+
+    return (
+      <div key={node.entry.id} className="space-y-2">
+        <div
+          className="rounded border border-border bg-bg-subtle px-2 py-1.5"
+          style={{ marginLeft: Math.min(depth, 6) * 12 }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-mono text-[10px] text-fg">
+              {node.entry.author.name || node.entry.author.userId}
+            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-fg-muted">{relativeTime(node.entry.createdAt)}</p>
+              {canReply && !discussion.resolved && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDiscussionReplyTargets((previous) => ({
+                      ...previous,
+                      [discussion.id]:
+                        previous[discussion.id] === node.entry.id ? null : node.entry.id,
+                    }))
+                  }}
+                  className="font-mono text-[10px] text-fg-secondary hover:text-fg"
+                >
+                  Reply
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="mt-1 whitespace-pre-wrap text-[12px] text-fg-secondary">{node.entry.text}</p>
+        </div>
+        {isReplyingHere && renderDiscussionReplyForm(discussion, true)}
+        {node.children.map((child) => renderDiscussionReplyNode(discussion, child, depth + 1))}
+      </div>
+    )
+  }
+
+  function renderDiscussionReplyForm(discussion: DiscussionEntry, nested = false) {
+    const replyDraft = discussionReplyDrafts[discussion.id] ?? ''
+    const replyTarget = discussionReplyTargets[discussion.id] ?? null
+    const targetEntry = replyTarget
+      ? discussion.thread.find((entry) => entry.id === replyTarget) ?? null
+      : null
+    const replyingTo = targetEntry?.author.name || targetEntry?.author.userId || null
+
+    return (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          const next = replyDraft.trim()
+          if (!next) return
+          onReplyDiscussion(discussion.id, next, replyTarget)
+          setDiscussionReplyDrafts((previous) => ({
+            ...previous,
+            [discussion.id]: '',
+          }))
+          setDiscussionReplyTargets((previous) => ({
+            ...previous,
+            [discussion.id]: null,
+          }))
+        }}
+        className="space-y-1.5"
+        style={nested ? { marginLeft: 12 } : undefined}
+      >
+        {replyingTo && (
+          <div className="flex items-center justify-between rounded border border-border bg-bg-subtle px-2 py-1">
+            <p className="text-[10px] text-fg-muted">Replying to {replyingTo}</p>
+            <button
+              type="button"
+              onClick={() =>
+                setDiscussionReplyTargets((previous) => ({ ...previous, [discussion.id]: null }))
+              }
+              className="font-mono text-[10px] text-fg-secondary hover:text-fg"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+        <textarea
+          value={replyDraft}
+          onChange={(event) =>
+            setDiscussionReplyDrafts((previous) => ({
+              ...previous,
+              [discussion.id]: event.target.value,
+            }))
+          }
+          rows={2}
+          placeholder={replyingTo ? `Reply to ${replyingTo}` : 'Reply'}
+          className="w-full resize-none rounded border border-border bg-bg px-2 py-1.5 text-[12px] text-fg outline-none focus:border-accent"
+        />
+        <div className="flex items-center justify-end gap-2">
+          {canResolve && (
+            <button
+              type="button"
+              onClick={() => onResolveDiscussion(discussion.id)}
+              className="rounded border border-border px-2 py-1 font-mono text-[10px] text-fg-secondary hover:bg-bg-subtle"
+            >
+              Resolve
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={replyDraft.trim().length === 0}
+            className="rounded border border-accent bg-accent px-2 py-1 font-mono text-[10px] text-accent-text disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            Reply
+          </button>
+        </div>
+      </form>
     )
   }
 
@@ -671,7 +881,7 @@ export default function CommentPanel({
               {visibleDiscussions.map((discussion) => {
                 const expanded =
                   expandedIds.has(discussion.id) || activeDiscussionId === discussion.id
-                const replyDraft = discussionReplyDrafts[discussion.id] ?? ''
+                const replyTree = buildThreadTree(discussion.thread)
                 return (
                   <article
                     key={discussion.id}
@@ -724,71 +934,11 @@ export default function CommentPanel({
 
                     {expanded && (
                       <div className="mt-2 space-y-2 border-t border-border pt-2">
-                        {discussion.thread.map((entry, index) => (
-                          <div
-                            key={`${discussion.id}-${index}`}
-                            className="rounded border border-border bg-bg-subtle px-2 py-1.5"
-                          >
-                            <div className="flex items-center justify-between">
-                              <p className="font-mono text-[10px] text-fg">
-                                {entry.author.name || entry.author.userId}
-                              </p>
-                              <p className="text-[10px] text-fg-muted">
-                                {relativeTime(entry.createdAt)}
-                              </p>
-                            </div>
-                            <p className="mt-1 whitespace-pre-wrap text-[12px] text-fg-secondary">
-                              {entry.text}
-                            </p>
-                          </div>
-                        ))}
+                        {replyTree.map((node) => renderDiscussionReplyNode(discussion, node))}
 
-                        {!discussion.resolved && (
-                          <form
-                            onSubmit={(event) => {
-                              event.preventDefault()
-                              const next = replyDraft.trim()
-                              if (!next) return
-                              onReplyDiscussion(discussion.id, next)
-                              setDiscussionReplyDrafts((previous) => ({
-                                ...previous,
-                                [discussion.id]: '',
-                              }))
-                            }}
-                            className="space-y-1.5"
-                          >
-                            <textarea
-                              value={replyDraft}
-                              onChange={(event) =>
-                                setDiscussionReplyDrafts((previous) => ({
-                                  ...previous,
-                                  [discussion.id]: event.target.value,
-                                }))
-                              }
-                              rows={2}
-                              placeholder="Reply"
-                              className="w-full resize-none rounded border border-border bg-bg px-2 py-1.5 text-[12px] text-fg outline-none focus:border-accent"
-                            />
-                            <div className="flex items-center justify-end gap-2">
-                              {canResolve && (
-                                <button
-                                  type="button"
-                                  onClick={() => onResolveDiscussion(discussion.id)}
-                                  className="rounded border border-border px-2 py-1 font-mono text-[10px] text-fg-secondary hover:bg-bg-subtle"
-                                >
-                                  Resolve
-                                </button>
-                              )}
-                              <button
-                                type="submit"
-                                disabled={replyDraft.trim().length === 0}
-                                className="rounded border border-accent bg-accent px-2 py-1 font-mono text-[10px] text-accent-text disabled:cursor-not-allowed disabled:opacity-55"
-                              >
-                                Reply
-                              </button>
-                            </div>
-                          </form>
-                        )}
+                        {!discussion.resolved &&
+                          (discussionReplyTargets[discussion.id] ?? null) === null &&
+                          renderDiscussionReplyForm(discussion)}
                       </div>
                     )}
                   </article>

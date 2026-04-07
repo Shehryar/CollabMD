@@ -90,8 +90,39 @@ describe('comment CRDT operations', () => {
 
     expect(stored.get('authorName')).toBe('Alice')
     expect(stored.get('resolved')).toBe(true)
+    const textAnchor = stored.get('textAnchor') as Y.Map<unknown>
+    expect(textAnchor.get('quote')).toBe('hello')
+    expect(textAnchor.get('prefix')).toBe('')
+    expect(textAnchor.get('suffix')).toBe(' world')
     expect(thread.length).toBe(1)
     expect(thread.get(0).get('authorName')).toBe('Bob')
+    expect(typeof thread.get(0).get('id')).toBe('string')
+  })
+
+  it('round-trips portable text anchor metadata through comment parsing', () => {
+    const { ydoc, ytext, ycomments } = setupDoc('hello world')
+
+    const commentId = createCommentInYArray({
+      ydoc,
+      ytext,
+      ycomments,
+      from: 6,
+      to: 11,
+      authorId: 'user-1',
+      authorName: 'Alice',
+      text: 'Focus this wording',
+      source: 'browser',
+      createdAt: '2026-02-13T10:00:00.000Z',
+    })
+
+    expect(commentId).toBeTruthy()
+
+    const parsed = listInlineComments(ycomments)
+    expect(parsed[0]?.textAnchor).toEqual({
+      quote: 'world',
+      prefix: 'hello ',
+      suffix: '',
+    })
   })
 
   it('keeps anchor ranges stable after edits before the anchor', () => {
@@ -244,6 +275,58 @@ describe('comment CRDT operations', () => {
 })
 
 describe('useComments hook', () => {
+  it('supports nested replies in parsed comment threads', () => {
+    const { ydoc, ytext, ycomments } = setupDoc('alpha beta gamma')
+
+    const commentId = createCommentInYArray({
+      ydoc,
+      ytext,
+      ycomments,
+      from: 0,
+      to: 5,
+      authorId: 'user-1',
+      authorName: 'Alice',
+      text: 'Top-level comment',
+      source: 'browser',
+      createdAt: '2026-02-13T10:00:00.000Z',
+    })
+
+    expect(commentId).toBeTruthy()
+
+    replyToCommentInYArray({
+      ydoc,
+      ycomments,
+      commentId: commentId!,
+      authorId: 'user-2',
+      authorName: 'Bob',
+      text: 'First reply',
+      createdAt: '2026-02-13T10:01:00.000Z',
+    })
+
+    const firstReplyId = ((ycomments.get(0).get('thread') as Y.Array<Y.Map<unknown>>).get(0).get(
+      'id'
+    ) as string)
+
+    replyToCommentInYArray({
+      ydoc,
+      ycomments,
+      commentId: commentId!,
+      parentId: firstReplyId,
+      authorId: 'user-3',
+      authorName: 'Cara',
+      text: 'Nested reply',
+      createdAt: '2026-02-13T10:02:00.000Z',
+    })
+
+    const parsed = listInlineComments(ycomments)
+    expect(parsed[0]?.thread).toHaveLength(2)
+    expect(parsed[0]?.thread[1]).toMatchObject({
+      parentId: firstReplyId,
+      authorName: 'Cara',
+      text: 'Nested reply',
+    })
+  })
+
   it('updates comment list from Y.Array observe events', async () => {
     const { ydoc, ytext, ycomments } = setupDoc('alpha beta gamma')
     type HookSnapshot = {

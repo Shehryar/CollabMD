@@ -10,6 +10,8 @@ const SUGGESTION_DISMISS_ORIGIN = 'suggestion-dismiss'
 const DEFAULT_WRITE_DEBOUNCE_MS = 200
 
 interface SidecarThreadEntry {
+  id: string
+  parentId?: string
   author: string
   text: string
   createdAt: string
@@ -21,6 +23,12 @@ interface SidecarSuggestion {
   status: 'pending' | 'accepted' | 'dismissed'
 }
 
+interface SidecarTextAnchor {
+  quote: string
+  prefix: string
+  suffix: string
+}
+
 interface SidecarComment {
   id: string
   line: number
@@ -30,6 +38,7 @@ interface SidecarComment {
   text: string
   createdAt: string
   resolved: boolean
+  textAnchor?: SidecarTextAnchor
   thread: SidecarThreadEntry[]
   suggestion?: SidecarSuggestion
 }
@@ -48,6 +57,7 @@ interface ParsedSidecarComment {
   text: string
   createdAt: string
   resolved: boolean
+  textAnchor?: SidecarTextAnchor
   thread: SidecarThreadEntry[]
   suggestion?: SidecarSuggestion
 }
@@ -168,6 +178,7 @@ export class CommentBridge {
       if (!(threadValue instanceof Y.Array)) comment.set('thread', thread)
 
       const reply = new Y.Map<unknown>()
+      reply.set('id', this.createReplyId(author, text, createdAt))
       reply.set('authorId', author)
       reply.set('authorName', author)
       reply.set('text', text)
@@ -301,6 +312,7 @@ export class CommentBridge {
         }
 
         this.syncThreadReplies(current, comment.thread)
+        this.syncTextAnchor(current, comment.textAnchor)
         this.syncSuggestion(current, comment.suggestion)
         this.collectSuggestionActions(current, comment.suggestion, suggestionActions)
       }
@@ -356,6 +368,9 @@ export class CommentBridge {
     ycomment.set('text', comment.text)
     ycomment.set('createdAt', comment.createdAt)
     ycomment.set('resolved', comment.resolved)
+    if (comment.textAnchor) {
+      ycomment.set('textAnchor', this.createYTextAnchor(comment.textAnchor))
+    }
     if (comment.suggestion) {
       ycomment.set('suggestion', this.createYSuggestion(comment.suggestion))
     }
@@ -363,6 +378,8 @@ export class CommentBridge {
     const thread = new Y.Array<Y.Map<unknown>>()
     for (const reply of comment.thread) {
       const yreply = new Y.Map<unknown>()
+      yreply.set('id', reply.id)
+      if (reply.parentId) yreply.set('parentId', reply.parentId)
       yreply.set('authorId', reply.author)
       yreply.set('authorName', reply.author)
       yreply.set('text', reply.text)
@@ -374,12 +391,32 @@ export class CommentBridge {
     return ycomment
   }
 
+  private createYTextAnchor(anchor: SidecarTextAnchor): Y.Map<unknown> {
+    const yanchor = new Y.Map<unknown>()
+    yanchor.set('quote', anchor.quote)
+    yanchor.set('prefix', anchor.prefix)
+    yanchor.set('suffix', anchor.suffix)
+    return yanchor
+  }
+
   private createYSuggestion(suggestion: SidecarSuggestion): Y.Map<unknown> {
     const ysuggestion = new Y.Map<unknown>()
     ysuggestion.set('originalText', suggestion.originalText)
     ysuggestion.set('proposedText', suggestion.proposedText)
     ysuggestion.set('status', suggestion.status)
     return ysuggestion
+  }
+
+  private syncTextAnchor(comment: Y.Map<unknown>, incomingAnchor: SidecarTextAnchor | undefined): void {
+    if (!incomingAnchor) return
+
+    const current = comment.get('textAnchor')
+    const anchor = current instanceof Y.Map ? current : this.createYTextAnchor(incomingAnchor)
+    if (!(current instanceof Y.Map)) comment.set('textAnchor', anchor)
+
+    anchor.set('quote', incomingAnchor.quote)
+    anchor.set('prefix', incomingAnchor.prefix)
+    anchor.set('suffix', incomingAnchor.suffix)
   }
 
   private syncSuggestion(
@@ -525,10 +562,15 @@ export class CommentBridge {
     const existingSignatures = new Set<string>()
     for (const value of thread.toArray()) {
       if (!(value instanceof Y.Map)) continue
+      const author = this.asString(value.get('authorName')) || this.asString(value.get('authorId'))
+      const text = this.asString(value.get('text'))
+      const createdAt = this.asString(value.get('createdAt'))
       const signature = this.replySignature({
-        author: this.asString(value.get('authorName')) || this.asString(value.get('authorId')),
-        text: this.asString(value.get('text')),
-        createdAt: this.asString(value.get('createdAt')),
+        id: this.asString(value.get('id')).trim() || this.createReplyId(author, text, createdAt),
+        parentId: this.asString(value.get('parentId')).trim() || undefined,
+        author,
+        text,
+        createdAt,
       })
       existingSignatures.add(signature)
     }
@@ -538,6 +580,8 @@ export class CommentBridge {
       if (existingSignatures.has(signature)) continue
 
       const yreply = new Y.Map<unknown>()
+      yreply.set('id', reply.id)
+      if (reply.parentId) yreply.set('parentId', reply.parentId)
       yreply.set('authorId', reply.author)
       yreply.set('authorName', reply.author)
       yreply.set('text', reply.text)
@@ -675,8 +719,36 @@ export class CommentBridge {
       text,
       createdAt: this.asString(value.get('createdAt')),
       resolved: this.asBool(value.get('resolved')),
+      textAnchor: this.serializeTextAnchor(value) ?? undefined,
       thread: this.serializeThread(value.get('thread')),
       suggestion: suggestion ?? undefined,
+    }
+  }
+
+  private serializeTextAnchor(comment: Y.Map<unknown>): SidecarTextAnchor | null {
+    const current = comment.get('textAnchor')
+    if (current instanceof Y.Map) {
+      const quote = this.asString(current.get('quote'))
+      if (quote) {
+        return {
+          quote,
+          prefix: this.asString(current.get('prefix')),
+          suffix: this.asString(current.get('suffix')),
+        }
+      }
+    }
+
+    const range = this.getCommentRange(comment)
+    if (!range) return null
+    const content = this.ytext.toString()
+    const start = Math.max(0, Math.min(range.from, range.to))
+    const end = Math.max(0, Math.max(range.from, range.to))
+    if (start === end) return null
+
+    return {
+      quote: content.slice(start, end),
+      prefix: content.slice(Math.max(0, start - 40), start),
+      suffix: content.slice(end, Math.min(content.length, end + 40)),
     }
   }
 
@@ -702,10 +774,14 @@ export class CommentBridge {
       const text = this.asString(entry.get('text')).trim()
       if (!text) continue
 
+      const author = this.asString(entry.get('authorName')) || this.asString(entry.get('authorId'))
+      const createdAt = this.asString(entry.get('createdAt'))
       thread.push({
-        author: this.asString(entry.get('authorName')) || this.asString(entry.get('authorId')),
+        id: this.asString(entry.get('id')).trim() || this.createReplyId(author, text, createdAt),
+        parentId: this.asString(entry.get('parentId')).trim() || undefined,
+        author,
         text,
-        createdAt: this.asString(entry.get('createdAt')),
+        createdAt,
       })
     }
 
@@ -766,6 +842,7 @@ export class CommentBridge {
       resolved?: unknown
       thread?: unknown
       suggestion?: unknown
+      textAnchor?: unknown
     }
 
     const id = this.asString(candidate.id).trim()
@@ -786,8 +863,23 @@ export class CommentBridge {
       text,
       createdAt: this.asString(candidate.createdAt) || new Date().toISOString(),
       resolved: this.asBool(candidate.resolved),
+      textAnchor: this.parseTextAnchor(candidate.textAnchor) ?? undefined,
       thread: this.parseThread(candidate.thread),
       suggestion: this.parseSuggestion(candidate.suggestion) ?? undefined,
+    }
+  }
+
+  private parseTextAnchor(value: unknown): SidecarTextAnchor | null {
+    if (!value || typeof value !== 'object') return null
+
+    const candidate = value as { quote?: unknown; prefix?: unknown; suffix?: unknown }
+    const quote = this.asString(candidate.quote)
+    if (!quote) return null
+
+    return {
+      quote,
+      prefix: this.asString(candidate.prefix),
+      suffix: this.asString(candidate.suffix),
     }
   }
 
@@ -797,14 +889,24 @@ export class CommentBridge {
     const thread: SidecarThreadEntry[] = []
     for (const entry of value) {
       if (!entry || typeof entry !== 'object') continue
-      const candidate = entry as { author?: unknown; text?: unknown; createdAt?: unknown }
+      const candidate = entry as {
+        id?: unknown
+        parentId?: unknown
+        author?: unknown
+        text?: unknown
+        createdAt?: unknown
+      }
       const text = this.asString(candidate.text).trim()
       if (!text) continue
 
+      const author = this.asString(candidate.author)
+      const createdAt = this.asString(candidate.createdAt) || new Date().toISOString()
       thread.push({
-        author: this.asString(candidate.author),
+        id: this.asString(candidate.id).trim() || this.createReplyId(author, text, createdAt),
+        parentId: this.asString(candidate.parentId).trim() || undefined,
+        author,
         text,
-        createdAt: this.asString(candidate.createdAt) || new Date().toISOString(),
+        createdAt,
       })
     }
 
@@ -850,8 +952,12 @@ export class CommentBridge {
     return null
   }
 
+  private createReplyId(author: string, text: string, createdAt: string): string {
+    return createHash('sha256').update(`${author}\u0000${text}\u0000${createdAt}`).digest('hex')
+  }
+
   private replySignature(value: SidecarThreadEntry): string {
-    return `${value.author}\u0000${value.text}\u0000${value.createdAt}`
+    return `${value.id}\u0000${value.parentId ?? ''}\u0000${value.author}\u0000${value.text}\u0000${value.createdAt}`
   }
 
   private hash(value: string): string {
